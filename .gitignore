@@ -1,0 +1,75 @@
+# Environment and secrets
+**/.env
+**/.env.*
+**/*.local
+!**/.env.example
+
+# Build outputs
+**/build/
+**/dist/
+**/out/
+**/target/
+**/.gradle/
+**/.vite/
+
+# Packages, virtualenvs, caches
+**/node_modules/
+**/.venv/
+**/venv/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+**/.cache/
+
+# Logs and temp files
+**/logs/
+**/log/
+**/tmp/
+**/temp/
+**/*.log
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+
+# Model and training artifacts
+**/*.pt
+**/*.pth
+**/*.onnx
+**/*.engine
+**/*.ckpt
+**/*.h5
+**/*.pkl
+**/*.joblib
+**/*.mlflow
+
+# Experiment data and outputs
+experiments/datasets/*
+!experiments/datasets/.gitkeep
+experiments/results/*
+!experiments/results/.gitkeep
+experiments/runs/*
+!experiments/runs/.gitkeep
+experiments/models/*
+!experiments/models/.gitkeep
+
+# AI worker model and temp directories
+ai-worker/models/*
+!ai-worker/models/.gitkeep
+ai-worker/tmp/*
+!ai-worker/tmp/.gitkeep
+
+# Kubernetes secret manifests
+k8s/**/*secret*.yaml
+k8s/**/*secret*.yml
+!k8s/_examples/**
+
+# Docs are intentionally excluded
+docs/
+
+# Keep tracking placeholders and examples
+!**/.gitkeep
+!**/.env.example
+!k8s/_examples/**
