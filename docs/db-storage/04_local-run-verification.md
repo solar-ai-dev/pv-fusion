@@ -246,6 +246,14 @@ docker exec -it pv-fusion-postgres psql -U pvfusion -d pv_fusion_local -c "selec
 
 정상이라면 `V1`부터 `V5`까지 `success = t`로 보여야 한다.
 
+선택 사항:
+
+```powershell
+.\docker\postgres\scripts\check-flyway-state.ps1
+```
+
+이 스크립트는 로컬 PostgreSQL 컨테이너에 대해 테이블 목록과 `flyway_schema_history`를 한 번에 확인하는 검증용 보조 스크립트다.
+
 ---
 
 ## 8. 자주 발생하는 이슈

@@ -2,6 +2,9 @@
 **/.env
 **/.env.*
 **/*.local
+**/application-*.local.yml
+**/application-*.local.yaml
+**/application-*.local.properties
 !**/.env.example
 
 # Build outputs
@@ -33,6 +36,7 @@
 .DS_Store
 Thumbs.db
 .idea/
+.vscode/
 
 # Model and training artifacts
 **/*.pt

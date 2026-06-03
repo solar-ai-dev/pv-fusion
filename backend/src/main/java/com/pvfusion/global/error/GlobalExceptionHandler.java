@@ -36,7 +36,7 @@ public class GlobalExceptionHandler {
                 .map(this::formatFieldError)
                 .collect(Collectors.joining("; "));
 
-        return buildResponse(ErrorCode.INVALID_REQUEST, detail, request.getRequestURI());
+        return buildResponse(ErrorCode.INVALID_INPUT, detail, request.getRequestURI());
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -49,7 +49,7 @@ public class GlobalExceptionHandler {
                 .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
                 .collect(Collectors.joining("; "));
 
-        return buildResponse(ErrorCode.INVALID_REQUEST, detail, request.getRequestURI());
+        return buildResponse(ErrorCode.INVALID_INPUT, detail, request.getRequestURI());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -57,7 +57,7 @@ public class GlobalExceptionHandler {
             IllegalArgumentException exception,
             HttpServletRequest request
     ) {
-        return buildResponse(ErrorCode.INVALID_REQUEST, exception.getMessage(), request.getRequestURI());
+        return buildResponse(ErrorCode.INVALID_INPUT, exception.getMessage(), request.getRequestURI());
     }
 
     @ExceptionHandler(Exception.class)
