@@ -66,9 +66,6 @@ k8s/**/*secret*.yaml
 k8s/**/*secret*.yml
 !k8s/_examples/**
 
-# Docs are intentionally excluded
-docs/
-
 # Keep tracking placeholders and examples
 !**/.gitkeep
 !**/.env.example
