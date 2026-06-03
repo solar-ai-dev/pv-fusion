@@ -2,6 +2,9 @@
 **/.env
 **/.env.*
 **/*.local
+**/application-*.local.yml
+**/application-*.local.yaml
+**/application-*.local.properties
 !**/.env.example
 
 # Build outputs
@@ -33,6 +36,7 @@
 .DS_Store
 Thumbs.db
 .idea/
+.vscode/
 
 # Model and training artifacts
 **/*.pt
@@ -65,9 +69,6 @@ ai-worker/tmp/*
 k8s/**/*secret*.yaml
 k8s/**/*secret*.yml
 !k8s/_examples/**
-
-# Docs are intentionally excluded
-docs/
 
 # Keep tracking placeholders and examples
 !**/.gitkeep

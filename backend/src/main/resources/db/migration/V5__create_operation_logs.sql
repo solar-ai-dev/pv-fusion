@@ -1,0 +1,21 @@
+CREATE TABLE operation_logs (
+    id BIGSERIAL PRIMARY KEY,
+    actor_user_id BIGINT REFERENCES users (id),
+    event_category VARCHAR(30) NOT NULL,
+    event_type VARCHAR(50) NOT NULL,
+    target_table VARCHAR(100),
+    target_id BIGINT,
+    plant_id BIGINT REFERENCES plants (id),
+    zone_id BIGINT REFERENCES zones (id),
+    inspection_id BIGINT REFERENCES inspections (id),
+    image_id BIGINT REFERENCES inspection_images (id),
+    image_pair_id BIGINT REFERENCES image_pairs (id),
+    analysis_job_id BIGINT REFERENCES analysis_jobs (id),
+    analysis_result_id BIGINT REFERENCES analysis_results (id),
+    ip_address VARCHAR(100),
+    user_agent TEXT,
+    message TEXT,
+    detail TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

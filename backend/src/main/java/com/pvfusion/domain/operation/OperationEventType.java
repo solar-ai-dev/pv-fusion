@@ -1,0 +1,13 @@
+package com.pvfusion.domain.operation;
+
+public enum OperationEventType {
+    LOGIN,
+    USER_APPROVED,
+    USER_ROLE_CHANGED,
+    USER_DEACTIVATED,
+    IMAGE_UPLOADED,
+    ANALYSIS_REQUESTED,
+    RESULT_REVIEW_STATUS_CHANGED,
+    RESULT_ACTION_CANDIDATE_CHANGED,
+    SYSTEM_ERROR
+}
