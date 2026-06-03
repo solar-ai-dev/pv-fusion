@@ -75,5 +75,5 @@ k8s/**/*secret*.yml
 !**/.env.example
 !k8s/_examples/**
 
-# experiments
-experiments/
+# Experiments
+/experiments/
