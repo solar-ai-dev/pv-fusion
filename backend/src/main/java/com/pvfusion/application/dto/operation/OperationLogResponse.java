@@ -11,9 +11,8 @@ public record OperationLogResponse(
         String actorRole,
         OperationEventCategory eventCategory,
         OperationEventType eventType,
-        String targetType,
+        String targetTable,
         Long targetId,
-        String action,
         Long plantId,
         Long zoneId,
         Long inspectionId,
@@ -22,10 +21,8 @@ public record OperationLogResponse(
         Long analysisJobId,
         Long analysisResultId,
         String message,
-        String requestPath,
-        String httpMethod,
-        String clientIp,
-        String traceId,
+        String ipAddress,
+        String userAgent,
         String detail,
         OffsetDateTime createdAt
 ) {
