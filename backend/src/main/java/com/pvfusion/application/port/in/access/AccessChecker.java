@@ -4,6 +4,10 @@ public interface AccessChecker {
 
     boolean isAdmin(Long userId);
 
+    /**
+     * A false result is mapped to {@code FORBIDDEN} by default in the service layer.
+     * Whether hidden resources should be mapped to {@code NOT_FOUND} remains a later decision.
+     */
     boolean checkPlantAccess(Long userId, Long plantId);
 
     boolean checkZoneAccess(Long userId, Long zoneId);
