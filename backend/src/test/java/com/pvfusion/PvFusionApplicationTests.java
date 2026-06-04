@@ -2,9 +2,10 @@ package com.pvfusion;
 
 import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.user.UserRepositoryPort;
+import com.pvfusion.service.inspection.InspectionService;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -12,17 +13,19 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @ActiveProfiles("test")
 class PvFusionApplicationTests {
 
-	@MockitoBean
-	private UserRepositoryPort userRepositoryPort;
+    @MockitoBean
+    private CurrentUserPort currentUserPort;
 
-	@MockitoBean
-	private CurrentUserPort currentUserPort;
+    @MockitoBean
+    private UserRepositoryPort userRepositoryPort;
 
-	@MockitoBean
-	private ClientRegistrationRepository clientRegistrationRepository;
+    @MockitoBean
+    private ClientRegistrationRepository clientRegistrationRepository;
 
-	@Test
-	void contextLoads() {
-	}
+    @MockitoBean
+    private InspectionService inspectionService;
 
+    @Test
+    void contextLoads() {
+    }
 }
