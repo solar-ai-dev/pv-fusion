@@ -1,47 +1,58 @@
 ## 1. 실험 목적
 
-MVP 초기 단계에서는 **RGB 단건 분석 모델**과 **열화상 단건 분석 모델**을 먼저 구축하여 서비스 적용 가능한 단일 모달 baseline을 확보
+MVP 초기 단계에서는 **RGB 단건 분석 모델**과 **열화상 단건 분석 모델**을 먼저 구축하여 서비스 적용 가능한 단일 모달 baseline을 확보한다.
 
-단건 분석 결과가 서비스 분석 흐름에 적용 가능한지 확인한 뒤, RGB-Thermal Fusion은 후속 고도화 실험으로 진행
+단건 분석 결과가 서비스 분석 흐름에 적용 가능한지 확인한 뒤, RGB-Thermal Fusion은 후속 고도화 실험으로 진행한다.
 
-Fusion 실험은 라벨 없는 RGB-Thermal 정상 pair와 synthetic paired dataset을 활용해 단건 baseline 대비 성능 개선 여부를 검증
+Fusion 실험은 RGB-only / Thermal-only 단건 baseline과 단건 모델 배포 검증이 완료된 이후, O&M RGB-Thermal 정상 pair와 synthetic paired dataset을 활용하여 단건 baseline 대비 성능 개선 여부를 검증한다.
 
-모델 구조는 실험 전반에서 **YOLO26 계열로 고정**
+모델 구조는 실험 전반에서 **YOLO26 계열로 고정**한다.
 
 ---
 
 ## 2. 전체 실험 흐름
 
 ```
-단건 데이터셋 선정 및 baseline 구성
-→ YOLO26 RGB-only / Thermal-only 실험
-→ 단건 모델 ONNX 서빙 검증
-→ RGB-Thermal pair 데이터 생성
-→ Synthetic paired dataset 생성 및 품질 검증
-→ YOLO26 RGB-Thermal Fusion 후속 실험
-→ 배포 최적화 및 최종 모델 선정
-→ 실험 결과 아카이브 누적
+단건 데이터셋 선정
+→ YOLO26 RGB-only baseline 실험
+→ YOLO26 Thermal-only baseline 실험
+→ 단건 모델 ONNX 변환 및 CPU 추론 검증
+→ O&M RGB-Thermal 정상 pair 기반 crop pair 생성
+→ Synthetic paired dataset 생성
+→ Anomalib 기반 synthetic 품질 검증
+→ YOLO26 기반 RGB-Thermal Fusion 후속 실험
+→ Fusion 후보 선정 시 별도 배포 최적화 검증
 ```
 
 ---
 
-## 3. 실험 방향 요약
+## 3. 공통 관리 기준
+
+평가지표 및 선정 기준은 전체 실험이 끝난 뒤 한 번 정리하는 것이 아니라, 각 실험 단계에서 함께 적용한다.
+
+RGB 단건, 열화상 단건, 단건 배포 검증, Synthetic 품질 검증, Fusion 후속 실험은 각각의 실험 ID 기준으로 결과를 기록한다.
+
+실험 결과는 `RGB-EXP`, `TH-EXP`, `DEP-EXP`, `ANO-EXP`, `FUS-EXP` 단위로 누적 관리한다.
+
+각 실험 기록에는 비교 대상, 고정 조건, 핵심 지표, 보조 지표, 결과 및 계산 기준, 최종 선택, 판정, 산출물, 메모를 남긴다.
+
+---
+
+## 4. 실험 방향 요약
 
 | 구분 | 데이터셋 | 실험 방향 |
 | --- | --- | --- |
-| RGB 단건 | New Solar Panel RGB Faults / RGB 결함 source bank / synthetic RGB dataset / 혼합 데이터셋 | YOLO26 기반 RGB-only baseline을 먼저 학습하고 외관 결함, 오염, 음영, 파손 등 RGB 이상 후보 탐지 성능 확인 |
-| 열화상 단건 | ThermoSolar-PV / Thermal 결함 source bank / synthetic Thermal dataset / 혼합 데이터셋 | YOLO26 기반 Thermal-only baseline을 먼저 학습하고 hotspot, diode, substring, string fault 계열 발열 이상 탐지 성능 확인 |
-| 단건 배포 검증 | RGB-only / Thermal-only 최종 후보 모델 | YOLO26 ONNX 변환, CPU 추론, threshold, 결과 포맷, AI Worker 모델 라우팅 검증 |
-| RGB-Thermal 정상 pair | O&M RGB-Thermal 정상 pair | Fusion 학습용 base dataset으로 사용하되, 단건 baseline 이후 pair 데이터 생성 단계에서 활용 |
-| 패널/배열 Segmentation | 소량 수동 라벨링한 O&M RGB/Thermal 대표 샘플 | YOLO26-seg로 panel, array, background mask를 학습하고 라벨 없는 pair에 pseudo mask 생성 |
+| RGB 단건 | New Solar Panel RGB Faults | YOLO26-seg 기반 RGB-only baseline을 먼저 학습하고 외관 결함, 오염, 음영, 파손 등 RGB 이상 후보 탐지 성능 확인 |
+| 열화상 단건 | ThermoSolar-PV | YOLO26 detection 기반 Thermal-only baseline을 먼저 학습하고 hotspot, diode, substring, string fault 계열 발열 이상 탐지 성능 확인 |
+| 단건 배포 검증 | RGB-only / Thermal-only 최종 후보 모델 | PyTorch FP32 모델을 ONNX FP32로 변환하고 ONNX Runtime CPU 기준 단건 추론, 결과 포맷, AI Worker 모델 라우팅 검증 |
+| RGB-Thermal 정상 pair | O&M RGB-Thermal 정상 pair | 단건 baseline 이후 Fusion 후속 실험용 crop pair 생성 단계에서 활용 |
+| 패널/배열 Segmentation | 소량 수동 라벨링한 O&M RGB/Thermal 대표 샘플 | 필요한 경우 YOLO26-seg로 panel, array, background mask를 학습하고 라벨 없는 pair에 pseudo mask 생성 |
 | Crop pair 생성 | O&M RGB-Thermal 정상 pair + pseudo mask | 동일 패널/배열 기준 RGB crop과 Thermal crop을 생성하고 pair 정합성 검증 |
-| Source Bank 및 Synthetic Defect | 정상 crop pair + RGB/Thermal 결함 source bank | 결함 유형별 RGB/Thermal source bank를 구축하고 정상 crop pair 위에 결함을 합성하여 bbox, mask, class, severity, pair_type 자동 생성 |
-| 품질 검증 | synthetic paired defect crop | Anomalib heatmap, generator mask/bbox, panel mask 품질, pair 정합성, class 정합성 검증 |
-| Fusion 후속 실험 | synthetic RGB-Thermal paired dataset | 단건 baseline 확보 후 YOLO26 기반 Late Fusion 우선 실험, Early Fusion은 후순위 후보로 비교 |
-| Fusion 배포 최적화 | 최종 Fusion 후보 모델 | YOLO26 Fusion 후보의 ONNX 변환, CPU 추론, INT8 양자화 적용 가능성 검토 |
-| 최종 선정 | 단건 모델 + Fusion 후보 | 서비스 적용성, 성능, 추론 속도, ONNX 안정성, 결과 포맷 정합성 기준으로 최종 후보 선정 |
-
----
+| Source Bank 및 Synthetic Defect | 정상 crop pair + RGB/Thermal 결함 source bank | 결함 유형별 RGB/Thermal source bank를 구축하고 정상 crop pair 위에 결함을 합성하여 bbox, mask, fusion_class, severity, pair_type 자동 생성 |
+| 품질 검증 | synthetic paired defect crop | Anomalib heatmap, generator mask/bbox, pair 정합성, fusion_class 정합성, 합성 현실감 기준으로 사용 / 보류 / 제외 판정 |
+| Fusion 후속 실험 | synthetic RGB-Thermal paired dataset | 단건 baseline 확보 후 YOLO26 기반 Late Fusion 우선 실험, Early Fusion은 후순위 후보로 검토 |
+| Fusion 배포 최적화 | Fusion 최종 후보 모델 | Fusion 최종 후보가 선정된 경우에만 ONNX 변환, CPU 추론, 결과 포맷 정합성, INT8 양자화 가능성 검토 |
+| 최종 선정 | 단건 모델 + Fusion 후속 후보 | 1차는 RGB-only / Thermal-only 단건 모델을 선정하고, Fusion은 후속 실험에서 개선 효과가 확인된 경우 후보로 관리 |
 
 ## 4. 하위 문서 구성
 
