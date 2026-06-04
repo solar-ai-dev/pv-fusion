@@ -239,7 +239,7 @@ GET /api/v1/plants?page=0&size=20&sort=createdAt,desc
 | API ID              | API명                  |           Method | Endpoint                                | 비로그인 | 승인 대기 | 일반 사용자 | 관리자 | 시스템/Internal | 데이터 범위              |
 | ------------------- | --------------------- | ---------------: | --------------------------------------- | ---: | ----: | -----: | --: | -----------: | ------------------- |
 | API-AUTH-001        | Google 로그인 시작         |              GET | `/auth/google`                          |    O |     O |      O |   O |            - | 없음                  |
-| API-AUTH-002        | OAuth2 Callback       |              GET | `/auth/oauth2/callback`                 |    O |     O |      O |   O |            - | 없음                  |
+| API-AUTH-002        | OAuth2 Callback       |              GET | `/auth/oauth2/callback/{registrationId}` |    O |     O |      O |   O |            - | 없음                  |
 | API-AUTH-003        | 내 정보 조회               |              GET | `/auth/me`                              |    - |     O |      O |   O |            - | 본인                  |
 | API-AUTH-004        | 로그아웃                  |             POST | `/auth/logout`                          |    - |     O |      O |   O |            - | 본인                  |
 | API-ADMIN-USER-001  | 승인 대기 회원 목록 조회        |              GET | `/admin/users/pending`                  |    - |     - |      - |   O |            - | 전체                  |
@@ -326,8 +326,8 @@ GET /api/v1/plants?page=0&size=20&sort=createdAt,desc
 | 항목       | 내용                                                     |
 | -------- | ------------------------------------------------------ |
 | Method   | GET                                                    |
-| Endpoint | `/api/v1/auth/oauth2/callback`                         |
-| 설명       | Google OAuth2 인증 결과를 처리한다. 최초 로그인 사용자는 승인 대기 상태로 등록한다. |
+| Endpoint | `/api/v1/auth/oauth2/callback/{registrationId}`        |
+| 설명       | Google OAuth2 인증 결과를 처리한다. 최초 로그인 사용자는 승인 대기 상태로 등록한다. 현재 provider 식별자는 `google`을 사용하며 예시는 `/api/v1/auth/oauth2/callback/google`이다. |
 | 권한       | 비로그인 포함 전체                                             |
 | 성공 코드    | 302                                                    |
 | 관련 요구사항  | FR-001, FR-002, FR-003                                 |

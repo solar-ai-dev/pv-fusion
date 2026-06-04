@@ -12,7 +12,7 @@ import com.pvfusion.application.port.in.inspection.CreateInspectionUseCase;
 import com.pvfusion.application.port.in.inspection.GetInspectionUseCase;
 import com.pvfusion.application.port.in.inspection.QueryInspectionUseCase;
 import com.pvfusion.application.port.in.inspection.UpdateInspectionUseCase;
-import com.pvfusion.application.port.out.access.AccessChecker;
+import com.pvfusion.application.port.in.access.AccessChecker;
 import com.pvfusion.application.port.out.inspection.LoadInspectionPort;
 import com.pvfusion.application.port.out.inspection.SaveInspectionPort;
 import com.pvfusion.application.port.out.inspection.UpdateInspectionPort;
