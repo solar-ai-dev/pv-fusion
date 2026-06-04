@@ -11,7 +11,7 @@ import com.pvfusion.application.dto.inspection.CreateInspectionCommand;
 import com.pvfusion.application.dto.inspection.GetInspectionQuery;
 import com.pvfusion.application.dto.inspection.InspectionListQuery;
 import com.pvfusion.application.dto.inspection.UpdateInspectionCommand;
-import com.pvfusion.application.port.out.access.AccessChecker;
+import com.pvfusion.application.port.in.access.AccessChecker;
 import com.pvfusion.application.port.out.inspection.LoadInspectionPort;
 import com.pvfusion.application.port.out.inspection.SaveInspectionPort;
 import com.pvfusion.application.port.out.inspection.UpdateInspectionPort;
