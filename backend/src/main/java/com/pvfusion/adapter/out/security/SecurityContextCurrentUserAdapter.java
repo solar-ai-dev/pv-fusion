@@ -1,6 +1,7 @@
 package com.pvfusion.adapter.out.security;
 
 import com.pvfusion.application.port.out.auth.CurrentUserPort;
+import com.pvfusion.global.security.AuthenticatedUserPrincipal;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.security.core.Authentication;
@@ -57,6 +58,10 @@ public class SecurityContextCurrentUserAdapter implements CurrentUserPort {
 
         if (source instanceof Integer value) {
             return Optional.of(value.longValue());
+        }
+
+        if (source instanceof AuthenticatedUserPrincipal principal) {
+            return Optional.ofNullable(principal.getUserId());
         }
 
         if (source instanceof OidcUser oidcUser) {

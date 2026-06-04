@@ -12,6 +12,8 @@ public interface UserRepositoryPort {
 
     Optional<User> findById(Long userId);
 
+    Optional<User> findByEmail(String email);
+
     Optional<User> findByProviderAndProviderUserId(String provider, String providerUserId);
 
     User save(User user);
