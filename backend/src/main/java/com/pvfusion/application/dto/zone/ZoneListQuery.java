@@ -1,0 +1,7 @@
+package com.pvfusion.application.dto.zone;
+
+public record ZoneListQuery(
+        Long actorUserId,
+        Long plantId
+) {
+}

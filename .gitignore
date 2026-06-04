@@ -49,15 +49,6 @@ Thumbs.db
 **/*.joblib
 **/*.mlflow
 
-# Experiment data and outputs
-experiments/datasets/*
-!experiments/datasets/.gitkeep
-experiments/results/*
-!experiments/results/.gitkeep
-experiments/runs/*
-!experiments/runs/.gitkeep
-experiments/models/*
-!experiments/models/.gitkeep
 
 # AI worker model and temp directories
 ai-worker/models/*
@@ -74,3 +65,6 @@ k8s/**/*secret*.yml
 !**/.gitkeep
 !**/.env.example
 !k8s/_examples/**
+
+# Experiments
+/experiments/
