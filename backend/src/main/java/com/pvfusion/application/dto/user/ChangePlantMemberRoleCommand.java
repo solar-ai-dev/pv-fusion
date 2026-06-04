@@ -4,7 +4,8 @@ import com.pvfusion.domain.plant.PlantMemberRole;
 
 public record ChangePlantMemberRoleCommand(
         Long actorUserId,
-        Long plantMemberId,
+        Long plantId,
+        Long userId,
         PlantMemberRole memberRole
 ) {
 }
