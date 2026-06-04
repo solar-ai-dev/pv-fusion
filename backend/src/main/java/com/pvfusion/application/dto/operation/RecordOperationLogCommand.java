@@ -3,15 +3,16 @@ package com.pvfusion.application.dto.operation;
 import com.pvfusion.domain.operation.OperationEventCategory;
 import com.pvfusion.domain.operation.OperationEventType;
 
+/**
+ * Persistable operation log fields only.
+ * Do not put secrets, tokens, raw request bodies, or presigned URLs into this command.
+ */
 public record RecordOperationLogCommand(
         Long actorUserId,
-        String actorEmail,
-        String actorRole,
         OperationEventCategory eventCategory,
         OperationEventType eventType,
-        String targetType,
+        String targetTable,
         Long targetId,
-        String action,
         Long plantId,
         Long zoneId,
         Long inspectionId,
@@ -20,10 +21,8 @@ public record RecordOperationLogCommand(
         Long analysisJobId,
         Long analysisResultId,
         String message,
-        String requestPath,
-        String httpMethod,
-        String clientIp,
-        String traceId,
+        String ipAddress,
+        String userAgent,
         String detail
 ) {
 }

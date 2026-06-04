@@ -11,11 +11,9 @@ public record OperationLogSummaryResponse(
         String actorRole,
         OperationEventCategory eventCategory,
         OperationEventType eventType,
-        String targetType,
+        String targetTable,
         Long targetId,
-        String action,
         String message,
-        String traceId,
         OffsetDateTime createdAt
 ) {
 }
