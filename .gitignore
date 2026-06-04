@@ -10,7 +10,6 @@
 # Build outputs
 **/build/
 **/dist/
-**/out/
 **/target/
 **/.gradle/
 **/.vite/
