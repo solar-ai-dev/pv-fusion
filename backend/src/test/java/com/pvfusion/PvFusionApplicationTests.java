@@ -5,6 +5,7 @@ import com.pvfusion.application.port.out.user.UserRepositoryPort;
 import com.pvfusion.service.image.ImageService;
 import com.pvfusion.service.imagepair.ImagePairService;
 import com.pvfusion.service.inspection.InspectionService;
+import com.pvfusion.service.analysis.AnalysisJobService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
@@ -32,6 +33,9 @@ class PvFusionApplicationTests {
 
     @MockitoBean
     private ImagePairService imagePairService;
+
+    @MockitoBean
+    private AnalysisJobService analysisJobService;
 
     @Test
     void contextLoads() {
