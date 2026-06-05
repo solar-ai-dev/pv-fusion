@@ -17,6 +17,8 @@ public class AnalysisJob {
     private final OffsetDateTime requestedAt;
     private final OffsetDateTime startedAt;
     private final OffsetDateTime completedAt;
+    private final Integer retryCount;
+    private final String traceId;
     private final String failureCode;
     private final String failureMessage;
     private final OffsetDateTime createdAt;
@@ -34,6 +36,8 @@ public class AnalysisJob {
             OffsetDateTime requestedAt,
             OffsetDateTime startedAt,
             OffsetDateTime completedAt,
+            Integer retryCount,
+            String traceId,
             String failureCode,
             String failureMessage,
             OffsetDateTime createdAt,
@@ -50,6 +54,8 @@ public class AnalysisJob {
         this.requestedAt = requestedAt;
         this.startedAt = startedAt;
         this.completedAt = completedAt;
+        this.retryCount = retryCount;
+        this.traceId = traceId;
         this.failureCode = failureCode;
         this.failureMessage = failureMessage;
         this.createdAt = createdAt;
