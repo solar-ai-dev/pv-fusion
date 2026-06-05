@@ -15,6 +15,7 @@ public record UploadImageCommand(
         Long fileSize,
         OffsetDateTime capturedAt,
         String memo,
-        String sourceKey
+        String sourceKey,
+        byte[] fileContent
 ) {
 }

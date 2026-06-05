@@ -10,6 +10,7 @@ public record ImageStorageRequest(
         TargetType targetType,
         String originalFilename,
         String mimeType,
-        String sourceKey
+        String sourceKey,
+        byte[] fileContent
 ) {
 }
