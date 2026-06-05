@@ -40,4 +40,65 @@ public class User {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
+
+    public User approve() {
+        return new User(
+                id,
+                email,
+                name,
+                provider,
+                providerUserId,
+                role,
+                AccountStatus.APPROVED,
+                lastLoginAt,
+                createdAt,
+                OffsetDateTime.now()
+        );
+    }
+
+    public User changeRole(UserRole role) {
+        return new User(
+                id,
+                email,
+                name,
+                provider,
+                providerUserId,
+                role,
+                accountStatus,
+                lastLoginAt,
+                createdAt,
+                OffsetDateTime.now()
+        );
+    }
+
+    public User deactivate() {
+        return new User(
+                id,
+                email,
+                name,
+                provider,
+                providerUserId,
+                role,
+                AccountStatus.INACTIVE,
+                lastLoginAt,
+                createdAt,
+                OffsetDateTime.now()
+        );
+    }
+
+    public boolean isAdmin() {
+        return role == UserRole.ADMIN;
+    }
+
+    public boolean isPending() {
+        return accountStatus == AccountStatus.PENDING;
+    }
+
+    public boolean isApproved() {
+        return accountStatus == AccountStatus.APPROVED;
+    }
+
+    public boolean isInactive() {
+        return accountStatus == AccountStatus.INACTIVE;
+    }
 }
