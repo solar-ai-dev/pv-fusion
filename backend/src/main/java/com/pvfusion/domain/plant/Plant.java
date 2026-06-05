@@ -35,4 +35,38 @@ public class Plant {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
+
+    public Plant update(String name, String location, String description) {
+        return new Plant(
+                id,
+                name,
+                location,
+                description,
+                status,
+                createdByUserId,
+                createdAt,
+                OffsetDateTime.now()
+        );
+    }
+
+    public Plant deactivate() {
+        return new Plant(
+                id,
+                name,
+                location,
+                description,
+                ResourceStatus.INACTIVE,
+                createdByUserId,
+                createdAt,
+                OffsetDateTime.now()
+        );
+    }
+
+    public boolean isActive() {
+        return status == ResourceStatus.ACTIVE;
+    }
+
+    public boolean isInactive() {
+        return status == ResourceStatus.INACTIVE;
+    }
 }
