@@ -32,4 +32,52 @@ public class PlantMember {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
+
+    public PlantMember changeRole(PlantMemberRole memberRole) {
+        return new PlantMember(
+                id,
+                plantId,
+                userId,
+                memberRole,
+                status,
+                createdAt,
+                OffsetDateTime.now()
+        );
+    }
+
+    public PlantMember deactivate() {
+        return new PlantMember(
+                id,
+                plantId,
+                userId,
+                memberRole,
+                ResourceStatus.INACTIVE,
+                createdAt,
+                OffsetDateTime.now()
+        );
+    }
+
+    public PlantMember activate(PlantMemberRole memberRole) {
+        return new PlantMember(
+                id,
+                plantId,
+                userId,
+                memberRole,
+                ResourceStatus.ACTIVE,
+                createdAt,
+                OffsetDateTime.now()
+        );
+    }
+
+    public boolean isActive() {
+        return status == ResourceStatus.ACTIVE;
+    }
+
+    public boolean isInactive() {
+        return status == ResourceStatus.INACTIVE;
+    }
+
+    public boolean hasManageRole() {
+        return memberRole == PlantMemberRole.OWNER || memberRole == PlantMemberRole.MANAGER;
+    }
 }
