@@ -221,7 +221,9 @@ class ImagePairServiceTest {
         when(loadInspectionPort.loadInspection(10L)).thenReturn(Optional.of(inspection));
         when(accessChecker.checkInspectionAccess(1L, 10L)).thenReturn(true);
         when(loadEquipmentPort.loadEquipment(200L)).thenReturn(Optional.of(equipment));
-        when(loadImagePort.loadImages(any())).thenReturn(List.of(rgbUsed, rgbFree), List.of(thermalUsed, thermalFree));
+        when(loadImagePort.loadImages(any()))
+                .thenReturn(List.of(rgbUsed, rgbFree))
+                .thenReturn(List.of(thermalUsed, thermalFree));
         when(loadImagePairPort.loadImagePairsByStatus(10L, ResourceStatus.ACTIVE)).thenReturn(List.of(activePair));
 
         var response = imagePairService.execute(new ImagePairCandidateQuery(1L, 10L, TargetType.PANEL, 200L));
