@@ -1,6 +1,7 @@
 package com.pvfusion.application.dto.result;
 
 import com.pvfusion.application.dto.defect.DetectedDefectResponse;
+import com.pvfusion.application.dto.review.ResultReviewHistoryResponse;
 import com.pvfusion.domain.analysis.AnalysisInputType;
 import com.pvfusion.domain.analysis.AnalysisModelType;
 import com.pvfusion.domain.common.TargetType;
@@ -45,6 +46,7 @@ public record AnalysisResultResponse(
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
         List<DetectedDefectResponse> detections,
+        List<ResultReviewHistoryResponse> reviewHistories,
         ResultVisualizationResponse bboxVisualization,
         ResultVisualizationResponse heatmapVisualization,
         ResultVisualizationResponse maskVisualization,

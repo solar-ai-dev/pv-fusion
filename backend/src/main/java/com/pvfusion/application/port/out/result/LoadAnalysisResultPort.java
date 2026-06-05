@@ -9,6 +9,8 @@ public interface LoadAnalysisResultPort {
 
     Optional<AnalysisResult> loadAnalysisResult(Long resultId);
 
+    Optional<AnalysisResult> loadAnalysisResultByAnalysisJobId(Long analysisJobId);
+
     List<AnalysisResult> loadAnalysisResults(AnalysisResultListQuery query);
 
     long countAnalysisResults(AnalysisResultListQuery query);
