@@ -7,6 +7,7 @@ public record InspectionCompareResponse(
         TrackingSummaryResponse previousResult,
         AreaChangeResponse areaChange,
         SeverityChangeResponse severityChange,
+        DefectChangeResponse defectChange,
         boolean repeatedAnomaly,
         boolean worsened,
         String priorityReason
