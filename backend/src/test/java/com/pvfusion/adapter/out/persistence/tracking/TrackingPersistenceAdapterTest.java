@@ -3,6 +3,18 @@ package com.pvfusion.adapter.out.persistence.tracking;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Optional;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
 import com.pvfusion.adapter.out.persistence.defect.DetectedDefectJpaEntity;
 import com.pvfusion.adapter.out.persistence.defect.DetectedDefectJpaRepository;
 import com.pvfusion.application.dto.tracking.InspectionCompareQuery;
@@ -11,18 +23,7 @@ import com.pvfusion.domain.common.TargetType;
 import com.pvfusion.domain.defect.DefectSource;
 import com.pvfusion.domain.defect.DefectType;
 import com.pvfusion.domain.result.ActionCandidate;
-import com.pvfusion.domain.result.PriorityLevel;
 import com.pvfusion.domain.result.SeverityLevel;
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.Optional;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class TrackingPersistenceAdapterTest {
