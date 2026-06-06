@@ -14,6 +14,6 @@ class AnalysisJob(BaseModel):
     modelType: ModelType | None = None
     jobStatus: JobStatus
     requestedByUserId: int
-    traceId: str
+    traceId: str | None = None
     failureCode: str | None = None
     failureMessage: str | None = None

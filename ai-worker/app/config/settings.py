@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     workerEnabled: bool = True
     workerPollIntervalSeconds: int = 5
     workerMaxMessages: int = 1
+    databaseUrl: str = Field(default="", validation_alias="DATABASE_URL")
     awsRegion: str = Field(default="ap-northeast-2", validation_alias="AWS_REGION")
     sqsQueueUrl: str = Field(default="", validation_alias="SQS_QUEUE_URL")
     sqsEndpointUrl: str | None = Field(default=None, validation_alias="SQS_ENDPOINT_URL")
