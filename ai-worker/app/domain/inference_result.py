@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.domain.detected_defect import DetectedDefectDraft
 from app.domain.enums import ActionCandidate, ResultStatus
 from app.domain.model import ModelInfo
 
@@ -24,5 +25,5 @@ class InferenceResult(BaseModel):
     areaRatio: Decimal | None = None
     severityScore: Decimal | None = None
     actionCandidate: ActionCandidate
-    defects: list[dict]
+    defects: list[DetectedDefectDraft]
     visualizationPaths: VisualizationPaths = VisualizationPaths()
