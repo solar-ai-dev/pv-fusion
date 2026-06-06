@@ -1,6 +1,11 @@
 package com.pvfusion.service.result;
 
-import com.pvfusion.application.dto.analysis.AnalysisJobListQuery;
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.pvfusion.application.dto.defect.DetectedDefectListQuery;
 import com.pvfusion.application.dto.defect.DetectedDefectResponse;
 import com.pvfusion.application.dto.defect.DetectedDefectSummaryResponse;
@@ -58,12 +63,8 @@ import com.pvfusion.domain.zone.Zone;
 import com.pvfusion.global.error.BusinessException;
 import com.pvfusion.global.error.ErrorCode;
 import com.pvfusion.global.response.PageResponse;
-import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.Optional;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
