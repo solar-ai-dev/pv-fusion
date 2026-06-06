@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     sqsEndpointUrl: str | None = Field(default=None, validation_alias="SQS_ENDPOINT_URL")
     sqsWaitTimeSeconds: int = Field(default=5, validation_alias="SQS_WAIT_TIME_SECONDS")
     sqsVisibilityTimeoutSeconds: int | None = Field(default=None, validation_alias="SQS_VISIBILITY_TIMEOUT_SECONDS")
+    storageEndpointUrl: str | None = Field(default=None, validation_alias="STORAGE_ENDPOINT_URL")
+    storageRegion: str | None = Field(default=None, validation_alias="STORAGE_REGION")
+    storageAccessKey: str | None = Field(default=None, validation_alias="STORAGE_ACCESS_KEY")
+    storageSecretKey: str | None = Field(default=None, validation_alias="STORAGE_SECRET_KEY")
+    storageDefaultBucket: str | None = Field(default=None, validation_alias="STORAGE_DEFAULT_BUCKET")
 
 
 @lru_cache
