@@ -381,13 +381,13 @@ class AccessCheckerServiceTest {
     private AnalysisJob analysisJobByImage(Long id, Long imageId) {
         OffsetDateTime now = now();
         return new AnalysisJob(id, imageId, null, AnalysisInputType.RGB_SINGLE, RequestedModelType.EARLY_FUSION, AnalysisModelType.FUSION,
-                AnalysisJobStatus.QUEUED, 1L, now.minusDays(1), null, null, null, null, now.minusDays(5), now.minusDays(1));
+                AnalysisJobStatus.QUEUED, 1L, now.minusDays(1), null, null, null, null, null, null, now.minusDays(5), now.minusDays(1));
     }
 
     private AnalysisJob analysisJobByImagePair(Long id, Long imagePairId) {
         OffsetDateTime now = now();
         return new AnalysisJob(id, null, imagePairId, AnalysisInputType.RGB_THERMAL_PAIR, RequestedModelType.EARLY_FUSION, AnalysisModelType.FUSION,
-                AnalysisJobStatus.QUEUED, 1L, now.minusDays(1), null, null, null, null, now.minusDays(5), now.minusDays(1));
+                AnalysisJobStatus.QUEUED, 1L, now.minusDays(1), null, null, null, null, null, null, now.minusDays(5), now.minusDays(1));
     }
 
     private AnalysisResult result(Long id, Long analysisJobId) {
