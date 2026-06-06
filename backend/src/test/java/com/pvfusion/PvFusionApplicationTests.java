@@ -6,7 +6,9 @@ import com.pvfusion.service.image.ImageService;
 import com.pvfusion.service.imagepair.ImagePairService;
 import com.pvfusion.service.inspection.InspectionService;
 import com.pvfusion.service.analysis.AnalysisJobService;
+import com.pvfusion.service.dashboard.DashboardService;
 import com.pvfusion.service.result.AnalysisResultService;
+import com.pvfusion.service.tracking.TrackingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
@@ -40,6 +42,12 @@ class PvFusionApplicationTests {
 
     @MockitoBean
     private AnalysisResultService analysisResultService;
+
+    @MockitoBean
+    private TrackingService trackingService;
+
+    @MockitoBean
+    private DashboardService dashboardService;
 
     @Test
     void contextLoads() {
