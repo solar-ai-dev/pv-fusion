@@ -14,8 +14,8 @@ public interface PlantJpaRepository extends JpaRepository<PlantJpaEntity, Long> 
             value = """
                     select p
                     from PlantJpaEntity p
-                    where (:keyword is null
-                        or lower(p.name) like lower(concat('%', :keyword, '%')))
+                    where (:keywordPattern is null
+                        or lower(p.name) like :keywordPattern)
                       and (:status is null or p.status = :status)
                       and (:actorUserId is null or exists (
                           select pm.id
@@ -28,8 +28,8 @@ public interface PlantJpaRepository extends JpaRepository<PlantJpaEntity, Long> 
             countQuery = """
                     select count(p)
                     from PlantJpaEntity p
-                    where (:keyword is null
-                        or lower(p.name) like lower(concat('%', :keyword, '%')))
+                    where (:keywordPattern is null
+                        or lower(p.name) like :keywordPattern)
                       and (:status is null or p.status = :status)
                       and (:actorUserId is null or exists (
                           select pm.id
@@ -41,7 +41,7 @@ public interface PlantJpaRepository extends JpaRepository<PlantJpaEntity, Long> 
                     """
     )
     Page<PlantJpaEntity> search(
-            @Param("keyword") String keyword,
+            @Param("keywordPattern") String keywordPattern,
             @Param("status") ResourceStatus status,
             @Param("actorUserId") Long actorUserId,
             Pageable pageable

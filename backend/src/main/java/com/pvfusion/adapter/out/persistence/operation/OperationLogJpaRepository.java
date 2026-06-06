@@ -30,10 +30,10 @@ public interface OperationLogJpaRepository extends JpaRepository<OperationLogJpa
                       and (:analysisResultId is null or o.analysisResultId = :analysisResultId)
                       and (:from is null or o.createdAt >= :from)
                       and (:to is null or o.createdAt <= :to)
-                      and (:keyword is null
-                          or lower(coalesce(o.message, '')) like lower(concat('%', :keyword, '%'))
-                          or lower(coalesce(o.detail, '')) like lower(concat('%', :keyword, '%'))
-                          or lower(coalesce(o.targetTable, '')) like lower(concat('%', :keyword, '%')))
+                      and (:keywordPattern is null
+                          or lower(coalesce(o.message, '')) like :keywordPattern
+                          or lower(coalesce(o.detail, '')) like :keywordPattern
+                          or lower(coalesce(o.targetTable, '')) like :keywordPattern)
                     """,
             countQuery = """
                     select count(o)
@@ -50,10 +50,10 @@ public interface OperationLogJpaRepository extends JpaRepository<OperationLogJpa
                       and (:analysisResultId is null or o.analysisResultId = :analysisResultId)
                       and (:from is null or o.createdAt >= :from)
                       and (:to is null or o.createdAt <= :to)
-                      and (:keyword is null
-                          or lower(coalesce(o.message, '')) like lower(concat('%', :keyword, '%'))
-                          or lower(coalesce(o.detail, '')) like lower(concat('%', :keyword, '%'))
-                          or lower(coalesce(o.targetTable, '')) like lower(concat('%', :keyword, '%')))
+                      and (:keywordPattern is null
+                          or lower(coalesce(o.message, '')) like :keywordPattern
+                          or lower(coalesce(o.detail, '')) like :keywordPattern
+                          or lower(coalesce(o.targetTable, '')) like :keywordPattern)
                     """
     )
     Page<OperationLogJpaEntity> search(
@@ -69,7 +69,7 @@ public interface OperationLogJpaRepository extends JpaRepository<OperationLogJpa
             @Param("analysisResultId") Long analysisResultId,
             @Param("from") OffsetDateTime from,
             @Param("to") OffsetDateTime to,
-            @Param("keyword") String keyword,
+            @Param("keywordPattern") String keywordPattern,
             Pageable pageable
     );
 }

@@ -96,7 +96,7 @@ public class OperationLogPersistenceAdapter
         if (keyword == null || keyword.isBlank()) {
             return null;
         }
-        return keyword.trim();
+        return "%" + keyword.trim().toLowerCase() + "%";
     }
 
     private Sort resolveSort(String sort) {

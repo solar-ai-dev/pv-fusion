@@ -18,14 +18,14 @@ public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
     @Query("""
             select u
             from UserJpaEntity u
-            where (:keyword is null
-                or lower(u.email) like lower(concat('%', :keyword, '%'))
-                or lower(u.name) like lower(concat('%', :keyword, '%')))
+            where (:keywordPattern is null
+                or lower(u.email) like :keywordPattern
+                or lower(u.name) like :keywordPattern)
               and (:role is null or u.role = :role)
               and (:accountStatus is null or u.accountStatus = :accountStatus)
             """)
     Page<UserJpaEntity> search(
-            @Param("keyword") String keyword,
+            @Param("keywordPattern") String keywordPattern,
             @Param("role") UserRole role,
             @Param("accountStatus") AccountStatus accountStatus,
             Pageable pageable

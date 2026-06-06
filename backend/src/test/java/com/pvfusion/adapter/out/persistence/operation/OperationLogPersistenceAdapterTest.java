@@ -179,6 +179,82 @@ class OperationLogPersistenceAdapterTest {
         assertThat(result.hasNext()).isTrue();
     }
 
+    @Test
+    void findsOperationLogsWhenKeywordIsNull() {
+        operationLogPersistenceAdapter.save(operationLog(
+                null,
+                adminUser.getId(),
+                OperationEventType.PLANT_CREATED,
+                "plants",
+                10L,
+                10L,
+                null,
+                "Plant created.",
+                "name=Local Plant",
+                now().minusMinutes(30)
+        ));
+
+        PageResponse<?> result = operationLogPersistenceAdapter.findAll(new OperationLogQuery(
+                null,
+                adminUser.getId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                10,
+                "createdAt,desc"
+        ));
+
+        assertThat(result.totalElements()).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    void findsOperationLogsWithCaseInsensitiveKeyword() {
+        operationLogPersistenceAdapter.save(operationLog(
+                null,
+                adminUser.getId(),
+                OperationEventType.PLANT_UPDATED,
+                "plants",
+                11L,
+                11L,
+                null,
+                "Plant updated.",
+                "target=Solar Farm",
+                now().minusMinutes(20)
+        ));
+
+        PageResponse<?> result = operationLogPersistenceAdapter.findAll(new OperationLogQuery(
+                null,
+                adminUser.getId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "  SOLAR ",
+                0,
+                10,
+                "createdAt,desc"
+        ));
+
+        assertThat(result.content().toString()).contains("Solar Farm");
+    }
+
     private OperationLog operationLog(
             Long id,
             Long actorUserId,

@@ -143,6 +143,64 @@ class PlantPersistenceAdapterTest {
         assertThat(page.content().toString()).contains("zoneCount=2");
     }
 
+    @Test
+    void findsPlantsWhenKeywordIsNullOrBlank() {
+        OffsetDateTime now = OffsetDateTime.parse("2026-06-05T13:00:00+09:00");
+        plantPersistenceAdapter.save(new Plant(
+                null,
+                "Local Plant",
+                "Seoul",
+                "desc",
+                ResourceStatus.ACTIVE,
+                ownerUser.getId(),
+                now,
+                now
+        ));
+
+        PageResponse<?> nullKeywordPage = plantPersistenceAdapter.findAll(new PlantListQuery(
+                null,
+                null,
+                ResourceStatus.ACTIVE,
+                0,
+                10
+        ));
+        PageResponse<?> blankKeywordPage = plantPersistenceAdapter.findAll(new PlantListQuery(
+                null,
+                "   ",
+                ResourceStatus.ACTIVE,
+                0,
+                10
+        ));
+
+        assertThat(nullKeywordPage.totalElements()).isGreaterThanOrEqualTo(1);
+        assertThat(blankKeywordPage.totalElements()).isEqualTo(nullKeywordPage.totalElements());
+    }
+
+    @Test
+    void findsPlantsWithCaseInsensitiveKeyword() {
+        OffsetDateTime now = OffsetDateTime.parse("2026-06-05T14:00:00+09:00");
+        plantPersistenceAdapter.save(new Plant(
+                null,
+                "Solar Farm Alpha",
+                "Busan",
+                "desc",
+                ResourceStatus.ACTIVE,
+                ownerUser.getId(),
+                now,
+                now
+        ));
+
+        PageResponse<?> page = plantPersistenceAdapter.findAll(new PlantListQuery(
+                null,
+                "  SOLAR  ",
+                ResourceStatus.ACTIVE,
+                0,
+                10
+        ));
+
+        assertThat(page.content().toString()).contains("Solar Farm Alpha");
+    }
+
     private void createSupportTablesIfNeeded() {
         entityManager.createNativeQuery("""
                 create table if not exists zones (
