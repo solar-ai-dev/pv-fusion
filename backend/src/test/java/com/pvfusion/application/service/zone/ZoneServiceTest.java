@@ -12,6 +12,7 @@ import com.pvfusion.application.dto.zone.GetZoneQuery;
 import com.pvfusion.application.dto.zone.UpdateZoneCommand;
 import com.pvfusion.application.dto.zone.ZoneListQuery;
 import com.pvfusion.application.dto.zone.ZoneSummaryResponse;
+import com.pvfusion.application.port.in.operation.RecordOperationLogUseCase;
 import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.plant.PlantMemberRepositoryPort;
 import com.pvfusion.application.port.out.plant.PlantRepositoryPort;
@@ -53,6 +54,8 @@ class ZoneServiceTest {
     private PlantMemberRepositoryPort plantMemberRepositoryPort;
     @Mock
     private ZoneRepositoryPort zoneRepositoryPort;
+    @Mock
+    private RecordOperationLogUseCase recordOperationLogUseCase;
 
     private ZoneService zoneService;
 
@@ -63,7 +66,8 @@ class ZoneServiceTest {
                 userRepositoryPort,
                 plantRepositoryPort,
                 plantMemberRepositoryPort,
-                zoneRepositoryPort
+                zoneRepositoryPort,
+                recordOperationLogUseCase
         );
     }
 
@@ -83,6 +87,7 @@ class ZoneServiceTest {
         assertThat(response.zoneId()).isEqualTo(100L);
         assertThat(response.createdByUserId()).isEqualTo(1L);
         assertThat(response.arrayCount()).isZero();
+        verify(recordOperationLogUseCase).execute(any());
     }
 
     @Test
@@ -105,6 +110,7 @@ class ZoneServiceTest {
 
         assertThat(response.zoneId()).isEqualTo(101L);
         assertThat(response.plantId()).isEqualTo(10L);
+        verify(recordOperationLogUseCase).execute(any());
     }
 
     @Test
@@ -190,6 +196,7 @@ class ZoneServiceTest {
 
         assertThat(response.name()).isEqualTo("Zone-B");
         assertThat(response.location()).isEqualTo("West");
+        verify(recordOperationLogUseCase).execute(any());
     }
 
     @Test
@@ -220,6 +227,7 @@ class ZoneServiceTest {
         var response = zoneService.execute(new DeactivateZoneCommand(null, 100L));
 
         assertThat(response.status()).isEqualTo(ResourceStatus.INACTIVE);
+        verify(recordOperationLogUseCase).execute(any());
     }
 
     @Test

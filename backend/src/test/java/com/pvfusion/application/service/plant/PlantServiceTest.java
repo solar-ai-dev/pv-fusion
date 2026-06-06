@@ -13,6 +13,7 @@ import com.pvfusion.application.dto.plant.GetPlantQuery;
 import com.pvfusion.application.dto.plant.PlantListQuery;
 import com.pvfusion.application.dto.plant.PlantSummaryResponse;
 import com.pvfusion.application.dto.plant.UpdatePlantCommand;
+import com.pvfusion.application.port.in.operation.RecordOperationLogUseCase;
 import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.plant.PlantMemberRepositoryPort;
 import com.pvfusion.application.port.out.plant.PlantRepositoryPort;
@@ -48,6 +49,8 @@ class PlantServiceTest {
     private PlantRepositoryPort plantRepositoryPort;
     @Mock
     private PlantMemberRepositoryPort plantMemberRepositoryPort;
+    @Mock
+    private RecordOperationLogUseCase recordOperationLogUseCase;
 
     private PlantService plantService;
 
@@ -57,7 +60,8 @@ class PlantServiceTest {
                 currentUserPort,
                 userRepositoryPort,
                 plantRepositoryPort,
-                plantMemberRepositoryPort
+                plantMemberRepositoryPort,
+                recordOperationLogUseCase
         );
     }
 
@@ -80,6 +84,7 @@ class PlantServiceTest {
         assertThat(captor.getValue().getUserId()).isEqualTo(1L);
         assertThat(response.plantId()).isEqualTo(10L);
         assertThat(response.createdByUserId()).isEqualTo(1L);
+        verify(recordOperationLogUseCase).execute(any());
     }
 
     @Test

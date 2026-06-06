@@ -7,6 +7,8 @@ import com.pvfusion.application.dto.zone.UpdateZoneCommand;
 import com.pvfusion.application.dto.zone.ZoneListQuery;
 import com.pvfusion.application.dto.zone.ZoneResponse;
 import com.pvfusion.application.dto.zone.ZoneSummaryResponse;
+import com.pvfusion.application.dto.operation.RecordOperationLogCommand;
+import com.pvfusion.application.port.in.operation.RecordOperationLogUseCase;
 import com.pvfusion.application.port.in.zone.CreateZoneUseCase;
 import com.pvfusion.application.port.in.zone.DeactivateZoneUseCase;
 import com.pvfusion.application.port.in.zone.GetZoneUseCase;
@@ -18,6 +20,8 @@ import com.pvfusion.application.port.out.plant.PlantRepositoryPort;
 import com.pvfusion.application.port.out.user.UserRepositoryPort;
 import com.pvfusion.application.port.out.zone.ZoneRepositoryPort;
 import com.pvfusion.domain.common.ResourceStatus;
+import com.pvfusion.domain.operation.OperationEventCategory;
+import com.pvfusion.domain.operation.OperationEventType;
 import com.pvfusion.domain.plant.Plant;
 import com.pvfusion.domain.plant.PlantMember;
 import com.pvfusion.domain.user.User;
@@ -45,6 +49,7 @@ public class ZoneService implements CreateZoneUseCase, QueryZoneUseCase,
     private final PlantRepositoryPort plantRepositoryPort;
     private final PlantMemberRepositoryPort plantMemberRepositoryPort;
     private final ZoneRepositoryPort zoneRepositoryPort;
+    private final RecordOperationLogUseCase recordOperationLogUseCase;
 
     @Override
     public ZoneResponse execute(CreateZoneCommand command) {
@@ -72,6 +77,24 @@ public class ZoneService implements CreateZoneUseCase, QueryZoneUseCase,
                 now
         ));
 
+        recordOperationLogUseCase.execute(new RecordOperationLogCommand(
+                currentUser.getId(),
+                OperationEventCategory.ADMIN,
+                OperationEventType.ZONE_CREATED,
+                "zones",
+                savedZone.getId(),
+                savedZone.getPlantId(),
+                savedZone.getId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Zone created.",
+                null,
+                null,
+                "name=" + savedZone.getName()
+        ));
         return toResponse(savedZone);
     }
 
@@ -111,11 +134,30 @@ public class ZoneService implements CreateZoneUseCase, QueryZoneUseCase,
         validateZoneName(command.name());
         ensureActiveZoneNameAvailable(zone.getPlantId(), command.name().trim(), zone.getId());
 
-        return toResponse(zoneRepositoryPort.save(zone.update(
+        Zone savedZone = zoneRepositoryPort.save(zone.update(
                 command.name().trim(),
                 normalizeText(command.location()),
                 normalizeText(command.description())
-        )));
+        ));
+        recordOperationLogUseCase.execute(new RecordOperationLogCommand(
+                currentUser.getId(),
+                OperationEventCategory.ADMIN,
+                OperationEventType.ZONE_UPDATED,
+                "zones",
+                savedZone.getId(),
+                savedZone.getPlantId(),
+                savedZone.getId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Zone updated.",
+                null,
+                null,
+                "name=" + savedZone.getName()
+        ));
+        return toResponse(savedZone);
     }
 
     @Override
@@ -134,7 +176,26 @@ public class ZoneService implements CreateZoneUseCase, QueryZoneUseCase,
             throw new DuplicateResourceException("Zone in inactive plant cannot be deactivated again.");
         }
 
-        return toResponse(zoneRepositoryPort.save(zone.deactivate()));
+        Zone savedZone = zoneRepositoryPort.save(zone.deactivate());
+        recordOperationLogUseCase.execute(new RecordOperationLogCommand(
+                currentUser.getId(),
+                OperationEventCategory.ADMIN,
+                OperationEventType.ZONE_DEACTIVATED,
+                "zones",
+                savedZone.getId(),
+                savedZone.getPlantId(),
+                savedZone.getId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Zone deactivated.",
+                null,
+                null,
+                "status=ACTIVE->INACTIVE"
+        ));
+        return toResponse(savedZone);
     }
 
     private User requireApprovedUser() {

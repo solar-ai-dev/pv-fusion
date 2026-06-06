@@ -7,6 +7,8 @@ import com.pvfusion.application.dto.equipment.EquipmentResponse;
 import com.pvfusion.application.dto.equipment.EquipmentTreeResponse;
 import com.pvfusion.application.dto.equipment.GetEquipmentQuery;
 import com.pvfusion.application.dto.equipment.UpdateEquipmentCommand;
+import com.pvfusion.application.dto.operation.RecordOperationLogCommand;
+import com.pvfusion.application.port.in.operation.RecordOperationLogUseCase;
 import com.pvfusion.application.port.in.equipment.CreateEquipmentUseCase;
 import com.pvfusion.application.port.in.equipment.DeactivateEquipmentUseCase;
 import com.pvfusion.application.port.in.equipment.GetEquipmentUseCase;
@@ -21,6 +23,8 @@ import com.pvfusion.application.port.out.zone.ZoneRepositoryPort;
 import com.pvfusion.domain.common.ResourceStatus;
 import com.pvfusion.domain.equipment.Equipment;
 import com.pvfusion.domain.equipment.EquipmentType;
+import com.pvfusion.domain.operation.OperationEventCategory;
+import com.pvfusion.domain.operation.OperationEventType;
 import com.pvfusion.domain.plant.Plant;
 import com.pvfusion.domain.plant.PlantMember;
 import com.pvfusion.domain.user.User;
@@ -53,6 +57,7 @@ public class EquipmentService implements CreateEquipmentUseCase, QueryEquipmentU
     private final PlantRepositoryPort plantRepositoryPort;
     private final PlantMemberRepositoryPort plantMemberRepositoryPort;
     private final EquipmentRepositoryPort equipmentRepositoryPort;
+    private final RecordOperationLogUseCase recordOperationLogUseCase;
 
     @Override
     public EquipmentResponse execute(CreateEquipmentCommand command) {
@@ -89,6 +94,24 @@ public class EquipmentService implements CreateEquipmentUseCase, QueryEquipmentU
                 now
         ));
 
+        recordOperationLogUseCase.execute(new RecordOperationLogCommand(
+                currentUser.getId(),
+                OperationEventCategory.ADMIN,
+                OperationEventType.EQUIPMENT_CREATED,
+                "equipments",
+                saved.getId(),
+                plant.getId(),
+                saved.getZoneId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Equipment created.",
+                null,
+                null,
+                "equipmentType=" + saved.getEquipmentType() + ",name=" + saved.getName()
+        ));
         return toResponse(saved);
     }
 
@@ -148,12 +171,31 @@ public class EquipmentService implements CreateEquipmentUseCase, QueryEquipmentU
                 equipment.getId()
         );
 
-        return toResponse(equipmentRepositoryPort.save(equipment.update(
+        Equipment savedEquipment = equipmentRepositoryPort.save(equipment.update(
                 command.parentEquipmentId(),
                 command.equipmentType(),
                 command.name().trim(),
                 normalizeText(command.positionCode())
-        )));
+        ));
+        recordOperationLogUseCase.execute(new RecordOperationLogCommand(
+                currentUser.getId(),
+                OperationEventCategory.ADMIN,
+                OperationEventType.EQUIPMENT_UPDATED,
+                "equipments",
+                savedEquipment.getId(),
+                plant.getId(),
+                savedEquipment.getZoneId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Equipment updated.",
+                null,
+                null,
+                "equipmentType=" + savedEquipment.getEquipmentType() + ",name=" + savedEquipment.getName()
+        ));
+        return toResponse(savedEquipment);
     }
 
     @Override
@@ -172,7 +214,26 @@ public class EquipmentService implements CreateEquipmentUseCase, QueryEquipmentU
             throw new BusinessException(ErrorCode.INVALID_INPUT, "Active child equipment must be deactivated first.");
         }
 
-        return toResponse(equipmentRepositoryPort.save(equipment.deactivate()));
+        Equipment savedEquipment = equipmentRepositoryPort.save(equipment.deactivate());
+        recordOperationLogUseCase.execute(new RecordOperationLogCommand(
+                currentUser.getId(),
+                OperationEventCategory.ADMIN,
+                OperationEventType.EQUIPMENT_DEACTIVATED,
+                "equipments",
+                savedEquipment.getId(),
+                plant.getId(),
+                savedEquipment.getZoneId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Equipment deactivated.",
+                null,
+                null,
+                "status=ACTIVE->INACTIVE"
+        ));
+        return toResponse(savedEquipment);
     }
 
     private User requireApprovedUser() {

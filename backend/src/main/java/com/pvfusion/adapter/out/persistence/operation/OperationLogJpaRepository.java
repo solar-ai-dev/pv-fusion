@@ -1,0 +1,75 @@
+package com.pvfusion.adapter.out.persistence.operation;
+
+import com.pvfusion.domain.operation.OperationEventCategory;
+import com.pvfusion.domain.operation.OperationEventType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.time.OffsetDateTime;
+
+public interface OperationLogJpaRepository extends JpaRepository<OperationLogJpaEntity, Long> {
+
+    @EntityGraph(attributePaths = "actorUser")
+    @Query(
+            value = """
+                    select o
+                    from OperationLogJpaEntity o
+                    where (:actorUserId is null or o.actorUserId = :actorUserId)
+                      and (:eventCategory is null or o.eventCategory = :eventCategory)
+                      and (:eventType is null or o.eventType = :eventType)
+                      and (:plantId is null or o.plantId = :plantId)
+                      and (:zoneId is null or o.zoneId = :zoneId)
+                      and (:inspectionId is null or o.inspectionId = :inspectionId)
+                      and (:imageId is null or o.imageId = :imageId)
+                      and (:imagePairId is null or o.imagePairId = :imagePairId)
+                      and (:analysisJobId is null or o.analysisJobId = :analysisJobId)
+                      and (:analysisResultId is null or o.analysisResultId = :analysisResultId)
+                      and (:from is null or o.createdAt >= :from)
+                      and (:to is null or o.createdAt <= :to)
+                      and (:keyword is null
+                          or lower(coalesce(o.message, '')) like lower(concat('%', :keyword, '%'))
+                          or lower(coalesce(o.detail, '')) like lower(concat('%', :keyword, '%'))
+                          or lower(coalesce(o.targetTable, '')) like lower(concat('%', :keyword, '%')))
+                    """,
+            countQuery = """
+                    select count(o)
+                    from OperationLogJpaEntity o
+                    where (:actorUserId is null or o.actorUserId = :actorUserId)
+                      and (:eventCategory is null or o.eventCategory = :eventCategory)
+                      and (:eventType is null or o.eventType = :eventType)
+                      and (:plantId is null or o.plantId = :plantId)
+                      and (:zoneId is null or o.zoneId = :zoneId)
+                      and (:inspectionId is null or o.inspectionId = :inspectionId)
+                      and (:imageId is null or o.imageId = :imageId)
+                      and (:imagePairId is null or o.imagePairId = :imagePairId)
+                      and (:analysisJobId is null or o.analysisJobId = :analysisJobId)
+                      and (:analysisResultId is null or o.analysisResultId = :analysisResultId)
+                      and (:from is null or o.createdAt >= :from)
+                      and (:to is null or o.createdAt <= :to)
+                      and (:keyword is null
+                          or lower(coalesce(o.message, '')) like lower(concat('%', :keyword, '%'))
+                          or lower(coalesce(o.detail, '')) like lower(concat('%', :keyword, '%'))
+                          or lower(coalesce(o.targetTable, '')) like lower(concat('%', :keyword, '%')))
+                    """
+    )
+    Page<OperationLogJpaEntity> search(
+            @Param("actorUserId") Long actorUserId,
+            @Param("eventCategory") OperationEventCategory eventCategory,
+            @Param("eventType") OperationEventType eventType,
+            @Param("plantId") Long plantId,
+            @Param("zoneId") Long zoneId,
+            @Param("inspectionId") Long inspectionId,
+            @Param("imageId") Long imageId,
+            @Param("imagePairId") Long imagePairId,
+            @Param("analysisJobId") Long analysisJobId,
+            @Param("analysisResultId") Long analysisResultId,
+            @Param("from") OffsetDateTime from,
+            @Param("to") OffsetDateTime to,
+            @Param("keyword") String keyword,
+            Pageable pageable
+    );
+}

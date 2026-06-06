@@ -12,6 +12,7 @@ import com.pvfusion.application.dto.equipment.EquipmentListQuery;
 import com.pvfusion.application.dto.equipment.EquipmentTreeResponse;
 import com.pvfusion.application.dto.equipment.GetEquipmentQuery;
 import com.pvfusion.application.dto.equipment.UpdateEquipmentCommand;
+import com.pvfusion.application.port.in.operation.RecordOperationLogUseCase;
 import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.equipment.EquipmentRepositoryPort;
 import com.pvfusion.application.port.out.plant.PlantMemberRepositoryPort;
@@ -59,6 +60,8 @@ class EquipmentServiceTest {
     private PlantMemberRepositoryPort plantMemberRepositoryPort;
     @Mock
     private EquipmentRepositoryPort equipmentRepositoryPort;
+    @Mock
+    private RecordOperationLogUseCase recordOperationLogUseCase;
 
     private EquipmentService equipmentService;
 
@@ -70,7 +73,8 @@ class EquipmentServiceTest {
                 zoneRepositoryPort,
                 plantRepositoryPort,
                 plantMemberRepositoryPort,
-                equipmentRepositoryPort
+                equipmentRepositoryPort,
+                recordOperationLogUseCase
         );
     }
 
@@ -91,6 +95,7 @@ class EquipmentServiceTest {
 
         assertThat(response.equipmentId()).isEqualTo(100L);
         assertThat(response.equipmentType()).isEqualTo(EquipmentType.ARRAY);
+        verify(recordOperationLogUseCase).execute(any());
     }
 
     @Test
@@ -126,6 +131,7 @@ class EquipmentServiceTest {
 
         assertThat(response.parentEquipmentId()).isEqualTo(11L);
         assertThat(response.equipmentType()).isEqualTo(EquipmentType.PANEL);
+        verify(recordOperationLogUseCase).execute(any());
     }
 
     @Test
@@ -268,6 +274,7 @@ class EquipmentServiceTest {
 
         assertThat(response.name()).isEqualTo("Array-02");
         assertThat(response.positionCode()).isEqualTo("A02");
+        verify(recordOperationLogUseCase).execute(any());
     }
 
     @Test
@@ -344,6 +351,7 @@ class EquipmentServiceTest {
         var response = equipmentService.execute(new DeactivateEquipmentCommand(null, 12L));
 
         assertThat(response.status()).isEqualTo(ResourceStatus.INACTIVE);
+        verify(recordOperationLogUseCase).execute(any());
     }
 
     @Test

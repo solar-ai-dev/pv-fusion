@@ -5,6 +5,8 @@ import com.pvfusion.application.dto.user.DeactivatePlantMemberCommand;
 import com.pvfusion.application.dto.user.GrantPlantAccessCommand;
 import com.pvfusion.application.dto.user.PlantMemberListQuery;
 import com.pvfusion.application.dto.user.PlantMemberResponse;
+import com.pvfusion.application.dto.operation.RecordOperationLogCommand;
+import com.pvfusion.application.port.in.operation.RecordOperationLogUseCase;
 import com.pvfusion.application.port.in.user.ChangePlantMemberRoleUseCase;
 import com.pvfusion.application.port.in.user.DeactivatePlantMemberUseCase;
 import com.pvfusion.application.port.in.user.GrantPlantAccessUseCase;
@@ -16,6 +18,8 @@ import com.pvfusion.application.port.out.user.UserRepositoryPort;
 import com.pvfusion.domain.plant.Plant;
 import com.pvfusion.domain.plant.PlantMember;
 import com.pvfusion.domain.plant.PlantMemberRole;
+import com.pvfusion.domain.operation.OperationEventCategory;
+import com.pvfusion.domain.operation.OperationEventType;
 import com.pvfusion.domain.user.User;
 import com.pvfusion.global.error.ApprovalRequiredException;
 import com.pvfusion.global.error.BusinessException;
@@ -39,6 +43,7 @@ public class PlantMemberService implements QueryPlantMemberUseCase,
     private final UserRepositoryPort userRepositoryPort;
     private final PlantRepositoryPort plantRepositoryPort;
     private final PlantMemberRepositoryPort plantMemberRepositoryPort;
+    private final RecordOperationLogUseCase recordOperationLogUseCase;
 
     @Override
     public List<PlantMemberResponse> execute(PlantMemberListQuery query) {
@@ -88,6 +93,24 @@ public class PlantMemberService implements QueryPlantMemberUseCase,
                 ))
                 : plantMemberRepositoryPort.save(existingMember.activate(command.memberRole()));
 
+        recordOperationLogUseCase.execute(new RecordOperationLogCommand(
+                currentUser.getId(),
+                OperationEventCategory.ADMIN,
+                OperationEventType.PLANT_ACCESS_GRANTED,
+                "plant_members",
+                savedMember.getId(),
+                savedMember.getPlantId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Plant access granted.",
+                null,
+                null,
+                "userId=" + savedMember.getUserId() + ",memberRole=" + savedMember.getMemberRole()
+        ));
         return toResponse(savedMember);
     }
 
@@ -115,7 +138,26 @@ public class PlantMemberService implements QueryPlantMemberUseCase,
             throw new ForbiddenException("자기 자신의 발전소 관리 권한은 강등할 수 없습니다.");
         }
 
-        return toResponse(plantMemberRepositoryPort.save(plantMember.changeRole(command.memberRole())));
+        PlantMember savedMember = plantMemberRepositoryPort.save(plantMember.changeRole(command.memberRole()));
+        recordOperationLogUseCase.execute(new RecordOperationLogCommand(
+                currentUser.getId(),
+                OperationEventCategory.ADMIN,
+                OperationEventType.PLANT_MEMBER_ROLE_CHANGED,
+                "plant_members",
+                savedMember.getId(),
+                savedMember.getPlantId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Plant member role changed.",
+                null,
+                null,
+                "memberRole=" + plantMember.getMemberRole() + "->" + savedMember.getMemberRole()
+        ));
+        return toResponse(savedMember);
     }
 
     @Override
@@ -137,7 +179,26 @@ public class PlantMemberService implements QueryPlantMemberUseCase,
             throw new ForbiddenException("자기 자신의 발전소 멤버 권한은 제거할 수 없습니다.");
         }
 
-        return toResponse(plantMemberRepositoryPort.save(plantMember.deactivate()));
+        PlantMember savedMember = plantMemberRepositoryPort.save(plantMember.deactivate());
+        recordOperationLogUseCase.execute(new RecordOperationLogCommand(
+                currentUser.getId(),
+                OperationEventCategory.ADMIN,
+                OperationEventType.PLANT_MEMBER_DEACTIVATED,
+                "plant_members",
+                savedMember.getId(),
+                savedMember.getPlantId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Plant member deactivated.",
+                null,
+                null,
+                "userId=" + savedMember.getUserId() + ",status=ACTIVE->INACTIVE"
+        ));
+        return toResponse(savedMember);
     }
 
     private User requireApprovedUser() {
