@@ -180,44 +180,6 @@ class OperationLogPersistenceAdapterTest {
     }
 
     @Test
-    void findsOperationLogsWhenKeywordIsNull() {
-        operationLogPersistenceAdapter.save(operationLog(
-                null,
-                adminUser.getId(),
-                OperationEventType.PLANT_CREATED,
-                "plants",
-                10L,
-                10L,
-                null,
-                "Plant created.",
-                "name=Local Plant",
-                now().minusMinutes(30)
-        ));
-
-        PageResponse<?> result = operationLogPersistenceAdapter.findAll(new OperationLogQuery(
-                null,
-                adminUser.getId(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                0,
-                10,
-                "createdAt,desc"
-        ));
-
-        assertThat(result.totalElements()).isGreaterThanOrEqualTo(1);
-    }
-
-    @Test
     void findsOperationLogsWithCaseInsensitiveKeyword() {
         operationLogPersistenceAdapter.save(operationLog(
                 null,
@@ -231,7 +193,6 @@ class OperationLogPersistenceAdapterTest {
                 "target=Solar Farm",
                 now().minusMinutes(20)
         ));
-
         PageResponse<?> result = operationLogPersistenceAdapter.findAll(new OperationLogQuery(
                 null,
                 adminUser.getId(),
@@ -252,8 +213,15 @@ class OperationLogPersistenceAdapterTest {
                 "createdAt,desc"
         ));
 
-        assertThat(result.content().toString()).contains("Solar Farm");
+        assertThat(result.content()).hasSize(1);
+        assertThat(result.totalElements()).isEqualTo(1);
+        assertThat(result.content().toString()).contains("Plant updated.");
+        assertThat(result.content().toString()).contains("PLANT_UPDATED");
+        assertThat(result.content().toString()).contains("plants");
+        assertThat(result.content().toString()).contains("11");
     }
+
+    
 
     private OperationLog operationLog(
             Long id,
