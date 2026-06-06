@@ -16,6 +16,7 @@ import com.pvfusion.global.response.ApiResponse;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,8 +40,8 @@ public class TrackingController {
             @RequestParam(required = false) Long zoneId,
             @RequestParam(required = false) Long equipmentId,
             @RequestParam(required = false) TargetType targetType,
-            @RequestParam(required = false) LocalDate from,
-            @RequestParam(required = false) LocalDate to,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) AnalysisInputType inputType,
             @RequestParam(required = false) AnalysisModelType modelType,
             @RequestParam(required = false) ActionCandidate actionCandidate,
