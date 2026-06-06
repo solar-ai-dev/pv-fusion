@@ -2,6 +2,7 @@ package com.pvfusion.global.config;
 
 import com.pvfusion.adapter.out.auth.OAuth2LoginUserService;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -22,7 +23,8 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             ObjectProvider<ClientRegistrationRepository> clientRegistrationRepositoryProvider,
-            OAuth2LoginUserService oAuth2LoginUserService
+            OAuth2LoginUserService oAuth2LoginUserService,
+            @Value("${app.auth.oauth2.success-redirect-url:/api/v1/auth/me}") String successRedirectUrl
     ) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable);
         http.authorizeHttpRequests(authorize -> authorize
@@ -52,6 +54,7 @@ public class SecurityConfig {
                             .userService(oAuth2LoginUserService::loadOAuth2User)
                             .oidcUserService(oAuth2LoginUserService::loadOidcUser)
                     )
+                    .defaultSuccessUrl(successRedirectUrl, true)
             );
         } else {
             http.httpBasic(Customizer.withDefaults());
