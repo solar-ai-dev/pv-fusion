@@ -17,6 +17,7 @@ import com.pvfusion.application.port.out.tracking.LoadTrackingPort;
 import com.pvfusion.global.error.BusinessException;
 import com.pvfusion.global.error.ErrorCode;
 import com.pvfusion.global.error.UnauthorizedException;
+import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -102,7 +103,7 @@ public class TrackingService implements
                 .orElseThrow(UnauthorizedException::new);
     }
 
-    private void validateDateRange(java.time.LocalDate from, java.time.LocalDate to) {
+    private void validateDateRange(LocalDate from, LocalDate to) {
         if (from != null && to != null && from.isAfter(to)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "from must be before or equal to to.");
         }

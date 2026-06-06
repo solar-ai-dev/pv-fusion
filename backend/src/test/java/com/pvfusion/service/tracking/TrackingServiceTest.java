@@ -72,7 +72,7 @@ class TrackingServiceTest {
         when(accessChecker.isAdmin(1L)).thenReturn(false);
 
         assertThatThrownBy(() -> trackingService.execute(new TrackingQuery(
-                1L, null, null, null, null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null, null, null, null, null
         ))).isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.FORBIDDEN);
@@ -85,7 +85,7 @@ class TrackingServiceTest {
         when(loadTrackingPort.loadTracking(any())).thenReturn(List.of(summary(100L, 90L, true)));
 
         var response = trackingService.execute(new TrackingQuery(
-                1L, null, 10L, null, TargetType.ZONE, LocalDate.now().minusDays(7), LocalDate.now(),
+                null, 10L, null, TargetType.ZONE, LocalDate.now().minusDays(7), LocalDate.now(),
                 AnalysisInputType.RGB_SINGLE, AnalysisModelType.RGB_ONLY, null, null, null
         ));
 
@@ -101,7 +101,7 @@ class TrackingServiceTest {
         when(accessChecker.checkResultAccess(1L, 90L)).thenReturn(true);
         when(loadInspectionComparisonPort.loadInspectionComparison(any())).thenReturn(Optional.of(compareResponse()));
 
-        var response = trackingService.execute(new InspectionCompareQuery(1L, 100L, 90L));
+        var response = trackingService.execute(new InspectionCompareQuery(100L, 90L));
 
         assertThat(response.worsened()).isTrue();
         assertThat(response.defectChange().newDefectTypes()).contains(DefectType.HOTSPOT);
@@ -111,7 +111,7 @@ class TrackingServiceTest {
     void compareTrackingFailsWhenCurrentResultMissing() {
         when(loadAnalysisResultPort.loadAnalysisResult(100L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> trackingService.execute(new InspectionCompareQuery(1L, 100L, null)))
+        assertThatThrownBy(() -> trackingService.execute(new InspectionCompareQuery(100L, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.NOT_FOUND);

@@ -61,7 +61,7 @@ public class DashboardService implements
         validateScope(currentUserId, query.plantId(), query.zoneId());
 
         DashboardResponse base = loadDashboardPort.loadDashboard(query);
-        List<TrackingSummaryResponse> trackingItems = loadTrackingPort.loadTracking(toTrackingQuery(query));
+        List<TrackingSummaryResponse> trackingItems = loadTrackingPort.loadTracking(toTrackingQuery(query, currentUserId));
 
         long worsenedCount = trackingItems.stream().filter(TrackingSummaryResponse::worsened).count();
         long repeatedAnomalyCount = trackingItems.stream().filter(TrackingSummaryResponse::repeated).count();
@@ -180,9 +180,9 @@ public class DashboardService implements
         );
     }
 
-    private TrackingQuery toTrackingQuery(DashboardQuery query) {
+    private TrackingQuery toTrackingQuery(DashboardQuery query, Long currentUserId) {
         return new TrackingQuery(
-                null,
+                currentUserId,
                 query.plantId(),
                 query.zoneId(),
                 null,
