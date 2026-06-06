@@ -62,6 +62,29 @@ services:
       - /bin/sh
       - /init/init-buckets.sh
 
+  localstack:
+    image: localstack/localstack:3.5.0
+    container_name: pv-fusion-localstack
+    restart: unless-stopped
+    environment:
+      SERVICES: sqs
+      AWS_DEFAULT_REGION: ${SQS_REGION:-ap-northeast-2}
+      AWS_ACCESS_KEY_ID: ${SQS_ACCESS_KEY:-test}
+      AWS_SECRET_ACCESS_KEY: ${SQS_SECRET_KEY:-test}
+      SQS_ENDPOINT_STRATEGY: path
+    ports:
+      - "4566:4566"
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -f
+        - http://localhost:4566/_localstack/health
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
 volumes:
   postgres_data:
   minio_data:

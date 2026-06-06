@@ -4,4 +4,7 @@ public record GetEquipmentQuery(
         Long actorUserId,
         Long equipmentId
 ) {
+    public GetEquipmentQuery(Long equipmentId) {
+        this(null, equipmentId);
+    }
 }

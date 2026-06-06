@@ -15,4 +15,16 @@ public record AnalysisJobListQuery(
         int page,
         int size
 ) {
+    public AnalysisJobListQuery(
+            Long plantId,
+            Long zoneId,
+            Long inspectionId,
+            AnalysisJobStatus jobStatus,
+            AnalysisInputType inputType,
+            AnalysisModelType modelType,
+            int page,
+            int size
+    ) {
+        this(null, plantId, zoneId, inspectionId, jobStatus, inputType, modelType, page, size);
+    }
 }

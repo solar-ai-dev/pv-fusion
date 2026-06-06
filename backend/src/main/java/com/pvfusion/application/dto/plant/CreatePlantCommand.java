@@ -6,4 +6,7 @@ public record CreatePlantCommand(
         String location,
         String description
 ) {
+    public CreatePlantCommand(String name, String location, String description) {
+        this(null, name, location, description);
+    }
 }

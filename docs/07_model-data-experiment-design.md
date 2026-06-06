@@ -6,7 +6,7 @@ MVP 초기 단계에서는 **RGB 단건 분석 모델**과 **열화상 단건 �
 
 Fusion 실험은 RGB-only / Thermal-only 단건 baseline과 단건 모델 배포 검증이 완료된 이후, O&M RGB-Thermal 정상 pair와 synthetic paired dataset을 활용하여 단건 baseline 대비 성능 개선 여부를 검증한다.
 
-모델 구조는 실험 전반에서 **YOLO26 계열로 고정**한다.
+모델 구조는 실험 전반에서 **YOLO26 계열로 고정**한다. 단건 모델 선정은 PyTorch 학습 성능뿐 아니라, 무료 또는 저사양 AWS CPU 환경에서 AI Worker가 ONNX Runtime으로 안정적으로 추론 가능한지도 함께 고려한다.
 
 ---
 
@@ -15,7 +15,7 @@ Fusion 실험은 RGB-only / Thermal-only 단건 baseline과 단건 모델 배포
 ```
 단건 데이터셋 선정
 → YOLO26 RGB-only baseline 실험
-→ YOLO26 Thermal-only baseline 실험
+→ YOLO26 Thermal-only baseline 실험 및 무료/저사양 CPU 기준 1차 후보 선정
 → 단건 모델 ONNX 변환 및 CPU 추론 검증
 → O&M RGB-Thermal 정상 pair 기반 crop pair 생성
 → Synthetic paired dataset 생성
@@ -53,6 +53,8 @@ RGB 단건, 열화상 단건, 단건 배포 검증, Synthetic 품질 검증, Fus
 | Fusion 후속 실험 | synthetic RGB-Thermal paired dataset | 단건 baseline 확보 후 YOLO26 기반 Late Fusion 우선 실험, Early Fusion은 후순위 후보로 검토 |
 | Fusion 배포 최적화 | Fusion 최종 후보 모델 | Fusion 최종 후보가 선정된 경우에만 ONNX 변환, CPU 추론, 결과 포맷 정합성, INT8 양자화 가능성 검토 |
 | 최종 선정 | 단건 모델 + Fusion 후속 후보 | 1차는 RGB-only / Thermal-only 단건 모델을 선정하고, Fusion은 후속 실험에서 개선 효과가 확인된 경우 후보로 관리 |
+
+---
 
 ## 4. 하위 문서 구성
 
@@ -193,7 +195,7 @@ New Solar Panel RGB Faults는 instance segmentation 데이터셋이므로 YOLO26
 | 실험 ID | 비교 변수 | 비교 내용 | 수행 조건 |
 | --- | --- | --- | --- |
 | RGB-EXP-01 | 데이터셋 사용 가능성 검증 | New Solar Panel RGB Faults의 라벨 형식, 클래스 수, 클래스 분포, train/val/test split, 이미지 품질을 확인하고 YOLO26-seg 학습 가능 여부 확인 | 학습 전 데이터 점검 + smoke train 3~5 epoch |
-| RGB-EXP-02 | 모델 구조 | YOLO26n-seg / YOLO26s-seg 중 RGB-only baseline에 적합한 모델 구조 비교 | New Solar Panel RGB Faults, 640×640, 20~30 epoch, batch size 16, seed 42, 기본값 유지 augmentation, optimizer=auto |
+| RGB-EXP-02 | 모델 구조 | YOLO26n-seg / YOLO26s-seg를 비교하고, 무료 또는 저사양 AWS CPU 환경에서 AI Worker 1개가 Queue 작업을 순차 처리하는 기준까지 반영하여 후속 실험 진행용 RGB-only baseline 선정 | New Solar Panel RGB Faults, 640×640, 20~30 epoch, batch size 16, seed 42, 기본값 유지 augmentation, optimizer=auto |
 | RGB-EXP-03 | Augmentation 파라미터 조합 | 기본값 유지, 색상 변환 조정, 기하 변환 조정, 합성 증강 조정 조건에서 segmentation 성능과 mask 훼손 여부 비교 | RGB-EXP-02에서 선택한 모델 기준, 640×640, batch size 16, seed 42 |
 | RGB-EXP-04 | 입력 해상도 | 512×512 / 640×640 / 768×768 중 성능과 추론 시간 균형 비교 | RGB-EXP-02에서 선택한 모델과 RGB-EXP-03에서 선택한 augmentation 조건 기준으로 수행 |
 | RGB-EXP-05 | 후처리 Threshold | confidence threshold 변화에 따른 오탐·미탐 변화 확인 | 재학습 없이 validation/test 추론 결과 기준으로 수행 |
@@ -243,7 +245,7 @@ Augmentation 파라미터 조합은 단순히 증강 강도를 높이는 방식�
 | 실험 ID | 핵심 지표 | 보조 지표 | 선정 기준 |
 | --- | --- | --- | --- |
 | RGB-EXP-01 | 라벨 정상 로딩 여부, 클래스 수, 클래스 분포, smoke train 성공 여부 | 샘플 overlay 품질, split 존재 여부 | YOLO26-seg 학습이 정상 실행되고 라벨·클래스가 문서 기준과 맞으면 채택 |
-| RGB-EXP-02 | mAP50-95-seg, class별 Recall, 평균 latency | mAP50-seg, mAP50-box, 모델 크기 | YOLO26n-seg와 YOLO26s-seg 중 성능 대비 추론 비용이 좋은 모델 채택 |
+| RGB-EXP-02 | mAP50-95-seg, class별 Recall, 전체 Recall, CPU ONNX 참고 latency 기준 통과 여부 | mAP50-seg, mAP50-box, 모델 크기, PyTorch validation inference speed | 무료 또는 저사양 AWS CPU 환경에서 AI Worker 1개가 Queue 작업을 순차 처리하는 기준을 함께 적용한다. CPU ONNX 참고 latency 100ms/img 이하, 모델 크기 25MB 이하를 1차 통과 기준으로 보고, YOLO26n-seg 대비 mAP50-95가 0.005 이상 개선되거나 전체 Recall이 0.03 이상 개선되거나 주요 class Recall이 의미 있게 개선되면 YOLO26s-seg를 후속 실험 진행용 baseline으로 선택할 수 있다. |
 | RGB-EXP-03 | mAP50-95-seg, class별 Recall, val-test gap | F1-score, 실패 케이스 수, mask 훼손 샘플 | augmentation 파라미터 조합이 일반화 성능을 개선하고 결함 mask 해석을 해치지 않으면 채택 |
 | RGB-EXP-04 | mAP50-95-seg, 평균 latency, GPU 메모리 사용량 | mAP50-box, class별 Recall | 640×640을 기준으로 성능 개선 대비 추론 비용이 큰 해상도는 제외 |
 | RGB-EXP-05 | Precision, Recall, F1-score, FP 수, FN 수 | PR curve, confidence별 F1-score | 오탐과 미탐 균형이 가장 좋은 confidence threshold 채택 |
@@ -318,13 +320,14 @@ Augmentation 파라미터 조합은 단순히 증강 강도를 높이는 방식�
 | 고정 조건 | New Solar Panel RGB Faults, 640×640, 20~30 epoch, batch size 16, seed 42, 기본값 유지 augmentation, optimizer=auto |
 | Batch size | 16 기준, 32 시도 시 참고 결과로만 기록, OOM 발생 시 8 또는 4로 낮추고 변경 사유 기록 |
 | Seed | 42 |
-| 핵심 지표 | mAP50-95-seg, class별 Recall, 평균 latency |
-| 보조 지표 | mAP50-seg, mAP50-box, 모델 파일 크기 |
-| 결과 및 계산 기준 | 동일 validation/test split에서 모델별 segmentation 성능, class별 성능, 추론 시간 비교 |
+| 핵심 지표 | mAP50-95-seg, class별 Recall, 전체 Recall, CPU ONNX 참고 latency 기준 통과 여부 |
+| 보조 지표 | mAP50-seg, mAP50-box, 모델 파일 크기, PyTorch validation inference speed |
+| 결과 및 계산 기준 | 동일 validation/test split에서 모델별 segmentation 성능, class별 성능, 추론 시간, 모델 크기, 무료/저사양 AWS CPU 1 Worker 순차 처리 기준 통과 여부 비교 |
+| 선정 기준 | CPU ONNX 참고 latency 100ms/img 이하, 모델 파일 크기 25MB 이하를 1차 통과 기준으로 본다. YOLO26n-seg 대비 mAP50-95가 0.005 이상 개선되거나, 전체 Recall이 0.03 이상 개선되거나, 주요 class Recall이 의미 있게 개선되면 YOLO26s-seg를 후속 실험 진행용 baseline으로 선택할 수 있다. YOLO26m/l/x 계열은 무료 또는 저사양 AWS CPU MVP 운영 후보에서 제외한다. |
 | 최종 선택 |  |
 | 판정 | 채택 / 보류 / 제외 |
-| 산출물 | best.pt, last.pt, results.csv, confusion matrix, validation prediction overlay |
-| 메모 |  |
+| 산출물 | best.pt, last.pt, results.csv, confusion matrix, validation prediction overlay, RGB-EXP-02 model compare summary |
+| 메모 | RGB-EXP-02의 모델 선정은 최종 운영 모델 확정이 아니라 후속 실험 진행용 baseline 선정이다. 최종 운영 모델은 DEP-EXP에서 ONNX Runtime CPU latency, peak memory, model load time, 결과 포맷 정합성, AI Worker 라우팅 검증 후 확정한다. |
 
 ### RGB-EXP-03. Augmentation 파라미터 조합 비교
 
@@ -472,7 +475,8 @@ ThermoSolar-PV는 bbox 기반 열화상 anomaly 탐지 데이터셋이므로 YOL
 | 실험 ID | 비교 변수 | 비교 내용 | 수행 조건 |
 | --- | --- | --- | --- |
 | TH-EXP-01 | 데이터셋 사용 가능성 검증 | ThermoSolar-PV의 라벨 형식, 클래스 수, 클래스 분포, train/val/test split, 이미지 품질을 확인하고 YOLO26 detection 학습 가능 여부 확인 | 학습 전 데이터 점검 + smoke train 3~5 epoch |
-| TH-EXP-02 | 모델 구조 | YOLO26n / YOLO26s 중 Thermal-only baseline에 적합한 모델 구조 비교 | ThermoSolar-PV, 640×640, 20~30 epoch, batch size 16, seed 42, 기본값 유지 augmentation, optimizer=auto |
+| TH-EXP-02 | 모델 구조 | YOLO26n / YOLO26s를 비교하고, 무료 또는 저사양 AWS CPU 환경에서 AI Worker 1개가 Queue 작업을 순차 처리하는 기준까지 반영하여 후속 실험 진행용 Thermal-only baseline 선정 | ThermoSolar-PV, 640×640, 20~30 epoch, batch size 16, seed 42, 기본값 유지 augmentation, optimizer=auto |
+| TH-EXP-03-OS-01 | Rare class oversampling | TH-EXP-02에서 선정한 모델을 기준으로 rare class oversampling을 적용해 class별 Recall과 rare class mean recall 개선 여부 확인 | TH-EXP-02에서 선택한 모델 기준, 640×640, batch size 16, seed 42, rare class 중심 train manifest 구성 |
 | TH-EXP-03 | Augmentation 파라미터 조합 | 기본값 유지, 명암·대비 조정, 기하 변환 조정, 합성 증강 조정 조건에서 detection 성능과 발열 패턴 훼손 여부 비교 | TH-EXP-02에서 선택한 모델 기준, 640×640, batch size 16, seed 42 |
 | TH-EXP-04 | 입력 해상도 | 512×512 / 640×640 / 768×768 중 탐지 성능과 추론 시간 균형 비교 | TH-EXP-02에서 선택한 모델과 TH-EXP-03에서 선택한 augmentation 조건 기준으로 수행 |
 | TH-EXP-05 | 후처리 Threshold | confidence threshold와 NMS IoU 또는 YOLO26 기본 후처리 설정 변화에 따른 오탐·미탐 변화 확인 | 재학습 없이 validation/test 추론 결과 기준으로 수행 |
@@ -522,7 +526,8 @@ Augmentation 파라미터 조합은 단순히 증강 강도를 높이는 방식�
 | 실험 ID | 핵심 지표 | 보조 지표 | 선정 기준 |
 | --- | --- | --- | --- |
 | TH-EXP-01 | 라벨 정상 로딩 여부, 클래스 수, 클래스 분포, smoke train 성공 여부 | 샘플 bbox overlay 품질, split 존재 여부 | YOLO26 detection 학습이 정상 실행되고 라벨·클래스가 문서 기준과 맞으면 채택 |
-| TH-EXP-02 | mAP50-95-box, class별 Recall, 평균 latency | mAP50-box, 모델 크기 | YOLO26n과 YOLO26s 중 성능 대비 추론 비용이 좋은 모델 채택 |
+| TH-EXP-02 | mAP50-95-box, class별 Recall, rare class mean recall, 전체 Recall, CPU ONNX 참고 latency 기준 통과 여부 | mAP50-box, 모델 크기, PyTorch validation inference speed | 무료 또는 저사양 AWS CPU 환경에서 AI Worker 1개가 Queue 작업을 순차 처리하는 기준을 함께 적용한다. CPU ONNX 참고 latency 100ms/img 이하, 모델 크기 25MB 이하를 1차 통과 기준으로 보고, YOLO26n 대비 mAP50-95 +0.005 이상 또는 전체 Recall +0.03 이상 또는 rare class mean recall +0.05 이상 개선되면 YOLO26s를 후속 실험 진행용 baseline으로 선택할 수 있다. |
+| TH-EXP-03-OS-01 | rare class mean recall, class별 Recall, 전체 Recall, mAP50-95-box | Precision 저하 여부, confusion matrix, PR/F1 curve, 오탐 증가 여부, validation prediction bbox 품질 | rare class recall이 개선되고 전체 mAP50-95와 Precision이 크게 훼손되지 않으면 채택한다. rare class는 개선되지만 오탐이 크게 늘거나 주요 class 성능이 하락하면 보류한다. 개선이 없거나 전체 성능이 악화되면 제외한다. |
 | TH-EXP-03 | mAP50-95-box, class별 Recall, val-test gap | F1-score, 실패 케이스 수, 발열 패턴 훼손 샘플 | augmentation 파라미터 조합이 일반화 성능을 개선하고 발열 패턴 해석을 해치지 않으면 채택 |
 | TH-EXP-04 | mAP50-95-box, 평균 latency, GPU 메모리 사용량 | mAP50-box, class별 Recall | 640×640을 기준으로 성능 개선 대비 추론 비용이 큰 해상도는 제외 |
 | TH-EXP-05 | Precision, Recall, F1-score, FP 수, FN 수 | PR curve, confidence별 F1-score | 오탐과 미탐 균형이 가장 좋은 confidence threshold와 NMS IoU 조건 채택 |
@@ -597,13 +602,32 @@ Augmentation 파라미터 조합은 단순히 증강 강도를 높이는 방식�
 | 고정 조건 | ThermoSolar-PV, 640×640, 20~30 epoch, batch size 16, seed 42, 기본값 유지 augmentation, optimizer=auto |
 | Batch size | 16 기준, 32 시도 시 참고 결과로만 기록, OOM 발생 시 8 또는 4로 낮추고 변경 사유 기록 |
 | Seed | 42 |
-| 핵심 지표 | mAP50-95-box, class별 Recall, 평균 latency |
-| 보조 지표 | mAP50-box, 모델 파일 크기 |
-| 결과 및 계산 기준 | 동일 validation/test split에서 모델별 detection 성능, class별 성능, 추론 시간 비교 |
+| 핵심 지표 | mAP50-95-box, class별 Recall, rare class mean recall, 전체 Recall, CPU ONNX 참고 latency 기준 통과 여부 |
+| 보조 지표 | mAP50-box, 모델 파일 크기, PyTorch validation inference speed |
+| 결과 및 계산 기준 | 동일 validation/test split에서 모델별 detection 성능, class별 성능, 추론 시간, 모델 크기, 무료/저사양 AWS CPU 1 Worker 순차 처리 기준 통과 여부 비교 |
+| 선정 기준 | CPU ONNX 참고 latency 100ms/img 이하, 모델 파일 크기 25MB 이하를 1차 통과 기준으로 본다. YOLO26n 대비 mAP50-95가 0.005 이상 개선되거나, 전체 Recall이 0.03 이상 개선되거나, rare class mean recall이 0.05 이상 개선되면 YOLO26s를 후속 실험 진행용 baseline으로 선택할 수 있다. YOLO26m/l/x는 무료 또는 저사양 AWS CPU MVP 운영 후보에서 제외한다. |
+| 최종 선택 | YOLO26s |
+| 판정 | 채택 |
+| 산출물 | best.pt, last.pt, results.csv, confusion matrix, validation prediction bbox overlay, TH-EXP-02 model compare summary |
+| 메모 | TH-EXP-02의 YOLO26s 선정은 최종 운영 모델 확정이 아니라 후속 실험 진행용 baseline 선정이다. 최종 운영 모델은 DEP-EXP에서 ONNX Runtime CPU latency, peak memory, model load time, 결과 포맷 정합성, AI Worker 라우팅 검증 후 확정한다. |
+
+### TH-EXP-03-OS-01. Rare class oversampling 실험
+
+| 항목 | 내용 |
+| --- | --- |
+| 실험 구분 | Thermal rare class oversampling 실험 |
+| 비교 대상 | YOLO26s baseline / YOLO26s + rare class oversampling |
+| 고정 조건 | TH-EXP-02에서 선택한 YOLO26s, ThermoSolar-PV, 640×640, batch size 16, seed 42 |
+| 대상 rare class | MultiByPassed, MultiDiode, StringOpenCircuit, StringReversedPolarity |
+| Watch class | SingleDiode |
+| Oversampling 기준 | rare class가 포함된 train image를 중심으로 oversampled train manifest를 구성한다. repeat_by_class는 class distribution과 TH-EXP-02 imbalance 분석 결과를 기준으로 기록한다. |
+| 핵심 지표 | rare class mean recall, class별 Recall, 전체 Recall, mAP50-95-box, mAP50-box |
+| 보조 지표 | Precision 저하 여부, confusion matrix, PR/F1 curve, 오탐 증가 여부, 특정 class 성능 악화 여부, validation prediction bbox 품질, 학습 시간, best.pt 크기 |
+| 결과 및 계산 기준 | YOLO26s baseline과 YOLO26s + oversampling 결과를 동일 validation/test split 기준으로 비교한다. rare class recall 개선 여부와 전체 성능 훼손 여부를 함께 확인한다. |
 | 최종 선택 |  |
 | 판정 | 채택 / 보류 / 제외 |
-| 산출물 | best.pt, last.pt, results.csv, confusion matrix, validation prediction bbox overlay |
-| 메모 |  |
+| 산출물 | oversampled train manifest, oversampling data yaml, results.csv, class별 성능표, confusion matrix, PR/F1 curve, validation prediction bbox overlay |
+| 메모 | TH-EXP-03-OS-01은 YOLO26n/s 전체 반복 실험이 아니라, TH-EXP-02에서 선정한 YOLO26s 하나를 기준으로 수행한다. oversampling 결과가 좋더라도 최종 운영 모델 확정은 DEP-EXP에서 한다. |
 
 ### TH-EXP-03. Augmentation 파라미터 조합 비교
 
@@ -683,11 +707,12 @@ Thermal-only baseline 후보를 선정한 뒤, 서비스 적용 가능성을 확
 | 구분 | 후속 비교 항목 | 수행 조건 |
 | --- | --- | --- |
 | Learning rate | 기본값 / 낮은 LR / 높은 LR | loss 수렴이 불안정하거나 validation 성능이 흔들릴 때 |
-| 클래스 보정 | class weight, oversampling, rare class 중심 샘플링 | 특정 class Recall이 낮을 때 |
+| 클래스 보정 | TH-EXP-03-OS-01 rare class oversampling, class weight, rare class 중심 샘플링 |  TH-EXP-02에서 선정한 YOLO26s 기준으로 MultiByPassed, MultiDiode, StringOpenCircuit, StringReversedPolarity 등 rare class Recall이 낮거나 class imbalance 영향이 확인될 때 수행 |
 | Epoch 조정 | 20~30 epoch 이후 epoch 증가 검토 | train/val loss가 계속 개선되는데 학습이 중단된 경우 |
 | Batch size 확장 | 16 기준 학습이 안정적으로 완료되고 GPU 메모리 여유가 충분할 때 32를 선택적으로 시도 | 기본 비교 조건에는 포함하지 않고 참고 결과로만 기록 |
 | 데이터 보강 | synthetic Thermal defect dataset 추가 또는 공개+synthetic 혼합 | Thermal-only 단독 baseline 확정 후 synthetic 데이터가 실제 생성된 경우에만 별도 후속 실험으로 수행 |
 | Fusion 연계 | Thermal-only 최종 후보 모델을 Fusion 후속 실험의 단일 모달 비교 기준으로 사용 | Thermal-only baseline 확정 후 수행 |
+
 
 ## 단건 모델 배포 최적화 실험
 

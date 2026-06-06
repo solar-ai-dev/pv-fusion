@@ -85,6 +85,6 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
         if (keyword == null || keyword.isBlank()) {
             return null;
         }
-        return keyword.trim();
+        return "%" + keyword.trim().toLowerCase() + "%";
     }
 }

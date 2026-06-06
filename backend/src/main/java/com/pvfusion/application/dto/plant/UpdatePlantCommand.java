@@ -7,4 +7,7 @@ public record UpdatePlantCommand(
         String location,
         String description
 ) {
+    public UpdatePlantCommand(Long plantId, String name, String location, String description) {
+        this(null, plantId, name, location, description);
+    }
 }

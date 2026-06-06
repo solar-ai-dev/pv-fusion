@@ -10,6 +10,7 @@ import com.pvfusion.application.dto.image.ImageSummaryResponse;
 import com.pvfusion.application.dto.imagepair.CreateImagePairCommand;
 import com.pvfusion.application.dto.imagepair.ImagePairCandidateQuery;
 import com.pvfusion.application.port.in.access.AccessChecker;
+import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.equipment.LoadEquipmentPort;
 import com.pvfusion.application.port.out.image.LoadImagePort;
 import com.pvfusion.application.port.out.imagepair.LoadImagePairPort;
@@ -55,6 +56,8 @@ class ImagePairServiceTest {
     private LoadEquipmentPort loadEquipmentPort;
     @Mock
     private AccessChecker accessChecker;
+    @Mock
+    private CurrentUserPort currentUserPort;
 
     private ImagePairService imagePairService;
 
@@ -68,8 +71,10 @@ class ImagePairServiceTest {
                 loadInspectionPort,
                 loadEquipmentPort,
                 accessChecker,
-                Optional.empty()
+                Optional.empty(),
+                currentUserPort
         );
+        when(currentUserPort.getCurrentUserId()).thenReturn(Optional.of(1L));
     }
 
     @Test

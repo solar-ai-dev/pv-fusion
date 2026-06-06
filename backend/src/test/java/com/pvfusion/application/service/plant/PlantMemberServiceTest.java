@@ -11,6 +11,7 @@ import com.pvfusion.application.dto.user.DeactivatePlantMemberCommand;
 import com.pvfusion.application.dto.user.GrantPlantAccessCommand;
 import com.pvfusion.application.dto.user.PlantMemberListQuery;
 import com.pvfusion.application.dto.user.PlantMemberResponse;
+import com.pvfusion.application.port.in.operation.RecordOperationLogUseCase;
 import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.plant.PlantMemberRepositoryPort;
 import com.pvfusion.application.port.out.plant.PlantRepositoryPort;
@@ -44,6 +45,8 @@ class PlantMemberServiceTest {
     private PlantRepositoryPort plantRepositoryPort;
     @Mock
     private PlantMemberRepositoryPort plantMemberRepositoryPort;
+    @Mock
+    private RecordOperationLogUseCase recordOperationLogUseCase;
 
     private PlantMemberService plantMemberService;
 
@@ -53,7 +56,8 @@ class PlantMemberServiceTest {
                 currentUserPort,
                 userRepositoryPort,
                 plantRepositoryPort,
-                plantMemberRepositoryPort
+                plantMemberRepositoryPort,
+                recordOperationLogUseCase
         );
     }
 
@@ -96,6 +100,7 @@ class PlantMemberServiceTest {
         assertThat(response.userId()).isEqualTo(2L);
         assertThat(response.memberRole()).isEqualTo(PlantMemberRole.VIEWER);
         assertThat(response.status()).isEqualTo(ResourceStatus.ACTIVE);
+        verify(recordOperationLogUseCase).execute(any());
     }
 
     @Test
@@ -118,6 +123,7 @@ class PlantMemberServiceTest {
         assertThat(response.plantMemberId()).isEqualTo(30L);
         assertThat(response.memberRole()).isEqualTo(PlantMemberRole.MANAGER);
         assertThat(response.status()).isEqualTo(ResourceStatus.ACTIVE);
+        verify(recordOperationLogUseCase).execute(any());
     }
 
     @Test

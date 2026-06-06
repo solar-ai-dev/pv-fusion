@@ -15,10 +15,9 @@ import com.pvfusion.domain.result.SeverityLevel;
 import com.pvfusion.global.response.ApiResponse;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,14 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class TrackingController {
 
-    private static final String ACTOR_USER_ID_HEADER = "X-Actor-User-Id";
-
     private final QueryTrackingUseCase queryTrackingUseCase;
     private final CompareInspectionResultUseCase compareInspectionResultUseCase;
 
     @GetMapping
     public ResponseEntity<ApiResponse<TrackingResponse>> queryTracking(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @RequestParam(required = false) Long plantId,
             @RequestParam(required = false) Long zoneId,
             @RequestParam(required = false) Long equipmentId,
@@ -49,7 +45,6 @@ public class TrackingController {
             @RequestParam(required = false) SeverityLevel severityLevel
     ) {
         TrackingResponse response = queryTrackingUseCase.execute(new TrackingQuery(
-                actorUserId,
                 plantId,
                 zoneId,
                 equipmentId,
@@ -67,12 +62,11 @@ public class TrackingController {
 
     @GetMapping("/compare")
     public ResponseEntity<ApiResponse<InspectionCompareResponse>> compareTracking(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @RequestParam Long currentResultId,
             @RequestParam(required = false) Long previousResultId
     ) {
         InspectionCompareResponse response = compareInspectionResultUseCase.execute(
-                new InspectionCompareQuery(actorUserId, currentResultId, previousResultId)
+                new InspectionCompareQuery(currentResultId, previousResultId)
         );
         return ResponseEntity.ok(ApiResponse.success(response));
     }

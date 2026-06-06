@@ -15,6 +15,7 @@ import com.pvfusion.application.port.in.imagepair.DeactivateImagePairUseCase;
 import com.pvfusion.application.port.in.imagepair.GetImagePairUseCase;
 import com.pvfusion.application.port.in.imagepair.QueryImagePairCandidateUseCase;
 import com.pvfusion.application.port.in.imagepair.UpdateImagePairUseCase;
+import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.equipment.LoadEquipmentPort;
 import com.pvfusion.application.port.out.image.LoadImagePort;
 import com.pvfusion.application.port.out.imagepair.LoadImagePairPort;
@@ -32,6 +33,7 @@ import com.pvfusion.domain.inspection.Inspection;
 import com.pvfusion.domain.zone.Zone;
 import com.pvfusion.global.error.BusinessException;
 import com.pvfusion.global.error.ErrorCode;
+import com.pvfusion.global.error.UnauthorizedException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -58,19 +60,20 @@ public class ImagePairService implements
     private final LoadEquipmentPort loadEquipmentPort;
     private final AccessChecker accessChecker;
     private final Optional<LoadZonePort> loadZonePort;
+    private final CurrentUserPort currentUserPort;
 
     @Override
     public ImagePairCandidateResponse execute(ImagePairCandidateQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(query.inspectionId(), "inspectionId");
         validateCandidateTarget(query.targetType(), query.equipmentId());
 
         Inspection inspection = loadInspection(query.inspectionId());
-        ensureAllowed(accessChecker.checkInspectionAccess(query.actorUserId(), query.inspectionId()));
+        ensureAllowed(accessChecker.checkInspectionAccess(currentUserId, query.inspectionId()));
         validateEquipmentScope(query.targetType(), query.equipmentId(), inspection);
 
         List<InspectionImage> rgbImages = loadImagePort.loadImages(new ImageListQuery(
-                query.actorUserId(),
+                null,
                 null,
                 null,
                 query.inspectionId(),
@@ -80,7 +83,7 @@ public class ImagePairService implements
                 ResourceStatus.ACTIVE
         ));
         List<InspectionImage> thermalImages = loadImagePort.loadImages(new ImageListQuery(
-                query.actorUserId(),
+                null,
                 null,
                 null,
                 query.inspectionId(),
@@ -120,12 +123,12 @@ public class ImagePairService implements
     @Override
     @Transactional
     public ImagePairResponse execute(CreateImagePairCommand command) {
-        validateActorUserId(command.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(command.rgbImageId(), "rgbImageId");
         validateRequired(command.thermalImageId(), "thermalImageId");
 
         PairValidationResult validation = validatePair(command.rgbImageId(), command.thermalImageId(), null);
-        ensureAllowed(accessChecker.checkInspectionAccess(command.actorUserId(), validation.inspection().getId()));
+        ensureAllowed(accessChecker.checkInspectionAccess(currentUserId, validation.inspection().getId()));
 
         ImagePair saved = saveImagePairPort.saveImagePair(new ImagePair(
                 null,
@@ -135,7 +138,7 @@ public class ImagePairService implements
                 validation.rgbImage().getId(),
                 validation.thermalImage().getId(),
                 ResourceStatus.ACTIVE,
-                command.actorUserId(),
+                currentUserId,
                 null,
                 null
         ));
@@ -145,20 +148,20 @@ public class ImagePairService implements
 
     @Override
     public ImagePairResponse execute(GetImagePairQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(query.imagePairId(), "imagePairId");
 
-        ensureAllowed(accessChecker.checkImagePairAccess(query.actorUserId(), query.imagePairId()));
+        ensureAllowed(accessChecker.checkImagePairAccess(currentUserId, query.imagePairId()));
         return toResponse(loadImagePair(query.imagePairId()));
     }
 
     @Override
     @Transactional
     public ImagePairResponse execute(UpdateImagePairCommand command) {
-        validateActorUserId(command.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(command.imagePairId(), "imagePairId");
 
-        ensureAllowed(accessChecker.checkImagePairAccess(command.actorUserId(), command.imagePairId()));
+        ensureAllowed(accessChecker.checkImagePairAccess(currentUserId, command.imagePairId()));
         ImagePair existing = loadImagePair(command.imagePairId());
         if (existing.getStatus() != ResourceStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "Only active image pairs can be updated.");
@@ -187,10 +190,10 @@ public class ImagePairService implements
     @Override
     @Transactional
     public ImagePairResponse execute(DeactivateImagePairCommand command) {
-        validateActorUserId(command.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(command.imagePairId(), "imagePairId");
 
-        ensureAllowed(accessChecker.checkImagePairAccess(command.actorUserId(), command.imagePairId()));
+        ensureAllowed(accessChecker.checkImagePairAccess(currentUserId, command.imagePairId()));
         ImagePair existing = loadImagePair(command.imagePairId());
 
         ImagePair updated = new ImagePair(
@@ -357,8 +360,9 @@ public class ImagePairService implements
         }
     }
 
-    private void validateActorUserId(Long actorUserId) {
-        validateRequired(actorUserId, "actorUserId");
+    private Long requireCurrentUserId() {
+        return currentUserPort.getCurrentUserId()
+                .orElseThrow(UnauthorizedException::new);
     }
 
     private void validateRequired(Object value, String fieldName) {

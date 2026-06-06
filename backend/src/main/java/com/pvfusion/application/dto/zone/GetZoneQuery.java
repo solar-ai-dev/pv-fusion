@@ -4,4 +4,7 @@ public record GetZoneQuery(
         Long actorUserId,
         Long zoneId
 ) {
+    public GetZoneQuery(Long zoneId) {
+        this(null, zoneId);
+    }
 }

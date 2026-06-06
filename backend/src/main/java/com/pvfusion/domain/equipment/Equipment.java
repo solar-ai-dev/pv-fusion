@@ -41,4 +41,50 @@ public class Equipment {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
+
+    public Equipment update(Long parentEquipmentId, EquipmentType equipmentType, String name, String positionCode) {
+        return new Equipment(
+                id,
+                zoneId,
+                parentEquipmentId,
+                equipmentType,
+                name,
+                positionCode,
+                status,
+                createdByUserId,
+                createdAt,
+                OffsetDateTime.now()
+        );
+    }
+
+    public Equipment deactivate() {
+        return new Equipment(
+                id,
+                zoneId,
+                parentEquipmentId,
+                equipmentType,
+                name,
+                positionCode,
+                ResourceStatus.INACTIVE,
+                createdByUserId,
+                createdAt,
+                OffsetDateTime.now()
+        );
+    }
+
+    public boolean isActive() {
+        return status == ResourceStatus.ACTIVE;
+    }
+
+    public boolean isInactive() {
+        return status == ResourceStatus.INACTIVE;
+    }
+
+    public boolean hasParent() {
+        return parentEquipmentId != null;
+    }
+
+    public boolean isSameZone(Long otherZoneId) {
+        return zoneId != null && zoneId.equals(otherZoneId);
+    }
 }

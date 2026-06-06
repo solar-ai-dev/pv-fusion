@@ -21,11 +21,13 @@ import com.pvfusion.application.port.in.dashboard.GetAdminDashboardUseCase;
 import com.pvfusion.application.port.in.dashboard.GetDashboardTrendUseCase;
 import com.pvfusion.application.port.in.dashboard.GetDashboardUseCase;
 import com.pvfusion.application.port.in.dashboard.GetSeverityStatsUseCase;
+import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.dashboard.LoadDashboardPort;
 import com.pvfusion.application.port.out.dashboard.LoadDashboardStatsPort;
 import com.pvfusion.application.port.out.tracking.LoadTrackingPort;
 import com.pvfusion.global.error.BusinessException;
 import com.pvfusion.global.error.ErrorCode;
+import com.pvfusion.global.error.UnauthorizedException;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
@@ -50,15 +52,16 @@ public class DashboardService implements
     private final LoadDashboardStatsPort loadDashboardStatsPort;
     private final LoadTrackingPort loadTrackingPort;
     private final AccessChecker accessChecker;
+    private final CurrentUserPort currentUserPort;
 
     @Override
     public DashboardResponse execute(DashboardQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateDateRange(query.from(), query.to());
-        validateScope(query.actorUserId(), query.plantId(), query.zoneId());
+        validateScope(currentUserId, query.plantId(), query.zoneId());
 
         DashboardResponse base = loadDashboardPort.loadDashboard(query);
-        List<TrackingSummaryResponse> trackingItems = loadTrackingPort.loadTracking(toTrackingQuery(query));
+        List<TrackingSummaryResponse> trackingItems = loadTrackingPort.loadTracking(toTrackingQuery(query, currentUserId));
 
         long worsenedCount = trackingItems.stream().filter(TrackingSummaryResponse::worsened).count();
         long repeatedAnomalyCount = trackingItems.stream().filter(TrackingSummaryResponse::repeated).count();
@@ -81,28 +84,28 @@ public class DashboardService implements
 
     @Override
     public ActionStatsResponse execute(ActionStatsQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateDateRange(query.from(), query.to());
-        validateScope(query.actorUserId(), query.plantId(), query.zoneId());
+        validateScope(currentUserId, query.plantId(), query.zoneId());
         return loadDashboardStatsPort.loadActionStats(query);
     }
 
     @Override
     public SeverityStatsResponse execute(SeverityStatsQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateDateRange(query.from(), query.to());
-        validateScope(query.actorUserId(), query.plantId(), query.zoneId());
+        validateScope(currentUserId, query.plantId(), query.zoneId());
         return loadDashboardStatsPort.loadSeverityStats(query);
     }
 
     @Override
     public DashboardTrendResponse execute(DashboardTrendQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateDateRange(query.from(), query.to());
-        validateScope(query.actorUserId(), query.plantId(), query.zoneId());
+        validateScope(currentUserId, query.plantId(), query.zoneId());
         String normalizedInterval = normalizeInterval(query.interval());
         return loadDashboardStatsPort.loadDashboardTrend(new DashboardTrendQuery(
-                query.actorUserId(),
+                null,
                 query.plantId(),
                 query.zoneId(),
                 query.from(),
@@ -113,8 +116,8 @@ public class DashboardService implements
 
     @Override
     public AdminDashboardResponse execute(AdminDashboardQuery query) {
-        validateActorUserId(query.actorUserId());
-        if (!accessChecker.isAdmin(query.actorUserId())) {
+        Long currentUserId = requireCurrentUserId();
+        if (!accessChecker.isAdmin(currentUserId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
         return loadDashboardPort.loadAdminDashboard(query);
@@ -177,9 +180,9 @@ public class DashboardService implements
         );
     }
 
-    private TrackingQuery toTrackingQuery(DashboardQuery query) {
+    private TrackingQuery toTrackingQuery(DashboardQuery query, Long currentUserId) {
         return new TrackingQuery(
-                query.actorUserId(),
+                currentUserId,
                 query.plantId(),
                 query.zoneId(),
                 null,
@@ -229,10 +232,9 @@ public class DashboardService implements
         }
     }
 
-    private void validateActorUserId(Long actorUserId) {
-        if (actorUserId == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "actorUserId is required.");
-        }
+    private Long requireCurrentUserId() {
+        return currentUserPort.getCurrentUserId()
+                .orElseThrow(UnauthorizedException::new);
     }
 
     private void validateDateRange(LocalDate from, LocalDate to) {

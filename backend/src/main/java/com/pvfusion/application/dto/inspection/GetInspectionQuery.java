@@ -4,4 +4,7 @@ public record GetInspectionQuery(
         Long actorUserId,
         Long inspectionId
 ) {
+    public GetInspectionQuery(Long inspectionId) {
+        this(null, inspectionId);
+    }
 }

@@ -8,4 +8,7 @@ public record GrantPlantAccessCommand(
         Long userId,
         PlantMemberRole memberRole
 ) {
+    public GrantPlantAccessCommand(Long plantId, Long userId, PlantMemberRole memberRole) {
+        this(null, plantId, userId, memberRole);
+    }
 }

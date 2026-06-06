@@ -10,4 +10,12 @@ public record ChangeResultReviewStatusCommand(
         ActionCandidate actionCandidate,
         String memo
 ) {
+    public ChangeResultReviewStatusCommand(
+            Long resultId,
+            ReviewStatus reviewStatus,
+            ActionCandidate actionCandidate,
+            String memo
+    ) {
+        this(null, resultId, reviewStatus, actionCandidate, memo);
+    }
 }

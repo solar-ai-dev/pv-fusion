@@ -12,6 +12,7 @@ import com.pvfusion.application.dto.inspection.GetInspectionQuery;
 import com.pvfusion.application.dto.inspection.InspectionListQuery;
 import com.pvfusion.application.dto.inspection.UpdateInspectionCommand;
 import com.pvfusion.application.port.in.access.AccessChecker;
+import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.inspection.LoadInspectionPort;
 import com.pvfusion.application.port.out.inspection.SaveInspectionPort;
 import com.pvfusion.application.port.out.inspection.UpdateInspectionPort;
@@ -22,6 +23,7 @@ import com.pvfusion.domain.inspection.InspectionStatus;
 import com.pvfusion.domain.zone.Zone;
 import com.pvfusion.global.error.BusinessException;
 import com.pvfusion.global.error.ErrorCode;
+import com.pvfusion.global.error.ForbiddenException;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -46,6 +48,8 @@ class InspectionServiceTest {
     private LoadZonePort loadZonePort;
     @Mock
     private AccessChecker accessChecker;
+    @Mock
+    private CurrentUserPort currentUserPort;
 
     private InspectionService inspectionService;
 
@@ -56,8 +60,10 @@ class InspectionServiceTest {
                 saveInspectionPort,
                 updateInspectionPort,
                 loadZonePort,
-                accessChecker
+                accessChecker,
+                currentUserPort
         );
+        when(currentUserPort.getCurrentUserId()).thenReturn(Optional.of(1L));
     }
 
     @Test
@@ -86,6 +92,7 @@ class InspectionServiceTest {
                 OffsetDateTime.parse("2026-06-04T10:00:00+09:00")
         );
 
+        when(accessChecker.checkZoneAccess(1L, 10L)).thenReturn(true);
         when(loadZonePort.loadZone(10L)).thenReturn(Optional.of(zone));
         when(saveInspectionPort.saveInspection(any())).thenReturn(saved);
 
@@ -123,6 +130,7 @@ class InspectionServiceTest {
         InspectionListQuery query = new InspectionListQuery(1L, null, 10L, null, LocalDate.now(), LocalDate.now(), 0, 20);
 
         when(accessChecker.isAdmin(1L)).thenReturn(false);
+        when(accessChecker.checkZoneAccess(1L, 10L)).thenReturn(true);
         when(loadInspectionPort.loadInspections(query)).thenReturn(List.of(inspection));
         when(loadInspectionPort.countInspections(query)).thenReturn(1L);
         when(loadZonePort.loadZone(10L)).thenReturn(Optional.of(zone));
@@ -141,6 +149,7 @@ class InspectionServiceTest {
         );
         Zone zone = new Zone(10L, 100L, "Zone", null, null, null, 1L, null, null);
 
+        when(accessChecker.checkInspectionAccess(1L, 7L)).thenReturn(true);
         when(loadInspectionPort.loadInspection(7L)).thenReturn(Optional.of(inspection));
         when(loadZonePort.loadZone(10L)).thenReturn(Optional.of(zone));
 
@@ -165,6 +174,7 @@ class InspectionServiceTest {
         );
         Zone zone = new Zone(10L, 100L, "Zone", null, null, null, 1L, null, null);
 
+        when(accessChecker.checkInspectionAccess(1L, 7L)).thenReturn(true);
         when(loadInspectionPort.loadInspection(7L)).thenReturn(Optional.of(existing));
         when(loadZonePort.loadZone(10L)).thenReturn(Optional.of(zone));
         when(updateInspectionPort.updateInspection(any())).thenReturn(updated);
@@ -178,5 +188,46 @@ class InspectionServiceTest {
         verify(updateInspectionPort).updateInspection(captor.capture());
         assertThat(captor.getValue().getName()).isEqualTo("New");
         assertThat(captor.getValue().getCaptureMethod()).isEqualTo(CaptureMethod.DRONE);
+    }
+
+    @Test
+    void createInspectionFailsWhenZoneAccessDenied() {
+        CreateInspectionCommand command = new CreateInspectionCommand(
+                1L,
+                10L,
+                "Inspection A",
+                OffsetDateTime.parse("2026-06-04T09:00:00+09:00"),
+                CaptureMethod.DRONE,
+                "Kim",
+                "memo"
+        );
+
+        when(accessChecker.checkZoneAccess(1L, 10L)).thenReturn(false);
+
+        assertThatThrownBy(() -> inspectionService.execute(command))
+                .isInstanceOf(ForbiddenException.class);
+
+        verify(saveInspectionPort, never()).saveInspection(any());
+    }
+
+    @Test
+    void getInspectionFailsWhenInspectionAccessDenied() {
+        when(accessChecker.checkInspectionAccess(1L, 7L)).thenReturn(false);
+
+        assertThatThrownBy(() -> inspectionService.execute(new GetInspectionQuery(1L, 7L)))
+                .isInstanceOf(ForbiddenException.class);
+
+        verify(loadInspectionPort, never()).loadInspection(7L);
+    }
+
+    @Test
+    void updateInspectionFailsWhenInspectionAccessDenied() {
+        when(accessChecker.checkInspectionAccess(1L, 7L)).thenReturn(false);
+
+        assertThatThrownBy(() -> inspectionService.execute(new UpdateInspectionCommand(
+                1L, 7L, "New", null, CaptureMethod.DRONE, "New Inspector", "New Memo"
+        ))).isInstanceOf(ForbiddenException.class);
+
+        verify(updateInspectionPort, never()).updateInspection(any());
     }
 }

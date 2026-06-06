@@ -9,4 +9,7 @@ public record ActionStatsQuery(
         LocalDate from,
         LocalDate to
 ) {
+    public ActionStatsQuery(Long plantId, Long zoneId, LocalDate from, LocalDate to) {
+        this(null, plantId, zoneId, from, to);
+    }
 }

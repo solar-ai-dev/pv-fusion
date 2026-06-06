@@ -146,4 +146,60 @@ class UserPersistenceAdapterTest {
         assertThat(page.totalElements()).isEqualTo(1);
         assertThat(page.content()).hasSize(1);
     }
+
+    @Test
+    void findsUsersWhenKeywordIsNull() {
+        OffsetDateTime now = OffsetDateTime.parse("2026-06-05T11:00:00+09:00");
+        userPersistenceAdapter.save(new User(
+                null,
+                "null-keyword@example.com",
+                "Null Keyword",
+                "GOOGLE",
+                "google-null-1",
+                UserRole.USER,
+                AccountStatus.APPROVED,
+                now,
+                now,
+                now
+        ));
+
+        PageResponse<?> page = userPersistenceAdapter.findAll(new UserListQuery(
+                null,
+                null,
+                UserRole.USER,
+                AccountStatus.APPROVED,
+                0,
+                10
+        ));
+
+        assertThat(page.totalElements()).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    void findsUsersWithCaseInsensitiveKeyword() {
+        OffsetDateTime now = OffsetDateTime.parse("2026-06-05T12:00:00+09:00");
+        userPersistenceAdapter.save(new User(
+                null,
+                "bong@example.com",
+                "Bong Admin",
+                "GOOGLE",
+                "google-bong-1",
+                UserRole.ADMIN,
+                AccountStatus.APPROVED,
+                now,
+                now,
+                now
+        ));
+
+        PageResponse<?> page = userPersistenceAdapter.findAll(new UserListQuery(
+                null,
+                "  BONG ",
+                UserRole.ADMIN,
+                AccountStatus.APPROVED,
+                0,
+                10
+        ));
+
+        assertThat(page.content().toString()).contains("bong@example.com");
+    }
 }

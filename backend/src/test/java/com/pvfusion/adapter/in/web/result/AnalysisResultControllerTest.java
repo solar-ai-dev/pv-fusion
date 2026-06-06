@@ -78,7 +78,6 @@ class AnalysisResultControllerTest {
         when(saveAnalysisResultUseCase.execute(any())).thenReturn(sampleResponse());
 
         mockMvc.perform(post("/api/v1/analysis-results")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new SaveAnalysisResultRequest(
                                 10L, "model-a", "1.0", "onnx", "cpu", 640, BigDecimal.valueOf(0.75),
@@ -103,7 +102,6 @@ class AnalysisResultControllerTest {
         ));
 
         mockMvc.perform(get("/api/v1/analysis-results")
-                        .header("X-Actor-User-Id", 1L)
                         .param("inspectionId", "30"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].resultId").value(1L));
@@ -113,8 +111,7 @@ class AnalysisResultControllerTest {
     void getAnalysisResultReturnsOk() throws Exception {
         when(getAnalysisResultUseCase.execute(any())).thenReturn(sampleResponse());
 
-        mockMvc.perform(get("/api/v1/analysis-results/1")
-                        .header("X-Actor-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/analysis-results/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.resultId").value(1L));
     }
@@ -124,7 +121,6 @@ class AnalysisResultControllerTest {
         when(updateResultActionCandidateUseCase.execute(any())).thenReturn(sampleResponse());
 
         mockMvc.perform(patch("/api/v1/analysis-results/1")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new UpdateAnalysisResultRequest(ActionCandidate.RETAKE, "memo"))))
                 .andExpect(status().isOk())
@@ -136,7 +132,6 @@ class AnalysisResultControllerTest {
         when(changeResultReviewStatusUseCase.execute(any())).thenReturn(sampleResponse());
 
         mockMvc.perform(patch("/api/v1/analysis-results/1/review")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new ReviewAnalysisResultRequest(
                                 ReviewStatus.CONFIRMED, ActionCandidate.FIELD_INSPECTION, "checked"
@@ -152,7 +147,6 @@ class AnalysisResultControllerTest {
         ));
 
         mockMvc.perform(get("/api/v1/analysis-results/1/visualization")
-                        .header("X-Actor-User-Id", 1L)
                         .param("type", "bbox"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.type").value("bbox"));

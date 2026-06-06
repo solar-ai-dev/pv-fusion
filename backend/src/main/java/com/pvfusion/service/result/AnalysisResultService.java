@@ -35,6 +35,7 @@ import com.pvfusion.application.port.in.result.SaveAnalysisResultUseCase;
 import com.pvfusion.application.port.in.result.UpdateResultActionCandidateUseCase;
 import com.pvfusion.application.port.in.review.ChangeResultReviewStatusUseCase;
 import com.pvfusion.application.port.in.review.QueryResultReviewHistoryUseCase;
+import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.analysis.LoadAnalysisJobPort;
 import com.pvfusion.application.port.out.defect.LoadDetectedDefectPort;
 import com.pvfusion.application.port.out.defect.SaveDetectedDefectPort;
@@ -62,6 +63,7 @@ import com.pvfusion.domain.review.ReviewStatus;
 import com.pvfusion.domain.zone.Zone;
 import com.pvfusion.global.error.BusinessException;
 import com.pvfusion.global.error.ErrorCode;
+import com.pvfusion.global.error.UnauthorizedException;
 import com.pvfusion.global.response.PageResponse;
 
 import lombok.RequiredArgsConstructor;
@@ -98,11 +100,12 @@ public class AnalysisResultService implements
     private final GenerateImageAccessUrlPort generateImageAccessUrlPort;
     private final AccessChecker accessChecker;
     private final Optional<LoadZonePort> loadZonePort;
+    private final CurrentUserPort currentUserPort;
 
     @Override
     @Transactional
     public AnalysisResultResponse execute(SaveAnalysisResultCommand command) {
-        validateActorUserId(command.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(command.analysisJobId(), "analysisJobId");
         validateText(command.modelName(), "modelName");
         validateText(command.modelVersion(), "modelVersion");
@@ -117,7 +120,7 @@ public class AnalysisResultService implements
         validateRequired(command.priorityLevel(), "priorityLevel");
 
         AnalysisJob job = loadAnalysisJob(command.analysisJobId());
-        ensureAllowed(accessChecker.checkAnalysisJobAccess(command.actorUserId(), command.analysisJobId()));
+        ensureAllowed(accessChecker.checkAnalysisJobAccess(currentUserId, command.analysisJobId()));
 
         if (loadAnalysisResultPort.loadAnalysisResultByAnalysisJobId(command.analysisJobId()).isPresent()) {
             throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE, "AnalysisResult already exists for job: " + command.analysisJobId());
@@ -162,7 +165,7 @@ public class AnalysisResultService implements
 
     @Override
     public PageResponse<AnalysisResultSummaryResponse> execute(AnalysisResultListQuery query) {
-        validateActorUserId(query.actorUserId());
+        requireCurrentUserId();
         validatePage(query.page(), query.size());
         validateListScope(query);
 
@@ -178,22 +181,22 @@ public class AnalysisResultService implements
 
     @Override
     public AnalysisResultResponse execute(GetAnalysisResultQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(query.resultId(), "resultId");
 
         AnalysisResult result = loadAnalysisResult(query.resultId());
-        ensureAllowed(accessChecker.checkResultAccess(query.actorUserId(), query.resultId()));
+        ensureAllowed(accessChecker.checkResultAccess(currentUserId, query.resultId()));
         return toResponse(result);
     }
 
     @Override
     @Transactional
     public AnalysisResultResponse execute(UpdateResultActionCandidateCommand command) {
-        validateActorUserId(command.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(command.resultId(), "resultId");
 
         AnalysisResult existing = loadAnalysisResult(command.resultId());
-        ensureAllowed(accessChecker.checkResultAccess(command.actorUserId(), command.resultId()));
+        ensureAllowed(accessChecker.checkResultAccess(currentUserId, command.resultId()));
 
         ActionCandidate newActionCandidate = command.actionCandidate() != null
                 ? command.actionCandidate()
@@ -214,7 +217,7 @@ public class AnalysisResultService implements
         saveResultReviewHistoryPort.saveResultReviewHistory(new ResultReviewHistory(
                 null,
                 existing.getId(),
-                command.actorUserId(),
+                currentUserId,
                 existing.getReviewStatus(),
                 existing.getReviewStatus(),
                 existing.getActionCandidate(),
@@ -230,12 +233,12 @@ public class AnalysisResultService implements
     @Override
     @Transactional
     public AnalysisResultResponse execute(ChangeResultReviewStatusCommand command) {
-        validateActorUserId(command.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(command.resultId(), "resultId");
         validateRequired(command.reviewStatus(), "reviewStatus");
 
         AnalysisResult existing = loadAnalysisResult(command.resultId());
-        ensureAllowed(accessChecker.checkResultAccess(command.actorUserId(), command.resultId()));
+        ensureAllowed(accessChecker.checkResultAccess(currentUserId, command.resultId()));
 
         ActionCandidate newActionCandidate = command.actionCandidate() != null
                 ? command.actionCandidate()
@@ -249,7 +252,7 @@ public class AnalysisResultService implements
         saveResultReviewHistoryPort.saveResultReviewHistory(new ResultReviewHistory(
                 null,
                 existing.getId(),
-                command.actorUserId(),
+                currentUserId,
                 existing.getReviewStatus(),
                 command.reviewStatus(),
                 existing.getActionCandidate(),
@@ -264,12 +267,12 @@ public class AnalysisResultService implements
 
     @Override
     public ResultVisualizationResponse execute(GetResultVisualizationQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(query.resultId(), "resultId");
         validateText(query.type(), "type");
 
         AnalysisResult result = loadAnalysisResult(query.resultId());
-        ensureAllowed(accessChecker.checkResultAccess(query.actorUserId(), query.resultId()));
+        ensureAllowed(accessChecker.checkResultAccess(currentUserId, query.resultId()));
 
         VisualizationTarget target = resolveVisualizationTarget(result, query.type());
         if (!isBlank(target.bucketName()) && !isBlank(target.objectKey())) {
@@ -284,10 +287,10 @@ public class AnalysisResultService implements
 
     @Override
     public List<DetectedDefectSummaryResponse> execute(DetectedDefectListQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(query.analysisResultId(), "analysisResultId");
 
-        ensureAllowed(accessChecker.checkResultAccess(query.actorUserId(), query.analysisResultId()));
+        ensureAllowed(accessChecker.checkResultAccess(currentUserId, query.analysisResultId()));
         return loadDetectedDefectPort.loadDetectedDefects(query).stream()
                 .map(this::toDefectSummaryResponse)
                 .toList();
@@ -295,21 +298,21 @@ public class AnalysisResultService implements
 
     @Override
     public DetectedDefectResponse execute(GetDetectedDefectQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(query.defectId(), "defectId");
 
         DetectedDefect defect = loadDetectedDefectPort.loadDetectedDefect(query.defectId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "DetectedDefect not found: " + query.defectId()));
-        ensureAllowed(accessChecker.checkResultAccess(query.actorUserId(), defect.getAnalysisResultId()));
+        ensureAllowed(accessChecker.checkResultAccess(currentUserId, defect.getAnalysisResultId()));
         return toDefectResponse(defect);
     }
 
     @Override
     public List<ResultReviewHistorySummaryResponse> execute(ResultReviewHistoryQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(query.analysisResultId(), "analysisResultId");
 
-        ensureAllowed(accessChecker.checkResultAccess(query.actorUserId(), query.analysisResultId()));
+        ensureAllowed(accessChecker.checkResultAccess(currentUserId, query.analysisResultId()));
         return loadResultReviewHistoryPort.loadResultReviewHistories(query).stream()
                 .map(this::toReviewHistorySummaryResponse)
                 .toList();
@@ -596,7 +599,8 @@ public class AnalysisResultService implements
     }
 
     private void validateListScope(AnalysisResultListQuery query) {
-        boolean admin = accessChecker.isAdmin(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
+        boolean admin = accessChecker.isAdmin(currentUserId);
         if (!admin
                 && query.plantId() == null
                 && query.zoneId() == null
@@ -606,16 +610,16 @@ public class AnalysisResultService implements
         }
 
         if (query.plantId() != null) {
-            ensureAllowed(accessChecker.checkPlantAccess(query.actorUserId(), query.plantId()));
+            ensureAllowed(accessChecker.checkPlantAccess(currentUserId, query.plantId()));
         }
         if (query.zoneId() != null) {
-            ensureAllowed(accessChecker.checkZoneAccess(query.actorUserId(), query.zoneId()));
+            ensureAllowed(accessChecker.checkZoneAccess(currentUserId, query.zoneId()));
         }
         if (query.inspectionId() != null) {
-            ensureAllowed(accessChecker.checkInspectionAccess(query.actorUserId(), query.inspectionId()));
+            ensureAllowed(accessChecker.checkInspectionAccess(currentUserId, query.inspectionId()));
         }
         if (query.equipmentId() != null) {
-            ensureAllowed(accessChecker.checkEquipmentAccess(query.actorUserId(), query.equipmentId()));
+            ensureAllowed(accessChecker.checkEquipmentAccess(currentUserId, query.equipmentId()));
         }
     }
 
@@ -635,8 +639,9 @@ public class AnalysisResultService implements
         }
     }
 
-    private void validateActorUserId(Long actorUserId) {
-        validateRequired(actorUserId, "actorUserId");
+    private Long requireCurrentUserId() {
+        return currentUserPort.getCurrentUserId()
+                .orElseThrow(UnauthorizedException::new);
     }
 
     private void validateRequired(Object value, String fieldName) {

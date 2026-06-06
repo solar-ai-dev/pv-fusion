@@ -19,6 +19,7 @@ import com.pvfusion.application.port.in.image.GetImageUseCase;
 import com.pvfusion.application.port.in.image.QueryImageUseCase;
 import com.pvfusion.application.port.in.image.RegisterImageMetadataUseCase;
 import com.pvfusion.application.port.in.image.UploadImageUseCase;
+import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.equipment.LoadEquipmentPort;
 import com.pvfusion.application.port.out.image.GenerateImageAccessUrlPort;
 import com.pvfusion.application.port.out.image.LoadImagePort;
@@ -36,6 +37,7 @@ import com.pvfusion.domain.inspection.Inspection;
 import com.pvfusion.domain.zone.Zone;
 import com.pvfusion.global.error.BusinessException;
 import com.pvfusion.global.error.ErrorCode;
+import com.pvfusion.global.error.UnauthorizedException;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -62,15 +64,16 @@ public class ImageService implements
     private final AccessChecker accessChecker;
     private final LoadEquipmentPort loadEquipmentPort;
     private final Optional<LoadZonePort> loadZonePort;
+    private final CurrentUserPort currentUserPort;
 
     @Override
     @Transactional
     public ImageResponse execute(UploadImageCommand command) {
-        validateActorUserId(command.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateUploadCommand(command);
 
         Inspection inspection = loadInspection(command.inspectionId());
-        ensureAllowed(accessChecker.checkInspectionAccess(command.actorUserId(), command.inspectionId()));
+        ensureAllowed(accessChecker.checkInspectionAccess(currentUserId, command.inspectionId()));
         validateTargetAndEquipment(command.targetType(), command.equipmentId(), inspection);
         validateDuplicateUpload(command.inspectionId(), command.targetType(), command.equipmentId(), command.imageType());
 
@@ -86,7 +89,7 @@ public class ImageService implements
         ));
 
         return saveMetadata(new RegisterImageMetadataCommand(
-                command.actorUserId(),
+                currentUserId,
                 command.inspectionId(),
                 command.equipmentId(),
                 command.targetType(),
@@ -96,13 +99,13 @@ public class ImageService implements
                 command.fileSize(),
                 command.capturedAt(),
                 storageResult
-        ));
+        ), currentUserId);
     }
 
     @Override
     @Transactional
     public ImageResponse execute(RegisterImageMetadataCommand command) {
-        validateActorUserId(command.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(command.inspectionId(), "inspectionId");
         validateRequired(command.targetType(), "targetType");
         validateRequired(command.imageType(), "imageType");
@@ -112,12 +115,12 @@ public class ImageService implements
         validateTargetAndEquipment(command.targetType(), command.equipmentId(), null);
         validateDuplicateUpload(command.inspectionId(), command.targetType(), command.equipmentId(), command.imageType());
 
-        return saveMetadata(command);
+        return saveMetadata(command, currentUserId);
     }
 
     @Override
     public List<ImageSummaryResponse> execute(ImageListQuery query) {
-        validateActorUserId(query.actorUserId());
+        requireCurrentUserId();
         validateQueryScope(query);
 
         if (query.inspectionId() != null) {
@@ -131,19 +134,19 @@ public class ImageService implements
 
     @Override
     public ImageResponse execute(GetImageQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(query.imageId(), "imageId");
 
-        ensureAllowed(accessChecker.checkImageAccess(query.actorUserId(), query.imageId()));
+        ensureAllowed(accessChecker.checkImageAccess(currentUserId, query.imageId()));
         return toResponse(loadImage(query.imageId()));
     }
 
     @Override
     public ImagePreviewResponse execute(GetImagePreviewQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(query.imageId(), "imageId");
 
-        ensureAllowed(accessChecker.checkImageAccess(query.actorUserId(), query.imageId()));
+        ensureAllowed(accessChecker.checkImageAccess(currentUserId, query.imageId()));
         InspectionImage image = loadImage(query.imageId());
         var accessUrlResult = generateImageAccessUrlPort.generate(
                 new ImageAccessUrlRequest(image.getBucketName(), image.getObjectKey())
@@ -155,10 +158,10 @@ public class ImageService implements
     @Override
     @Transactional
     public ImageResponse execute(DeactivateImageCommand command) {
-        validateActorUserId(command.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(command.imageId(), "imageId");
 
-        ensureAllowed(accessChecker.checkImageAccess(command.actorUserId(), command.imageId()));
+        ensureAllowed(accessChecker.checkImageAccess(currentUserId, command.imageId()));
         InspectionImage existing = loadImage(command.imageId());
 
         InspectionImage deactivated = new InspectionImage(
@@ -184,7 +187,7 @@ public class ImageService implements
         return toResponse(updateImagePort.updateImage(deactivated));
     }
 
-    private ImageResponse saveMetadata(RegisterImageMetadataCommand command) {
+    private ImageResponse saveMetadata(RegisterImageMetadataCommand command, Long currentUserId) {
         InspectionImage saved = saveImagePort.saveImage(new InspectionImage(
                 null,
                 command.inspectionId(),
@@ -200,7 +203,7 @@ public class ImageService implements
                 command.capturedAt(),
                 UploadStatus.UPLOADED,
                 ResourceStatus.ACTIVE,
-                command.actorUserId(),
+                currentUserId,
                 null,
                 null
         ));
@@ -278,7 +281,8 @@ public class ImageService implements
     }
 
     private void validateQueryScope(ImageListQuery query) {
-        boolean admin = accessChecker.isAdmin(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
+        boolean admin = accessChecker.isAdmin(currentUserId);
         if (admin) {
             return;
         }
@@ -293,16 +297,16 @@ public class ImageService implements
         }
 
         if (query.plantId() != null) {
-            ensureAllowed(accessChecker.checkPlantAccess(query.actorUserId(), query.plantId()));
+            ensureAllowed(accessChecker.checkPlantAccess(currentUserId, query.plantId()));
         }
         if (query.zoneId() != null) {
-            ensureAllowed(accessChecker.checkZoneAccess(query.actorUserId(), query.zoneId()));
+            ensureAllowed(accessChecker.checkZoneAccess(currentUserId, query.zoneId()));
         }
         if (query.inspectionId() != null) {
-            ensureAllowed(accessChecker.checkInspectionAccess(query.actorUserId(), query.inspectionId()));
+            ensureAllowed(accessChecker.checkInspectionAccess(currentUserId, query.inspectionId()));
         }
         if (query.equipmentId() != null) {
-            ensureAllowed(accessChecker.checkEquipmentAccess(query.actorUserId(), query.equipmentId()));
+            ensureAllowed(accessChecker.checkEquipmentAccess(currentUserId, query.equipmentId()));
         }
     }
 
@@ -367,8 +371,9 @@ public class ImageService implements
         return new ImageContext(inspection.getZoneId(), zone != null ? zone.getPlantId() : null);
     }
 
-    private void validateActorUserId(Long actorUserId) {
-        validateRequired(actorUserId, "actorUserId");
+    private Long requireCurrentUserId() {
+        return currentUserPort.getCurrentUserId()
+                .orElseThrow(UnauthorizedException::new);
     }
 
     private void validateRequired(Object value, String fieldName) {

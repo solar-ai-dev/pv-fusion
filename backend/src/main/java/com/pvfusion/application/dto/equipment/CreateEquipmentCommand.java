@@ -10,4 +10,13 @@ public record CreateEquipmentCommand(
         String name,
         String positionCode
 ) {
+    public CreateEquipmentCommand(
+            Long zoneId,
+            Long parentEquipmentId,
+            EquipmentType equipmentType,
+            String name,
+            String positionCode
+    ) {
+        this(null, zoneId, parentEquipmentId, equipmentType, name, positionCode);
+    }
 }

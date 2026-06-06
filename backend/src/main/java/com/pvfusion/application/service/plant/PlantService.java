@@ -7,6 +7,8 @@ import com.pvfusion.application.dto.plant.PlantListQuery;
 import com.pvfusion.application.dto.plant.PlantResponse;
 import com.pvfusion.application.dto.plant.PlantSummaryResponse;
 import com.pvfusion.application.dto.plant.UpdatePlantCommand;
+import com.pvfusion.application.dto.operation.RecordOperationLogCommand;
+import com.pvfusion.application.port.in.operation.RecordOperationLogUseCase;
 import com.pvfusion.application.port.in.plant.CreatePlantUseCase;
 import com.pvfusion.application.port.in.plant.DeactivatePlantUseCase;
 import com.pvfusion.application.port.in.plant.GetPlantUseCase;
@@ -17,6 +19,8 @@ import com.pvfusion.application.port.out.plant.PlantMemberRepositoryPort;
 import com.pvfusion.application.port.out.plant.PlantRepositoryPort;
 import com.pvfusion.application.port.out.user.UserRepositoryPort;
 import com.pvfusion.domain.common.ResourceStatus;
+import com.pvfusion.domain.operation.OperationEventCategory;
+import com.pvfusion.domain.operation.OperationEventType;
 import com.pvfusion.domain.plant.Plant;
 import com.pvfusion.domain.plant.PlantMember;
 import com.pvfusion.domain.plant.PlantMemberRole;
@@ -43,6 +47,7 @@ public class PlantService implements CreatePlantUseCase, QueryPlantUseCase,
     private final UserRepositoryPort userRepositoryPort;
     private final PlantRepositoryPort plantRepositoryPort;
     private final PlantMemberRepositoryPort plantMemberRepositoryPort;
+    private final RecordOperationLogUseCase recordOperationLogUseCase;
 
     @Override
     public PlantResponse execute(CreatePlantCommand command) {
@@ -69,6 +74,25 @@ public class PlantService implements CreatePlantUseCase, QueryPlantUseCase,
                 ResourceStatus.ACTIVE,
                 now,
                 now
+        ));
+
+        recordOperationLogUseCase.execute(new RecordOperationLogCommand(
+                currentUser.getId(),
+                OperationEventCategory.ADMIN,
+                OperationEventType.PLANT_CREATED,
+                "plants",
+                savedPlant.getId(),
+                savedPlant.getId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Plant created.",
+                null,
+                null,
+                "name=" + savedPlant.getName()
         ));
 
         return toResponse(savedPlant);
@@ -105,11 +129,30 @@ public class PlantService implements CreatePlantUseCase, QueryPlantUseCase,
         requirePlantManagePermission(currentUser, plant.getId());
         validatePlantName(command.name());
 
-        return toResponse(plantRepositoryPort.save(plant.update(
+        Plant savedPlant = plantRepositoryPort.save(plant.update(
                 command.name().trim(),
                 command.location(),
                 command.description()
-        )));
+        ));
+        recordOperationLogUseCase.execute(new RecordOperationLogCommand(
+                currentUser.getId(),
+                OperationEventCategory.ADMIN,
+                OperationEventType.PLANT_UPDATED,
+                "plants",
+                savedPlant.getId(),
+                savedPlant.getId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Plant updated.",
+                null,
+                null,
+                "name=" + savedPlant.getName()
+        ));
+        return toResponse(savedPlant);
     }
 
     @Override
@@ -123,7 +166,26 @@ public class PlantService implements CreatePlantUseCase, QueryPlantUseCase,
             throw new DuplicateResourceException("이미 비활성화된 발전소입니다.");
         }
 
-        return toResponse(plantRepositoryPort.save(plant.deactivate()));
+        Plant savedPlant = plantRepositoryPort.save(plant.deactivate());
+        recordOperationLogUseCase.execute(new RecordOperationLogCommand(
+                currentUser.getId(),
+                OperationEventCategory.ADMIN,
+                OperationEventType.PLANT_DEACTIVATED,
+                "plants",
+                savedPlant.getId(),
+                savedPlant.getId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Plant deactivated.",
+                null,
+                null,
+                "status=ACTIVE->INACTIVE"
+        ));
+        return toResponse(savedPlant);
     }
 
     private User requireApprovedUser() {
