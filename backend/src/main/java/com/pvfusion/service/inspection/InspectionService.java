@@ -22,6 +22,7 @@ import com.pvfusion.domain.inspection.InspectionStatus;
 import com.pvfusion.domain.zone.Zone;
 import com.pvfusion.global.error.BusinessException;
 import com.pvfusion.global.error.ErrorCode;
+import com.pvfusion.global.error.ForbiddenException;
 import com.pvfusion.global.response.PageResponse;
 import java.util.Collections;
 import java.util.HashMap;
@@ -54,7 +55,7 @@ public class InspectionService implements
         validateInspectionName(command.name());
         validateRequired(command.captureMethod(), "captureMethod");
 
-        accessChecker.checkZoneAccess(command.actorUserId(), command.zoneId());
+        ensureAllowed(accessChecker.checkZoneAccess(command.actorUserId(), command.zoneId()));
         Zone zone = loadZone(command.zoneId());
 
         Inspection inspection = new Inspection(
@@ -84,7 +85,7 @@ public class InspectionService implements
             if (query.zoneId() == null) {
                 throw new BusinessException(ErrorCode.FORBIDDEN, "Non-admin inspection queries require zoneId.");
             }
-            accessChecker.checkZoneAccess(query.actorUserId(), query.zoneId());
+            ensureAllowed(accessChecker.checkZoneAccess(query.actorUserId(), query.zoneId()));
         }
 
         List<Inspection> inspections = loadInspectionPort.loadInspections(query);
@@ -106,7 +107,7 @@ public class InspectionService implements
         validateActorUserId(query.actorUserId());
         validateInspectionId(query.inspectionId());
 
-        accessChecker.checkInspectionAccess(query.actorUserId(), query.inspectionId());
+        ensureAllowed(accessChecker.checkInspectionAccess(query.actorUserId(), query.inspectionId()));
         Inspection inspection = loadInspection(query.inspectionId());
         Zone zone = loadZone(inspection.getZoneId());
         return toResponse(inspection, zone);
@@ -118,7 +119,7 @@ public class InspectionService implements
         validateActorUserId(command.actorUserId());
         validateInspectionId(command.inspectionId());
 
-        accessChecker.checkInspectionAccess(command.actorUserId(), command.inspectionId());
+        ensureAllowed(accessChecker.checkInspectionAccess(command.actorUserId(), command.inspectionId()));
         Inspection existing = loadInspection(command.inspectionId());
         Zone zone = loadZone(existing.getZoneId());
 
@@ -231,6 +232,12 @@ public class InspectionService implements
     private void validateInspectionName(String name) {
         if (name == null || name.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "name is required.");
+        }
+    }
+
+    private void ensureAllowed(boolean allowed) {
+        if (!allowed) {
+            throw new ForbiddenException();
         }
     }
 
