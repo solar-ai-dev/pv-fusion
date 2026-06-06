@@ -13,6 +13,7 @@ import com.pvfusion.application.port.in.inspection.GetInspectionUseCase;
 import com.pvfusion.application.port.in.inspection.QueryInspectionUseCase;
 import com.pvfusion.application.port.in.inspection.UpdateInspectionUseCase;
 import com.pvfusion.application.port.in.access.AccessChecker;
+import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.inspection.LoadInspectionPort;
 import com.pvfusion.application.port.out.inspection.SaveInspectionPort;
 import com.pvfusion.application.port.out.inspection.UpdateInspectionPort;
@@ -23,6 +24,7 @@ import com.pvfusion.domain.zone.Zone;
 import com.pvfusion.global.error.BusinessException;
 import com.pvfusion.global.error.ErrorCode;
 import com.pvfusion.global.error.ForbiddenException;
+import com.pvfusion.global.error.UnauthorizedException;
 import com.pvfusion.global.response.PageResponse;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,16 +48,17 @@ public class InspectionService implements
     private final UpdateInspectionPort updateInspectionPort;
     private final LoadZonePort loadZonePort;
     private final AccessChecker accessChecker;
+    private final CurrentUserPort currentUserPort;
 
     @Override
     @Transactional
     public InspectionResponse execute(CreateInspectionCommand command) {
-        validateActorUserId(command.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateZoneId(command.zoneId());
         validateInspectionName(command.name());
         validateRequired(command.captureMethod(), "captureMethod");
 
-        ensureAllowed(accessChecker.checkZoneAccess(command.actorUserId(), command.zoneId()));
+        ensureAllowed(accessChecker.checkZoneAccess(currentUserId, command.zoneId()));
         Zone zone = loadZone(command.zoneId());
 
         Inspection inspection = new Inspection(
@@ -67,7 +70,7 @@ public class InspectionService implements
                 normalizeText(command.inspectorName()),
                 normalizeText(command.memo()),
                 InspectionStatus.READY,
-                command.actorUserId(),
+                currentUserId,
                 null,
                 null
         );
@@ -77,15 +80,15 @@ public class InspectionService implements
 
     @Override
     public PageResponse<InspectionSummaryResponse> execute(InspectionListQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validatePage(query.page(), query.size());
 
-        boolean admin = accessChecker.isAdmin(query.actorUserId());
+        boolean admin = accessChecker.isAdmin(currentUserId);
         if (!admin) {
             if (query.zoneId() == null) {
                 throw new BusinessException(ErrorCode.FORBIDDEN, "Non-admin inspection queries require zoneId.");
             }
-            ensureAllowed(accessChecker.checkZoneAccess(query.actorUserId(), query.zoneId()));
+            ensureAllowed(accessChecker.checkZoneAccess(currentUserId, query.zoneId()));
         }
 
         List<Inspection> inspections = loadInspectionPort.loadInspections(query);
@@ -104,10 +107,10 @@ public class InspectionService implements
 
     @Override
     public InspectionResponse execute(GetInspectionQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateInspectionId(query.inspectionId());
 
-        ensureAllowed(accessChecker.checkInspectionAccess(query.actorUserId(), query.inspectionId()));
+        ensureAllowed(accessChecker.checkInspectionAccess(currentUserId, query.inspectionId()));
         Inspection inspection = loadInspection(query.inspectionId());
         Zone zone = loadZone(inspection.getZoneId());
         return toResponse(inspection, zone);
@@ -116,10 +119,10 @@ public class InspectionService implements
     @Override
     @Transactional
     public InspectionResponse execute(UpdateInspectionCommand command) {
-        validateActorUserId(command.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateInspectionId(command.inspectionId());
 
-        ensureAllowed(accessChecker.checkInspectionAccess(command.actorUserId(), command.inspectionId()));
+        ensureAllowed(accessChecker.checkInspectionAccess(currentUserId, command.inspectionId()));
         Inspection existing = loadInspection(command.inspectionId());
         Zone zone = loadZone(existing.getZoneId());
 
@@ -211,8 +214,9 @@ public class InspectionService implements
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private void validateActorUserId(Long actorUserId) {
-        validateRequired(actorUserId, "actorUserId");
+    private Long requireCurrentUserId() {
+        return currentUserPort.getCurrentUserId()
+                .orElseThrow(UnauthorizedException::new);
     }
 
     private void validateZoneId(Long zoneId) {

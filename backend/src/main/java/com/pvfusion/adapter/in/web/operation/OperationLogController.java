@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,13 +21,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class OperationLogController {
 
-    private static final String ACTOR_USER_ID_HEADER = "X-Actor-User-Id";
-
     private final QueryOperationLogUseCase queryOperationLogUseCase;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<OperationLogSummaryResponse>>> getOperationLogs(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserIdHeader,
             @RequestParam(required = false) Long actorUserId,
             @RequestParam(required = false) OperationEventCategory eventCategory,
             @RequestParam(required = false) OperationEventType eventType,
@@ -49,7 +45,6 @@ public class OperationLogController {
         PageResponse<OperationLogSummaryResponse> response = queryOperationLogUseCase.execute(
                 new OperationLogQuery(
                         actorUserId,
-                        actorUserIdHeader,
                         eventCategory,
                         eventType,
                         plantId,

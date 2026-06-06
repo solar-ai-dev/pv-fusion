@@ -69,7 +69,6 @@ class DashboardControllerTest {
         ));
 
         mockMvc.perform(get("/api/v1/dashboard")
-                        .header("X-Actor-User-Id", 1L)
                         .param("zoneId", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.summary.totalInspectionCount").value(3));
@@ -82,7 +81,6 @@ class DashboardControllerTest {
         ));
 
         mockMvc.perform(get("/api/v1/dashboard/action-stats")
-                        .header("X-Actor-User-Id", 1L)
                         .param("zoneId", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].actionCandidate").value("CLEANING"));
@@ -95,7 +93,6 @@ class DashboardControllerTest {
         ));
 
         mockMvc.perform(get("/api/v1/dashboard/severity-stats")
-                        .header("X-Actor-User-Id", 1L)
                         .param("zoneId", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].severityLevel").value("HIGH"));
@@ -109,7 +106,6 @@ class DashboardControllerTest {
         ));
 
         mockMvc.perform(get("/api/v1/dashboard/trends")
-                        .header("X-Actor-User-Id", 1L)
                         .param("zoneId", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.points[0].inspectionCount").value(2));

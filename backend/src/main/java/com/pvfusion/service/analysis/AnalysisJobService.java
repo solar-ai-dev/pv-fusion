@@ -12,6 +12,7 @@ import com.pvfusion.application.port.in.analysis.GetAnalysisJobUseCase;
 import com.pvfusion.application.port.in.analysis.QueryAnalysisJobUseCase;
 import com.pvfusion.application.port.in.analysis.RequestAnalysisUseCase;
 import com.pvfusion.application.port.in.analysis.RetryAnalysisJobUseCase;
+import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.analysis.LoadAnalysisJobPort;
 import com.pvfusion.application.port.out.analysis.PublishAnalysisJobPort;
 import com.pvfusion.application.port.out.analysis.SaveAnalysisJobPort;
@@ -33,6 +34,7 @@ import com.pvfusion.domain.common.ResourceStatus;
 import com.pvfusion.domain.zone.Zone;
 import com.pvfusion.global.error.BusinessException;
 import com.pvfusion.global.error.ErrorCode;
+import com.pvfusion.global.error.UnauthorizedException;
 import com.pvfusion.global.response.PageResponse;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -65,15 +67,16 @@ public class AnalysisJobService implements
     private final LoadInspectionPort loadInspectionPort;
     private final AccessChecker accessChecker;
     private final Optional<LoadZonePort> loadZonePort;
+    private final CurrentUserPort currentUserPort;
 
     @Override
     @Transactional
     public AnalysisJobResponse execute(RequestAnalysisCommand command) {
-        validateActorUserId(command.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(command.inputType(), "inputType");
         validateRequired(command.requestedModelType(), "requestedModelType");
 
-        AnalysisTarget target = validateTarget(command.actorUserId(), command.inputType(), command.imageId(), command.imagePairId());
+        AnalysisTarget target = validateTarget(currentUserId, command.inputType(), command.imageId(), command.imagePairId());
         validateRequestedModelType(command.inputType(), command.requestedModelType());
         validateDuplicateJobs(target);
 
@@ -85,7 +88,7 @@ public class AnalysisJobService implements
                 command.requestedModelType(),
                 resolveModelType(command.requestedModelType(), command.inputType()),
                 AnalysisJobStatus.QUEUED,
-                command.actorUserId(),
+                currentUserId,
                 OffsetDateTime.now(),
                 null,
                 null,
@@ -126,21 +129,21 @@ public class AnalysisJobService implements
 
     @Override
     public PageResponse<AnalysisJobSummaryResponse> execute(AnalysisJobListQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validatePage(query.page(), query.size());
 
-        boolean admin = accessChecker.isAdmin(query.actorUserId());
+        boolean admin = accessChecker.isAdmin(currentUserId);
         if (!admin && query.plantId() == null && query.zoneId() == null && query.inspectionId() == null) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "Non-admin analysis job queries require scoped filters.");
         }
         if (query.plantId() != null) {
-            ensureAllowed(accessChecker.checkPlantAccess(query.actorUserId(), query.plantId()));
+            ensureAllowed(accessChecker.checkPlantAccess(currentUserId, query.plantId()));
         }
         if (query.zoneId() != null) {
-            ensureAllowed(accessChecker.checkZoneAccess(query.actorUserId(), query.zoneId()));
+            ensureAllowed(accessChecker.checkZoneAccess(currentUserId, query.zoneId()));
         }
         if (query.inspectionId() != null) {
-            ensureAllowed(accessChecker.checkInspectionAccess(query.actorUserId(), query.inspectionId()));
+            ensureAllowed(accessChecker.checkInspectionAccess(currentUserId, query.inspectionId()));
         }
 
         List<AnalysisJob> jobs = loadAnalysisJobPort.loadAnalysisJobs(query);
@@ -153,22 +156,22 @@ public class AnalysisJobService implements
 
     @Override
     public AnalysisJobResponse execute(GetAnalysisJobQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(query.jobId(), "jobId");
 
         AnalysisJob job = loadAnalysisJob(query.jobId());
-        validateJobAccess(query.actorUserId(), job);
+        validateJobAccess(currentUserId, job);
         return toResponse(job);
     }
 
     @Override
     @Transactional
     public AnalysisJobResponse execute(RetryAnalysisJobCommand command) {
-        validateActorUserId(command.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(command.jobId(), "jobId");
 
         AnalysisJob existing = loadAnalysisJob(command.jobId());
-        validateJobAccess(command.actorUserId(), existing);
+        validateJobAccess(currentUserId, existing);
         if (existing.getJobStatus() != AnalysisJobStatus.FAILED) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "Only failed jobs can be retried.");
         }
@@ -415,8 +418,9 @@ public class AnalysisJobService implements
         }
     }
 
-    private void validateActorUserId(Long actorUserId) {
-        validateRequired(actorUserId, "actorUserId");
+    private Long requireCurrentUserId() {
+        return currentUserPort.getCurrentUserId()
+                .orElseThrow(UnauthorizedException::new);
     }
 
     private void validateRequired(Object value, String fieldName) {

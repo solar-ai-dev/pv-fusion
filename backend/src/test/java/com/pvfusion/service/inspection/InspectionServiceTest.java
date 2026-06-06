@@ -12,6 +12,7 @@ import com.pvfusion.application.dto.inspection.GetInspectionQuery;
 import com.pvfusion.application.dto.inspection.InspectionListQuery;
 import com.pvfusion.application.dto.inspection.UpdateInspectionCommand;
 import com.pvfusion.application.port.in.access.AccessChecker;
+import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.inspection.LoadInspectionPort;
 import com.pvfusion.application.port.out.inspection.SaveInspectionPort;
 import com.pvfusion.application.port.out.inspection.UpdateInspectionPort;
@@ -47,6 +48,8 @@ class InspectionServiceTest {
     private LoadZonePort loadZonePort;
     @Mock
     private AccessChecker accessChecker;
+    @Mock
+    private CurrentUserPort currentUserPort;
 
     private InspectionService inspectionService;
 
@@ -57,8 +60,10 @@ class InspectionServiceTest {
                 saveInspectionPort,
                 updateInspectionPort,
                 loadZonePort,
-                accessChecker
+                accessChecker,
+                currentUserPort
         );
+        when(currentUserPort.getCurrentUserId()).thenReturn(Optional.of(1L));
     }
 
     @Test

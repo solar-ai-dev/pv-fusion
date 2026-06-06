@@ -10,4 +10,12 @@ public record PlantMemberListQuery(
         PlantMemberRole memberRole,
         ResourceStatus status
 ) {
+    public PlantMemberListQuery(
+            Long plantId,
+            Long userId,
+            PlantMemberRole memberRole,
+            ResourceStatus status
+    ) {
+        this(null, plantId, userId, memberRole, status);
+    }
 }

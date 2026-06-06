@@ -25,7 +25,6 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -35,8 +34,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class EquipmentController {
 
-    private static final String ACTOR_USER_ID_HEADER = "X-Actor-User-Id";
-
     private final CreateEquipmentUseCase createEquipmentUseCase;
     private final QueryEquipmentUseCase queryEquipmentUseCase;
     private final GetEquipmentUseCase getEquipmentUseCase;
@@ -45,26 +42,23 @@ public class EquipmentController {
 
     @GetMapping("/zones/{zoneId}/equipments")
     public ResponseEntity<ApiResponse<List<EquipmentTreeResponse>>> getEquipments(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long zoneId,
             @RequestParam(required = false) EquipmentType equipmentType,
             @RequestParam(required = false) ResourceStatus status
     ) {
         List<EquipmentTreeResponse> response = queryEquipmentUseCase.execute(
-                new EquipmentListQuery(actorUserId, zoneId, equipmentType, status)
+                new EquipmentListQuery(zoneId, equipmentType, status)
         );
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PostMapping("/zones/{zoneId}/equipments")
     public ResponseEntity<ApiResponse<EquipmentResponse>> createEquipment(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long zoneId,
             @Valid @RequestBody CreateEquipmentRequest request
     ) {
         EquipmentResponse response = createEquipmentUseCase.execute(
                 new CreateEquipmentCommand(
-                        actorUserId,
                         zoneId,
                         request.parentEquipmentId(),
                         request.equipmentType(),
@@ -77,22 +71,19 @@ public class EquipmentController {
 
     @GetMapping("/equipments/{equipmentId}")
     public ResponseEntity<ApiResponse<EquipmentResponse>> getEquipment(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long equipmentId
     ) {
-        EquipmentResponse response = getEquipmentUseCase.execute(new GetEquipmentQuery(actorUserId, equipmentId));
+        EquipmentResponse response = getEquipmentUseCase.execute(new GetEquipmentQuery(equipmentId));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PatchMapping("/equipments/{equipmentId}")
     public ResponseEntity<ApiResponse<EquipmentResponse>> updateEquipment(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long equipmentId,
             @Valid @RequestBody UpdateEquipmentRequest request
     ) {
         EquipmentResponse response = updateEquipmentUseCase.execute(
                 new UpdateEquipmentCommand(
-                        actorUserId,
                         equipmentId,
                         request.parentEquipmentId(),
                         request.equipmentType(),
@@ -105,11 +96,10 @@ public class EquipmentController {
 
     @PatchMapping("/equipments/{equipmentId}/deactivate")
     public ResponseEntity<ApiResponse<EquipmentResponse>> deactivateEquipment(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long equipmentId
     ) {
         EquipmentResponse response = deactivateEquipmentUseCase.execute(
-                new DeactivateEquipmentCommand(actorUserId, equipmentId)
+                new DeactivateEquipmentCommand(equipmentId)
         );
         return ResponseEntity.ok(ApiResponse.success(response));
     }

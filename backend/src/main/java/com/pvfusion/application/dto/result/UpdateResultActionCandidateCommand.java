@@ -8,4 +8,7 @@ public record UpdateResultActionCandidateCommand(
         ActionCandidate actionCandidate,
         String memo
 ) {
+    public UpdateResultActionCandidateCommand(Long resultId, ActionCandidate actionCandidate, String memo) {
+        this(null, resultId, actionCandidate, memo);
+    }
 }

@@ -17,6 +17,7 @@ import com.pvfusion.application.dto.dashboard.SeverityStatsQuery;
 import com.pvfusion.application.dto.dashboard.SeverityStatsResponse;
 import com.pvfusion.application.dto.tracking.TrackingSummaryResponse;
 import com.pvfusion.application.port.in.access.AccessChecker;
+import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.dashboard.LoadDashboardPort;
 import com.pvfusion.application.port.out.dashboard.LoadDashboardStatsPort;
 import com.pvfusion.application.port.out.tracking.LoadTrackingPort;
@@ -49,6 +50,8 @@ class DashboardServiceTest {
     private LoadTrackingPort loadTrackingPort;
     @Mock
     private AccessChecker accessChecker;
+    @Mock
+    private CurrentUserPort currentUserPort;
 
     private DashboardService dashboardService;
 
@@ -58,8 +61,10 @@ class DashboardServiceTest {
                 loadDashboardPort,
                 loadDashboardStatsPort,
                 loadTrackingPort,
-                accessChecker
+                accessChecker,
+                currentUserPort
         );
+        when(currentUserPort.getCurrentUserId()).thenReturn(java.util.Optional.of(1L));
     }
 
     @Test

@@ -64,7 +64,6 @@ class ImagePairControllerTest {
         ));
 
         mockMvc.perform(get("/api/v1/image-pairs/candidates")
-                        .header("X-Actor-User-Id", 1L)
                         .param("inspectionId", "10")
                         .param("targetType", "ZONE"))
                 .andExpect(status().isOk())
@@ -76,7 +75,6 @@ class ImagePairControllerTest {
         when(createImagePairUseCase.execute(any())).thenReturn(sampleResponse());
 
         mockMvc.perform(post("/api/v1/image-pairs")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new CreateImagePairRequest(100L, 101L))))
                 .andExpect(status().isCreated())
@@ -87,8 +85,7 @@ class ImagePairControllerTest {
     void getImagePairReturnsOk() throws Exception {
         when(getImagePairUseCase.execute(any())).thenReturn(sampleResponse());
 
-        mockMvc.perform(get("/api/v1/image-pairs/1")
-                        .header("X-Actor-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/image-pairs/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.imagePairId").value(1L));
     }
@@ -98,7 +95,6 @@ class ImagePairControllerTest {
         when(updateImagePairUseCase.execute(any())).thenReturn(sampleResponse());
 
         mockMvc.perform(patch("/api/v1/image-pairs/1")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new UpdateImagePairRequest(100L, 101L))))
                 .andExpect(status().isOk())
@@ -109,8 +105,7 @@ class ImagePairControllerTest {
     void deactivateImagePairReturnsOk() throws Exception {
         when(deactivateImagePairUseCase.execute(any())).thenReturn(sampleResponse());
 
-        mockMvc.perform(patch("/api/v1/image-pairs/1/deactivate")
-                        .header("X-Actor-User-Id", 1L))
+        mockMvc.perform(patch("/api/v1/image-pairs/1/deactivate"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.imagePairId").value(1L));
     }

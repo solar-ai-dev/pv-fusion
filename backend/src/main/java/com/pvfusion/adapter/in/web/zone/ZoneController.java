@@ -23,7 +23,6 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -31,8 +30,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
 public class ZoneController {
-
-    private static final String ACTOR_USER_ID_HEADER = "X-Actor-User-Id";
 
     private final CreateZoneUseCase createZoneUseCase;
     private final QueryZoneUseCase queryZoneUseCase;
@@ -42,52 +39,47 @@ public class ZoneController {
 
     @GetMapping("/plants/{plantId}/zones")
     public ResponseEntity<ApiResponse<List<ZoneSummaryResponse>>> getZones(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long plantId
     ) {
-        List<ZoneSummaryResponse> response = queryZoneUseCase.execute(new ZoneListQuery(actorUserId, plantId));
+        List<ZoneSummaryResponse> response = queryZoneUseCase.execute(new ZoneListQuery(plantId));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PostMapping("/plants/{plantId}/zones")
     public ResponseEntity<ApiResponse<ZoneResponse>> createZone(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long plantId,
             @Valid @RequestBody CreateZoneRequest request
     ) {
         ZoneResponse response = createZoneUseCase.execute(
-                new CreateZoneCommand(actorUserId, plantId, request.name(), request.location(), request.description())
+                new CreateZoneCommand(plantId, request.name(), request.location(), request.description())
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 
     @GetMapping("/zones/{zoneId}")
     public ResponseEntity<ApiResponse<ZoneResponse>> getZone(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long zoneId
     ) {
-        ZoneResponse response = getZoneUseCase.execute(new GetZoneQuery(actorUserId, zoneId));
+        ZoneResponse response = getZoneUseCase.execute(new GetZoneQuery(zoneId));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PatchMapping("/zones/{zoneId}")
     public ResponseEntity<ApiResponse<ZoneResponse>> updateZone(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long zoneId,
             @Valid @RequestBody UpdateZoneRequest request
     ) {
         ZoneResponse response = updateZoneUseCase.execute(
-                new UpdateZoneCommand(actorUserId, zoneId, request.name(), request.location(), request.description())
+                new UpdateZoneCommand(zoneId, request.name(), request.location(), request.description())
         );
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PatchMapping("/zones/{zoneId}/deactivate")
     public ResponseEntity<ApiResponse<ZoneResponse>> deactivateZone(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long zoneId
     ) {
-        ZoneResponse response = deactivateZoneUseCase.execute(new DeactivateZoneCommand(actorUserId, zoneId));
+        ZoneResponse response = deactivateZoneUseCase.execute(new DeactivateZoneCommand(zoneId));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

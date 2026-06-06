@@ -2,6 +2,7 @@ package com.pvfusion.adapter.out.persistence.zone;
 
 import com.pvfusion.application.dto.zone.ZoneListQuery;
 import com.pvfusion.application.dto.zone.ZoneSummaryResponse;
+import com.pvfusion.application.port.out.zone.LoadZonePort;
 import com.pvfusion.application.port.out.zone.ZoneRepositoryPort;
 import com.pvfusion.domain.zone.Zone;
 import java.util.List;
@@ -13,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class ZonePersistenceAdapter implements ZoneRepositoryPort {
+public class ZonePersistenceAdapter implements ZoneRepositoryPort, LoadZonePort {
 
     private final ZoneJpaRepository zoneJpaRepository;
     private final ZonePersistenceMapper zonePersistenceMapper;
@@ -31,8 +32,20 @@ public class ZonePersistenceAdapter implements ZoneRepositoryPort {
     }
 
     @Override
+    public Optional<Zone> loadZone(Long zoneId) {
+        return findById(zoneId);
+    }
+
+    @Override
     public List<Zone> findByPlantId(Long plantId) {
         return zoneJpaRepository.findByPlantIdOrderByIdDesc(plantId).stream()
+                .map(zonePersistenceMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Zone> loadZones(ZoneListQuery query) {
+        return zoneJpaRepository.findByPlantIdOrderByIdDesc(query.plantId()).stream()
                 .map(zonePersistenceMapper::toDomain)
                 .toList();
     }

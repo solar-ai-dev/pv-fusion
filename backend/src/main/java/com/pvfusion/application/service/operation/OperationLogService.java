@@ -29,9 +29,11 @@ public class OperationLogService implements RecordOperationLogUseCase, QueryOper
 
     @Override
     public OperationLogResponse execute(RecordOperationLogCommand command) {
+        Long currentUserId = currentUserPort.getCurrentUserId().orElse(null);
+
         OperationLog saved = operationLogRepositoryPort.save(new OperationLog(
                 null,
-                command.actorUserId(),
+                currentUserId,
                 command.eventCategory(),
                 command.eventType(),
                 command.targetTable(),

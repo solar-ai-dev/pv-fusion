@@ -59,7 +59,7 @@ class EquipmentControllerTest {
                 new EquipmentTreeResponse(1L, 1L, null, EquipmentType.ARRAY, "Array-01", "A01", ResourceStatus.ACTIVE, List.of())
         ));
 
-        mockMvc.perform(get("/api/v1/zones/1/equipments").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/zones/1/equipments"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].equipmentId").value(1L));
     }
@@ -69,7 +69,6 @@ class EquipmentControllerTest {
         when(createEquipmentUseCase.execute(any())).thenReturn(sampleResponse());
 
         mockMvc.perform(post("/api/v1/zones/1/equipments")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new CreateEquipmentRequest(null, EquipmentType.ARRAY, "Array-01", "A01"))))
                 .andExpect(status().isCreated())
@@ -80,7 +79,7 @@ class EquipmentControllerTest {
     void getEquipmentReturnsOk() throws Exception {
         when(getEquipmentUseCase.execute(any())).thenReturn(sampleResponse());
 
-        mockMvc.perform(get("/api/v1/equipments/1").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/equipments/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.equipmentId").value(1L));
     }
@@ -90,7 +89,6 @@ class EquipmentControllerTest {
         when(updateEquipmentUseCase.execute(any())).thenReturn(sampleResponse());
 
         mockMvc.perform(patch("/api/v1/equipments/1")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new UpdateEquipmentRequest(null, EquipmentType.ARRAY, "Array-01", "A01"))))
                 .andExpect(status().isOk())
@@ -101,7 +99,7 @@ class EquipmentControllerTest {
     void deactivateEquipmentReturnsOk() throws Exception {
         when(deactivateEquipmentUseCase.execute(any())).thenReturn(sampleResponse());
 
-        mockMvc.perform(patch("/api/v1/equipments/1/deactivate").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(patch("/api/v1/equipments/1/deactivate"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.equipmentId").value(1L));
     }

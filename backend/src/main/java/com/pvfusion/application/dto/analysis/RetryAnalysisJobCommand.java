@@ -5,4 +5,7 @@ public record RetryAnalysisJobCommand(
         Long jobId,
         String traceId
 ) {
+    public RetryAnalysisJobCommand(Long jobId, String traceId) {
+        this(null, jobId, traceId);
+    }
 }

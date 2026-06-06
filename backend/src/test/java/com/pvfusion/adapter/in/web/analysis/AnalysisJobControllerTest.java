@@ -61,7 +61,6 @@ class AnalysisJobControllerTest {
         when(requestAnalysisUseCase.execute(any())).thenReturn(sampleResponse());
 
         mockMvc.perform(post("/api/v1/analysis-jobs")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new RequestAnalysisJobRequest(
                                 10L, null, AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, "trace"
@@ -81,7 +80,6 @@ class AnalysisJobControllerTest {
         ));
 
         mockMvc.perform(get("/api/v1/analysis-jobs")
-                        .header("X-Actor-User-Id", 1L)
                         .param("inspectionId", "30"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].jobId").value(1L));
@@ -91,8 +89,7 @@ class AnalysisJobControllerTest {
     void getAnalysisJobReturnsOk() throws Exception {
         when(getAnalysisJobUseCase.execute(any())).thenReturn(sampleResponse());
 
-        mockMvc.perform(get("/api/v1/analysis-jobs/1")
-                        .header("X-Actor-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/analysis-jobs/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.jobId").value(1L));
     }
@@ -102,7 +99,6 @@ class AnalysisJobControllerTest {
         when(retryAnalysisJobUseCase.execute(any())).thenReturn(sampleResponse());
 
         mockMvc.perform(post("/api/v1/analysis-jobs/1/retry")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new RetryAnalysisJobRequest("trace-2"))))
                 .andExpect(status().isOk())

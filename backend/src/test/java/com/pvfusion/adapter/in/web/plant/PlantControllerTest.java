@@ -60,7 +60,7 @@ class PlantControllerTest {
                 0, 20, 1, 1, false
         ));
 
-        mockMvc.perform(get("/api/v1/plants").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/plants"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].plantId").value(1L));
     }
@@ -70,7 +70,6 @@ class PlantControllerTest {
         when(createPlantUseCase.execute(any())).thenReturn(samplePlantResponse());
 
         mockMvc.perform(post("/api/v1/plants")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new CreatePlantRequest("Plant", "Seoul", "desc"))))
                 .andExpect(status().isCreated())
@@ -81,7 +80,7 @@ class PlantControllerTest {
     void getPlantReturnsOk() throws Exception {
         when(getPlantUseCase.execute(any())).thenReturn(samplePlantResponse());
 
-        mockMvc.perform(get("/api/v1/plants/1").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/plants/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.plantId").value(1L));
     }
@@ -91,7 +90,6 @@ class PlantControllerTest {
         when(updatePlantUseCase.execute(any())).thenReturn(samplePlantResponse());
 
         mockMvc.perform(patch("/api/v1/plants/1")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new UpdatePlantRequest("Plant", "Seoul", "desc"))))
                 .andExpect(status().isOk())
@@ -102,7 +100,7 @@ class PlantControllerTest {
     void deactivatePlantReturnsOk() throws Exception {
         when(deactivatePlantUseCase.execute(any())).thenReturn(samplePlantResponse());
 
-        mockMvc.perform(patch("/api/v1/plants/1/deactivate").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(patch("/api/v1/plants/1/deactivate"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.plantId").value(1L));
     }

@@ -4,4 +4,7 @@ public record DeactivateZoneCommand(
         Long actorUserId,
         Long zoneId
 ) {
+    public DeactivateZoneCommand(Long zoneId) {
+        this(null, zoneId);
+    }
 }

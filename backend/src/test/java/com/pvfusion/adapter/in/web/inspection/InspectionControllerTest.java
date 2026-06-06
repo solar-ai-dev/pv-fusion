@@ -65,7 +65,6 @@ class InspectionControllerTest {
         );
 
         mockMvc.perform(post("/api/v1/inspections")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -87,7 +86,6 @@ class InspectionControllerTest {
         ));
 
         mockMvc.perform(get("/api/v1/inspections")
-                        .header("X-Actor-User-Id", 1L)
                         .param("zoneId", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -98,8 +96,7 @@ class InspectionControllerTest {
     void getInspectionReturnsOk() throws Exception {
         when(getInspectionUseCase.execute(any())).thenReturn(sampleResponse());
 
-        mockMvc.perform(get("/api/v1/inspections/1")
-                        .header("X-Actor-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/inspections/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.inspectionId").value(1L));
     }
@@ -114,7 +111,6 @@ class InspectionControllerTest {
         );
 
         mockMvc.perform(patch("/api/v1/inspections/1")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())

@@ -8,4 +8,7 @@ public record ImagePairCandidateQuery(
         TargetType targetType,
         Long equipmentId
 ) {
+    public ImagePairCandidateQuery(Long inspectionId, TargetType targetType, Long equipmentId) {
+        this(null, inspectionId, targetType, equipmentId);
+    }
 }

@@ -23,7 +23,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,8 +32,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AdminUserController {
 
-    private static final String ACTOR_USER_ID_HEADER = "X-Actor-User-Id";
-
     private final QueryUserUseCase queryUserUseCase;
     private final GetUserUseCase getUserUseCase;
     private final ApproveUserUseCase approveUserUseCase;
@@ -43,19 +40,17 @@ public class AdminUserController {
 
     @GetMapping("/pending")
     public ResponseEntity<ApiResponse<PageResponse<UserSummaryResponse>>> getPendingUsers(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         PageResponse<UserSummaryResponse> response = queryUserUseCase.execute(
-                new UserListQuery(actorUserId, null, null, AccountStatus.PENDING, page, size)
+                new UserListQuery(null, null, AccountStatus.PENDING, page, size)
         );
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<UserSummaryResponse>>> getUsers(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) UserRole role,
             @RequestParam(required = false) AccountStatus accountStatus,
@@ -63,47 +58,43 @@ public class AdminUserController {
             @RequestParam(defaultValue = "20") int size
     ) {
         PageResponse<UserSummaryResponse> response = queryUserUseCase.execute(
-                new UserListQuery(actorUserId, keyword, role, accountStatus, page, size)
+                new UserListQuery(keyword, role, accountStatus, page, size)
         );
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @GetMapping("/{userId}")
     public ResponseEntity<ApiResponse<UserResponse>> getUser(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long userId
     ) {
-        UserResponse response = getUserUseCase.execute(new GetUserQuery(actorUserId, userId));
+        UserResponse response = getUserUseCase.execute(new GetUserQuery(userId));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PatchMapping("/{userId}/approve")
     public ResponseEntity<ApiResponse<UserResponse>> approveUser(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long userId
     ) {
-        UserResponse response = approveUserUseCase.execute(new ApproveUserCommand(actorUserId, userId));
+        UserResponse response = approveUserUseCase.execute(new ApproveUserCommand(userId));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PatchMapping("/{userId}/role")
     public ResponseEntity<ApiResponse<UserResponse>> changeUserRole(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long userId,
             @Valid @RequestBody ChangeUserRoleRequest request
     ) {
         UserResponse response = changeUserRoleUseCase.execute(
-                new ChangeUserRoleCommand(actorUserId, userId, request.role())
+                new ChangeUserRoleCommand(userId, request.role())
         );
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PatchMapping("/{userId}/deactivate")
     public ResponseEntity<ApiResponse<UserResponse>> deactivateUser(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long userId
     ) {
-        UserResponse response = deactivateUserUseCase.execute(new DeactivateUserCommand(actorUserId, userId));
+        UserResponse response = deactivateUserUseCase.execute(new DeactivateUserCommand(userId));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

@@ -54,7 +54,6 @@ class TrackingControllerTest {
         when(queryTrackingUseCase.execute(any())).thenReturn(new TrackingResponse(List.of(summary())));
 
         mockMvc.perform(get("/api/v1/tracking")
-                        .header("X-Actor-User-Id", 1L)
                         .param("zoneId", "10")
                         .param("targetType", "ZONE"))
                 .andExpect(status().isOk())
@@ -79,7 +78,6 @@ class TrackingControllerTest {
         ));
 
         mockMvc.perform(get("/api/v1/tracking/compare")
-                        .header("X-Actor-User-Id", 1L)
                         .param("currentResultId", "100")
                         .param("previousResultId", "90"))
                 .andExpect(status().isOk())

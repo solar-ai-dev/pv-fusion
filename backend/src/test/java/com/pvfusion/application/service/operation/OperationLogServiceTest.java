@@ -57,7 +57,7 @@ class OperationLogServiceTest {
     @Test
     void recordsOperationLog() {
         RecordOperationLogCommand command = new RecordOperationLogCommand(
-                1L,
+                999L,
                 OperationEventCategory.ADMIN,
                 OperationEventType.PLANT_CREATED,
                 "plants",
@@ -74,6 +74,7 @@ class OperationLogServiceTest {
                 null,
                 "name=Plant-A"
         );
+        when(currentUserPort.getCurrentUserId()).thenReturn(Optional.of(1L));
         when(operationLogRepositoryPort.save(any(OperationLog.class))).thenAnswer(invocation -> {
             OperationLog log = invocation.getArgument(0);
             return new OperationLog(
@@ -108,6 +109,7 @@ class OperationLogServiceTest {
 
         ArgumentCaptor<OperationLog> captor = ArgumentCaptor.forClass(OperationLog.class);
         verify(operationLogRepositoryPort).save(captor.capture());
+        assertThat(captor.getValue().getActorUserId()).isEqualTo(1L);
         assertThat(captor.getValue().getDetail()).isEqualTo("name=Plant-A");
     }
 

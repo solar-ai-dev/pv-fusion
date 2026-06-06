@@ -53,7 +53,7 @@ class PlantMemberControllerTest {
     void getPlantMembersReturnsOk() throws Exception {
         when(queryPlantMemberUseCase.execute(any())).thenReturn(List.of(sampleResponse()));
 
-        mockMvc.perform(get("/api/v1/plants/1/members").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/plants/1/members"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].plantMemberId").value(1L));
     }
@@ -63,7 +63,6 @@ class PlantMemberControllerTest {
         when(grantPlantAccessUseCase.execute(any())).thenReturn(sampleResponse());
 
         mockMvc.perform(post("/api/v1/plants/1/members")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new GrantPlantAccessRequest(2L, PlantMemberRole.VIEWER))))
                 .andExpect(status().isCreated())
@@ -75,7 +74,6 @@ class PlantMemberControllerTest {
         when(changePlantMemberRoleUseCase.execute(any())).thenReturn(sampleResponse());
 
         mockMvc.perform(patch("/api/v1/plants/1/members/2/role")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new ChangePlantMemberRoleRequest(PlantMemberRole.MANAGER))))
                 .andExpect(status().isOk())
@@ -86,7 +84,7 @@ class PlantMemberControllerTest {
     void deactivatePlantMemberReturnsOk() throws Exception {
         when(deactivatePlantMemberUseCase.execute(any())).thenReturn(sampleResponse());
 
-        mockMvc.perform(patch("/api/v1/plants/1/members/2/deactivate").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(patch("/api/v1/plants/1/members/2/deactivate"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.userId").value(2L));
     }

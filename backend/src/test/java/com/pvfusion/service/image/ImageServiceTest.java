@@ -12,6 +12,7 @@ import com.pvfusion.application.dto.image.ImageListQuery;
 import com.pvfusion.application.dto.image.ImageStorageResult;
 import com.pvfusion.application.dto.image.UploadImageCommand;
 import com.pvfusion.application.port.in.access.AccessChecker;
+import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.equipment.LoadEquipmentPort;
 import com.pvfusion.application.port.out.image.GenerateImageAccessUrlPort;
 import com.pvfusion.application.port.out.image.LoadImagePort;
@@ -58,6 +59,8 @@ class ImageServiceTest {
     private LoadEquipmentPort loadEquipmentPort;
     @Mock
     private AccessChecker accessChecker;
+    @Mock
+    private CurrentUserPort currentUserPort;
 
     private ImageService imageService;
 
@@ -72,8 +75,10 @@ class ImageServiceTest {
                 loadInspectionPort,
                 accessChecker,
                 loadEquipmentPort,
-                Optional.empty()
+                Optional.empty(),
+                currentUserPort
         );
+        when(currentUserPort.getCurrentUserId()).thenReturn(Optional.of(1L));
     }
 
     @Test

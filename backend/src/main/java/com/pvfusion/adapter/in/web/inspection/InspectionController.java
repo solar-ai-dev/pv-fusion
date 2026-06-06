@@ -24,7 +24,6 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,8 +33,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class InspectionController {
 
-    private static final String ACTOR_USER_ID_HEADER = "X-Actor-User-Id";
-
     private final CreateInspectionUseCase createInspectionUseCase;
     private final QueryInspectionUseCase queryInspectionUseCase;
     private final GetInspectionUseCase getInspectionUseCase;
@@ -43,11 +40,9 @@ public class InspectionController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<InspectionResponse>> createInspection(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @Valid @RequestBody CreateInspectionRequest request
     ) {
         InspectionResponse response = createInspectionUseCase.execute(new CreateInspectionCommand(
-                actorUserId,
                 request.zoneId(),
                 request.name(),
                 request.capturedAt(),
@@ -62,7 +57,6 @@ public class InspectionController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<InspectionSummaryResponse>>> queryInspections(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @RequestParam(required = false) Long plantId,
             @RequestParam(required = false) Long zoneId,
             @RequestParam(required = false) InspectionStatus inspectionStatus,
@@ -72,7 +66,6 @@ public class InspectionController {
             @RequestParam(defaultValue = "20") int size
     ) {
         PageResponse<InspectionSummaryResponse> response = queryInspectionUseCase.execute(new InspectionListQuery(
-                actorUserId,
                 plantId,
                 zoneId,
                 inspectionStatus,
@@ -87,21 +80,18 @@ public class InspectionController {
 
     @GetMapping("/{inspectionId}")
     public ResponseEntity<ApiResponse<InspectionResponse>> getInspection(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long inspectionId
     ) {
-        InspectionResponse response = getInspectionUseCase.execute(new GetInspectionQuery(actorUserId, inspectionId));
+        InspectionResponse response = getInspectionUseCase.execute(new GetInspectionQuery(inspectionId));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PatchMapping("/{inspectionId}")
     public ResponseEntity<ApiResponse<InspectionResponse>> updateInspection(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long inspectionId,
             @Valid @RequestBody UpdateInspectionRequest request
     ) {
         InspectionResponse response = updateInspectionUseCase.execute(new UpdateInspectionCommand(
-                actorUserId,
                 inspectionId,
                 request.name(),
                 request.capturedAt(),

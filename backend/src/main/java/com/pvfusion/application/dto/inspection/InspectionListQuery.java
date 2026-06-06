@@ -13,4 +13,15 @@ public record InspectionListQuery(
         int page,
         int size
 ) {
+    public InspectionListQuery(
+            Long plantId,
+            Long zoneId,
+            InspectionStatus inspectionStatus,
+            LocalDate from,
+            LocalDate to,
+            int page,
+            int size
+    ) {
+        this(null, plantId, zoneId, inspectionStatus, from, to, page, size);
+    }
 }

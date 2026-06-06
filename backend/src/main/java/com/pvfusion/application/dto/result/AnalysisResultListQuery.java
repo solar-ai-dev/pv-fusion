@@ -26,4 +26,38 @@ public record AnalysisResultListQuery(
         int page,
         int size
 ) {
+    public AnalysisResultListQuery(
+            Long plantId,
+            Long zoneId,
+            Long inspectionId,
+            TargetType targetType,
+            Long equipmentId,
+            AnalysisInputType inputType,
+            AnalysisModelType modelType,
+            AnalysisJobStatus jobStatus,
+            AnalysisResultStatus resultStatus,
+            ActionCandidate actionCandidate,
+            SeverityLevel severityLevel,
+            ReviewStatus reviewStatus,
+            int page,
+            int size
+    ) {
+        this(
+                null,
+                plantId,
+                zoneId,
+                inspectionId,
+                targetType,
+                equipmentId,
+                inputType,
+                modelType,
+                jobStatus,
+                resultStatus,
+                actionCandidate,
+                severityLevel,
+                reviewStatus,
+                page,
+                size
+        );
+    }
 }

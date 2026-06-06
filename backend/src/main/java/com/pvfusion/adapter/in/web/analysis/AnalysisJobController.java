@@ -23,7 +23,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,8 +32,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AnalysisJobController {
 
-    private static final String ACTOR_USER_ID_HEADER = "X-Actor-User-Id";
-
     private final RequestAnalysisUseCase requestAnalysisUseCase;
     private final QueryAnalysisJobUseCase queryAnalysisJobUseCase;
     private final GetAnalysisJobUseCase getAnalysisJobUseCase;
@@ -42,11 +39,9 @@ public class AnalysisJobController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<AnalysisJobResponse>> requestAnalysis(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @Valid @RequestBody RequestAnalysisJobRequest request
     ) {
         AnalysisJobResponse response = requestAnalysisUseCase.execute(new RequestAnalysisCommand(
-                actorUserId,
                 request.imageId(),
                 request.imagePairId(),
                 request.inputType(),
@@ -58,7 +53,6 @@ public class AnalysisJobController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<AnalysisJobSummaryResponse>>> queryAnalysisJobs(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @RequestParam(required = false) Long plantId,
             @RequestParam(required = false) Long zoneId,
             @RequestParam(required = false) Long inspectionId,
@@ -69,7 +63,6 @@ public class AnalysisJobController {
             @RequestParam(defaultValue = "20") int size
     ) {
         PageResponse<AnalysisJobSummaryResponse> response = queryAnalysisJobUseCase.execute(new AnalysisJobListQuery(
-                actorUserId,
                 plantId,
                 zoneId,
                 inspectionId,
@@ -84,21 +77,18 @@ public class AnalysisJobController {
 
     @GetMapping("/{jobId}")
     public ResponseEntity<ApiResponse<AnalysisJobResponse>> getAnalysisJob(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long jobId
     ) {
-        AnalysisJobResponse response = getAnalysisJobUseCase.execute(new GetAnalysisJobQuery(actorUserId, jobId));
+        AnalysisJobResponse response = getAnalysisJobUseCase.execute(new GetAnalysisJobQuery(jobId));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PostMapping("/{jobId}/retry")
     public ResponseEntity<ApiResponse<AnalysisJobResponse>> retryAnalysisJob(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long jobId,
             @RequestBody(required = false) RetryAnalysisJobRequest request
     ) {
         AnalysisJobResponse response = retryAnalysisJobUseCase.execute(new RetryAnalysisJobCommand(
-                actorUserId,
                 jobId,
                 request != null ? request.traceId() : null
         ));

@@ -9,4 +9,7 @@ public record DashboardQuery(
         LocalDate from,
         LocalDate to
 ) {
+    public DashboardQuery(Long plantId, Long zoneId, LocalDate from, LocalDate to) {
+        this(null, plantId, zoneId, from, to);
+    }
 }

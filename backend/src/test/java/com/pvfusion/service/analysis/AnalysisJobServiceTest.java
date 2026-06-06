@@ -11,6 +11,7 @@ import com.pvfusion.application.dto.analysis.AnalysisJobListQuery;
 import com.pvfusion.application.dto.analysis.RequestAnalysisCommand;
 import com.pvfusion.application.dto.analysis.RetryAnalysisJobCommand;
 import com.pvfusion.application.port.in.access.AccessChecker;
+import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.analysis.LoadAnalysisJobPort;
 import com.pvfusion.application.port.out.analysis.PublishAnalysisJobPort;
 import com.pvfusion.application.port.out.analysis.SaveAnalysisJobPort;
@@ -59,6 +60,8 @@ class AnalysisJobServiceTest {
     private LoadInspectionPort loadInspectionPort;
     @Mock
     private AccessChecker accessChecker;
+    @Mock
+    private CurrentUserPort currentUserPort;
 
     private AnalysisJobService analysisJobService;
 
@@ -73,8 +76,10 @@ class AnalysisJobServiceTest {
                 loadImagePairPort,
                 loadInspectionPort,
                 accessChecker,
-                Optional.empty()
+                Optional.empty(),
+                currentUserPort
         );
+        when(currentUserPort.getCurrentUserId()).thenReturn(Optional.of(1L));
     }
 
     @Test

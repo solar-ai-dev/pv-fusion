@@ -12,6 +12,7 @@ import com.pvfusion.application.dto.tracking.InspectionCompareResponse;
 import com.pvfusion.application.dto.tracking.TrackingQuery;
 import com.pvfusion.application.dto.tracking.TrackingSummaryResponse;
 import com.pvfusion.application.port.in.access.AccessChecker;
+import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.result.LoadAnalysisResultPort;
 import com.pvfusion.application.port.out.tracking.LoadInspectionComparisonPort;
 import com.pvfusion.application.port.out.tracking.LoadTrackingPort;
@@ -49,6 +50,8 @@ class TrackingServiceTest {
     private LoadAnalysisResultPort loadAnalysisResultPort;
     @Mock
     private AccessChecker accessChecker;
+    @Mock
+    private CurrentUserPort currentUserPort;
 
     private TrackingService trackingService;
 
@@ -58,8 +61,10 @@ class TrackingServiceTest {
                 loadTrackingPort,
                 loadInspectionComparisonPort,
                 loadAnalysisResultPort,
-                accessChecker
+                accessChecker,
+                currentUserPort
         );
+        when(currentUserPort.getCurrentUserId()).thenReturn(Optional.of(1L));
     }
 
     @Test

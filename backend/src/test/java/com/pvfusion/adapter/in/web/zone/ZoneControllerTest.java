@@ -58,7 +58,7 @@ class ZoneControllerTest {
                 new ZoneSummaryResponse(1L, 1L, "Zone-A", 0L, 0L, null, 0L, null, null)
         ));
 
-        mockMvc.perform(get("/api/v1/plants/1/zones").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/plants/1/zones"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].zoneId").value(1L));
     }
@@ -68,7 +68,6 @@ class ZoneControllerTest {
         when(createZoneUseCase.execute(any())).thenReturn(sampleResponse());
 
         mockMvc.perform(post("/api/v1/plants/1/zones")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new CreateZoneRequest("Zone-A", "North", "desc"))))
                 .andExpect(status().isCreated())
@@ -79,7 +78,7 @@ class ZoneControllerTest {
     void getZoneReturnsOk() throws Exception {
         when(getZoneUseCase.execute(any())).thenReturn(sampleResponse());
 
-        mockMvc.perform(get("/api/v1/zones/1").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/zones/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.zoneId").value(1L));
     }
@@ -89,7 +88,6 @@ class ZoneControllerTest {
         when(updateZoneUseCase.execute(any())).thenReturn(sampleResponse());
 
         mockMvc.perform(patch("/api/v1/zones/1")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new UpdateZoneRequest("Zone-A", "North", "desc"))))
                 .andExpect(status().isOk())
@@ -100,7 +98,7 @@ class ZoneControllerTest {
     void deactivateZoneReturnsOk() throws Exception {
         when(deactivateZoneUseCase.execute(any())).thenReturn(sampleResponse());
 
-        mockMvc.perform(patch("/api/v1/zones/1/deactivate").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(patch("/api/v1/zones/1/deactivate"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.zoneId").value(1L));
     }

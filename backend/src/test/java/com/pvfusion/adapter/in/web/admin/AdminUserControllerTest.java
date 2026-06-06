@@ -60,7 +60,7 @@ class AdminUserControllerTest {
                 0, 20, 1, 1, false
         ));
 
-        mockMvc.perform(get("/api/v1/admin/users/pending").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/admin/users/pending"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].userId").value(1L));
     }
@@ -72,7 +72,7 @@ class AdminUserControllerTest {
                 0, 20, 1, 1, false
         ));
 
-        mockMvc.perform(get("/api/v1/admin/users").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/admin/users"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].email").value("user@example.com"));
     }
@@ -81,7 +81,7 @@ class AdminUserControllerTest {
     void getUserReturnsOk() throws Exception {
         when(getUserUseCase.execute(any())).thenReturn(sampleUserResponse());
 
-        mockMvc.perform(get("/api/v1/admin/users/1").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/admin/users/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.userId").value(1L));
     }
@@ -90,7 +90,7 @@ class AdminUserControllerTest {
     void approveUserReturnsOk() throws Exception {
         when(approveUserUseCase.execute(any())).thenReturn(sampleUserResponse());
 
-        mockMvc.perform(patch("/api/v1/admin/users/1/approve").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(patch("/api/v1/admin/users/1/approve"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.userId").value(1L));
     }
@@ -100,7 +100,6 @@ class AdminUserControllerTest {
         when(changeUserRoleUseCase.execute(any())).thenReturn(sampleUserResponse());
 
         mockMvc.perform(patch("/api/v1/admin/users/1/role")
-                        .header("X-Actor-User-Id", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new ChangeUserRoleRequest(UserRole.ADMIN))))
                 .andExpect(status().isOk())
@@ -111,7 +110,7 @@ class AdminUserControllerTest {
     void deactivateUserReturnsOk() throws Exception {
         when(deactivateUserUseCase.execute(any())).thenReturn(sampleUserResponse());
 
-        mockMvc.perform(patch("/api/v1/admin/users/1/deactivate").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(patch("/api/v1/admin/users/1/deactivate"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.userId").value(1L));
     }

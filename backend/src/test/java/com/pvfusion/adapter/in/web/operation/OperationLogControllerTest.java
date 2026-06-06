@@ -43,7 +43,7 @@ class OperationLogControllerTest {
                 0, 20, 1, 1, false
         ));
 
-        mockMvc.perform(get("/api/v1/admin/operation-logs").header("X-Actor-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/admin/operation-logs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].operationLogId").value(1L));
     }
