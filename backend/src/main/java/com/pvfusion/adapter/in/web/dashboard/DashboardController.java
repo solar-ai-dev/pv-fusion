@@ -16,6 +16,7 @@ import com.pvfusion.global.response.ApiResponse;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,8 +40,8 @@ public class DashboardController {
             @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @RequestParam(required = false) Long plantId,
             @RequestParam(required = false) Long zoneId,
-            @RequestParam(required = false) LocalDate from,
-            @RequestParam(required = false) LocalDate to
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
         DashboardResponse response = getDashboardUseCase.execute(new DashboardQuery(
                 actorUserId,
@@ -57,8 +58,8 @@ public class DashboardController {
             @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @RequestParam(required = false) Long plantId,
             @RequestParam(required = false) Long zoneId,
-            @RequestParam(required = false) LocalDate from,
-            @RequestParam(required = false) LocalDate to
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
         ActionStatsResponse response = getActionStatsUseCase.execute(new ActionStatsQuery(
                 actorUserId,
@@ -75,8 +76,8 @@ public class DashboardController {
             @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @RequestParam(required = false) Long plantId,
             @RequestParam(required = false) Long zoneId,
-            @RequestParam(required = false) LocalDate from,
-            @RequestParam(required = false) LocalDate to
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
         SeverityStatsResponse response = getSeverityStatsUseCase.execute(new SeverityStatsQuery(
                 actorUserId,
@@ -93,8 +94,8 @@ public class DashboardController {
             @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @RequestParam(required = false) Long plantId,
             @RequestParam(required = false) Long zoneId,
-            @RequestParam(required = false) LocalDate from,
-            @RequestParam(required = false) LocalDate to,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) String interval
     ) {
         DashboardTrendResponse response = getDashboardTrendUseCase.execute(new DashboardTrendQuery(
