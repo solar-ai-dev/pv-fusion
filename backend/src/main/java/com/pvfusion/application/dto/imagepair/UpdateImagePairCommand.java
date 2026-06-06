@@ -6,4 +6,7 @@ public record UpdateImagePairCommand(
         Long rgbImageId,
         Long thermalImageId
 ) {
+    public UpdateImagePairCommand(Long imagePairId, Long rgbImageId, Long thermalImageId) {
+        this(null, imagePairId, rgbImageId, thermalImageId);
+    }
 }

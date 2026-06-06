@@ -17,6 +17,7 @@ import com.pvfusion.application.dto.dashboard.SeverityStatsQuery;
 import com.pvfusion.application.dto.dashboard.SeverityStatsResponse;
 import com.pvfusion.application.dto.tracking.TrackingSummaryResponse;
 import com.pvfusion.application.port.in.access.AccessChecker;
+import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.dashboard.LoadDashboardPort;
 import com.pvfusion.application.port.out.dashboard.LoadDashboardStatsPort;
 import com.pvfusion.application.port.out.tracking.LoadTrackingPort;
@@ -32,6 +33,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,6 +51,8 @@ class DashboardServiceTest {
     private LoadTrackingPort loadTrackingPort;
     @Mock
     private AccessChecker accessChecker;
+    @Mock
+    private CurrentUserPort currentUserPort;
 
     private DashboardService dashboardService;
 
@@ -58,15 +62,17 @@ class DashboardServiceTest {
                 loadDashboardPort,
                 loadDashboardStatsPort,
                 loadTrackingPort,
-                accessChecker
+                accessChecker,
+                currentUserPort
         );
+        when(currentUserPort.getCurrentUserId()).thenReturn(Optional.of(1L));
     }
 
     @Test
     void getDashboardRequiresScopedFilterForNonAdmin() {
         when(accessChecker.isAdmin(1L)).thenReturn(false);
 
-        assertThatThrownBy(() -> dashboardService.execute(new DashboardQuery(1L, null, null, null, null)))
+        assertThatThrownBy(() -> dashboardService.execute(new DashboardQuery(null, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.FORBIDDEN);
@@ -84,7 +90,7 @@ class DashboardServiceTest {
         ));
 
         DashboardResponse response = dashboardService.execute(new DashboardQuery(
-                1L, null, 10L, LocalDate.now().minusDays(7), LocalDate.now()
+                null, 10L, LocalDate.now().minusDays(7), LocalDate.now()
         ));
 
         assertThat(response.summary().worsenedCount()).isEqualTo(2);
@@ -99,7 +105,7 @@ class DashboardServiceTest {
         when(loadDashboardStatsPort.loadDashboardTrend(any())).thenReturn(new DashboardTrendResponse("WEEKLY", List.of()));
 
         DashboardTrendResponse response = dashboardService.execute(new DashboardTrendQuery(
-                1L, null, 10L, null, null, "week"
+                null, 10L, null, null, "week"
         ));
 
         assertThat(response.period()).isEqualTo("WEEKLY");
@@ -111,7 +117,7 @@ class DashboardServiceTest {
         when(accessChecker.checkZoneAccess(1L, 10L)).thenReturn(true);
 
         assertThatThrownBy(() -> dashboardService.execute(new DashboardTrendQuery(
-                1L, null, 10L, null, null, "year"
+                null, 10L, null, null, "year"
         ))).isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -124,8 +130,8 @@ class DashboardServiceTest {
         when(loadDashboardStatsPort.loadActionStats(any())).thenReturn(new ActionStatsResponse(List.of()));
         when(loadDashboardStatsPort.loadSeverityStats(any())).thenReturn(new SeverityStatsResponse(List.of()));
 
-        assertThat(dashboardService.execute(new ActionStatsQuery(1L, null, 10L, null, null)).items()).isEmpty();
-        assertThat(dashboardService.execute(new SeverityStatsQuery(1L, null, 10L, null, null)).items()).isEmpty();
+        assertThat(dashboardService.execute(new ActionStatsQuery(null, 10L, null, null)).items()).isEmpty();
+        assertThat(dashboardService.execute(new SeverityStatsQuery(null, 10L, null, null)).items()).isEmpty();
     }
 
     private DashboardResponse baseResponse() {

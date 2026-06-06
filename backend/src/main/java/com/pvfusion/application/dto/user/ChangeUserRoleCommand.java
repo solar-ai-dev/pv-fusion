@@ -7,4 +7,7 @@ public record ChangeUserRoleCommand(
         Long userId,
         UserRole role
 ) {
+    public ChangeUserRoleCommand(Long userId, UserRole role) {
+        this(null, userId, role);
+    }
 }

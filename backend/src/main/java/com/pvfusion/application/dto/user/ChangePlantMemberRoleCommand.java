@@ -8,4 +8,7 @@ public record ChangePlantMemberRoleCommand(
         Long userId,
         PlantMemberRole memberRole
 ) {
+    public ChangePlantMemberRoleCommand(Long plantId, Long userId, PlantMemberRole memberRole) {
+        this(null, plantId, userId, memberRole);
+    }
 }

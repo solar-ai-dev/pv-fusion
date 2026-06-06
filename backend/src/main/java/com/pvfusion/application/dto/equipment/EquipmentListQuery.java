@@ -9,4 +9,7 @@ public record EquipmentListQuery(
         EquipmentType equipmentType,
         ResourceStatus status
 ) {
+    public EquipmentListQuery(Long zoneId, EquipmentType equipmentType, ResourceStatus status) {
+        this(null, zoneId, equipmentType, status);
+    }
 }

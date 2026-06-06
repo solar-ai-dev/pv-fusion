@@ -10,11 +10,14 @@ import com.pvfusion.application.port.in.access.AccessChecker;
 import com.pvfusion.application.port.in.tracking.CompareInspectionResultUseCase;
 import com.pvfusion.application.port.in.tracking.QueryRepeatedAnomalyUseCase;
 import com.pvfusion.application.port.in.tracking.QueryTrackingUseCase;
+import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.result.LoadAnalysisResultPort;
 import com.pvfusion.application.port.out.tracking.LoadInspectionComparisonPort;
 import com.pvfusion.application.port.out.tracking.LoadTrackingPort;
 import com.pvfusion.global.error.BusinessException;
 import com.pvfusion.global.error.ErrorCode;
+import com.pvfusion.global.error.UnauthorizedException;
+import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -32,26 +35,27 @@ public class TrackingService implements
     private final LoadInspectionComparisonPort loadInspectionComparisonPort;
     private final LoadAnalysisResultPort loadAnalysisResultPort;
     private final AccessChecker accessChecker;
+    private final CurrentUserPort currentUserPort;
 
     @Override
     public TrackingResponse execute(TrackingQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateDateRange(query.from(), query.to());
-        validateTrackingScope(query.actorUserId(), query.plantId(), query.zoneId(), query.equipmentId());
+        validateTrackingScope(currentUserId, query.plantId(), query.zoneId(), query.equipmentId());
         return new TrackingResponse(loadTrackingPort.loadTracking(query));
     }
 
     @Override
     public InspectionCompareResponse execute(InspectionCompareQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateRequired(query.currentResultId(), "currentResultId");
 
         ensureResultExists(query.currentResultId());
-        ensureAllowed(accessChecker.checkResultAccess(query.actorUserId(), query.currentResultId()));
+        ensureAllowed(accessChecker.checkResultAccess(currentUserId, query.currentResultId()));
 
         if (query.previousResultId() != null) {
             ensureResultExists(query.previousResultId());
-            ensureAllowed(accessChecker.checkResultAccess(query.actorUserId(), query.previousResultId()));
+            ensureAllowed(accessChecker.checkResultAccess(currentUserId, query.previousResultId()));
         }
 
         return loadInspectionComparisonPort.loadInspectionComparison(query)
@@ -60,9 +64,9 @@ public class TrackingService implements
 
     @Override
     public List<RepeatedAnomalyResponse> execute(RepeatedAnomalyQuery query) {
-        validateActorUserId(query.actorUserId());
+        Long currentUserId = requireCurrentUserId();
         validateDateRange(query.from(), query.to());
-        validateTrackingScope(query.actorUserId(), query.plantId(), query.zoneId(), query.equipmentId());
+        validateTrackingScope(currentUserId, query.plantId(), query.zoneId(), query.equipmentId());
         return loadTrackingPort.loadRepeatedAnomalies(query);
     }
 
@@ -94,11 +98,12 @@ public class TrackingService implements
         }
     }
 
-    private void validateActorUserId(Long actorUserId) {
-        validateRequired(actorUserId, "actorUserId");
+    private Long requireCurrentUserId() {
+        return currentUserPort.getCurrentUserId()
+                .orElseThrow(UnauthorizedException::new);
     }
 
-    private void validateDateRange(java.time.LocalDate from, java.time.LocalDate to) {
+    private void validateDateRange(LocalDate from, LocalDate to) {
         if (from != null && to != null && from.isAfter(to)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "from must be before or equal to to.");
         }

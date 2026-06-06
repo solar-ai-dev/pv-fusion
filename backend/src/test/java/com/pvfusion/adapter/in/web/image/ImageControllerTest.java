@@ -65,7 +65,6 @@ class ImageControllerTest {
 
         mockMvc.perform(multipart("/api/v1/images")
                         .file(file)
-                        .header("X-Actor-User-Id", 1L)
                         .param("inspectionId", "10")
                         .param("targetType", "ZONE")
                         .param("imageType", "RGB"))
@@ -81,7 +80,6 @@ class ImageControllerTest {
         )));
 
         mockMvc.perform(get("/api/v1/images")
-                        .header("X-Actor-User-Id", 1L)
                         .param("inspectionId", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].imageId").value(1L));
@@ -95,8 +93,7 @@ class ImageControllerTest {
                 OffsetDateTime.parse("2026-06-05T01:00:00Z")
         ));
 
-        mockMvc.perform(get("/api/v1/images/1/preview")
-                        .header("X-Actor-User-Id", 1L))
+        mockMvc.perform(get("/api/v1/images/1/preview"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.url").value("https://example.com/image"));
     }
@@ -105,8 +102,7 @@ class ImageControllerTest {
     void deactivateImageReturnsOk() throws Exception {
         when(deactivateImageUseCase.execute(any())).thenReturn(sampleResponse());
 
-        mockMvc.perform(patch("/api/v1/images/1/deactivate")
-                        .header("X-Actor-User-Id", 1L))
+        mockMvc.perform(patch("/api/v1/images/1/deactivate"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.imageId").value(1L));
     }

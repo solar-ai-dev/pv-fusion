@@ -5,4 +5,7 @@ public record CreateImagePairCommand(
         Long rgbImageId,
         Long thermalImageId
 ) {
+    public CreateImagePairCommand(Long rgbImageId, Long thermalImageId) {
+        this(null, rgbImageId, thermalImageId);
+    }
 }

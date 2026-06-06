@@ -7,4 +7,7 @@ public record UpdateZoneCommand(
         String location,
         String description
 ) {
+    public UpdateZoneCommand(Long zoneId, String name, String location, String description) {
+        this(null, zoneId, name, location, description);
+    }
 }

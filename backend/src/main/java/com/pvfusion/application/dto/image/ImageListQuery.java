@@ -14,4 +14,15 @@ public record ImageListQuery(
         TargetType targetType,
         ResourceStatus status
 ) {
+    public ImageListQuery(
+            Long plantId,
+            Long zoneId,
+            Long inspectionId,
+            Long equipmentId,
+            ImageType imageType,
+            TargetType targetType,
+            ResourceStatus status
+    ) {
+        this(null, plantId, zoneId, inspectionId, equipmentId, imageType, targetType, status);
+    }
 }

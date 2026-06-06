@@ -28,7 +28,7 @@ public class DetectedDefectJpaEntity extends BaseJpaEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(name = "analysis_result_id", nullable = false)
     private Long analysisResultId;
 
     @Enumerated(EnumType.STRING)
@@ -45,12 +45,16 @@ public class DetectedDefectJpaEntity extends BaseJpaEntity {
     @Column(precision = 10, scale = 4)
     private BigDecimal areaRatio;
 
+    @Column(name = "bbox_x")
     private Integer bboxX;
 
+    @Column(name = "bbox_y")
     private Integer bboxY;
 
+    @Column(name = "bbox_width")
     private Integer bboxWidth;
 
+    @Column(name = "bbox_height")
     private Integer bboxHeight;
 
     @Column(length = 255)

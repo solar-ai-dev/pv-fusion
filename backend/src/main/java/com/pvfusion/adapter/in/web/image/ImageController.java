@@ -31,7 +31,6 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -43,8 +42,6 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class ImageController {
 
-    private static final String ACTOR_USER_ID_HEADER = "X-Actor-User-Id";
-
     private final UploadImageUseCase uploadImageUseCase;
     private final QueryImageUseCase queryImageUseCase;
     private final GetImageUseCase getImageUseCase;
@@ -53,13 +50,11 @@ public class ImageController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<ImageResponse>> uploadImage(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @Valid @ModelAttribute UploadImageRequest request,
             @RequestPart("file") MultipartFile file
     ) {
         try {
             ImageResponse response = uploadImageUseCase.execute(new UploadImageCommand(
-                    actorUserId,
                     request.getInspectionId(),
                     request.getEquipmentId(),
                     request.getTargetType(),
@@ -81,7 +76,6 @@ public class ImageController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<ImageSummaryResponse>>> queryImages(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @RequestParam(required = false) Long plantId,
             @RequestParam(required = false) Long zoneId,
             @RequestParam(required = false) Long inspectionId,
@@ -91,7 +85,6 @@ public class ImageController {
             @RequestParam(required = false) ResourceStatus status
     ) {
         List<ImageSummaryResponse> response = queryImageUseCase.execute(new ImageListQuery(
-                actorUserId,
                 plantId,
                 zoneId,
                 inspectionId,
@@ -106,31 +99,28 @@ public class ImageController {
 
     @GetMapping("/{imageId}")
     public ResponseEntity<ApiResponse<ImageResponse>> getImage(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long imageId
     ) {
-        ImageResponse response = getImageUseCase.execute(new GetImageQuery(actorUserId, imageId));
+        ImageResponse response = getImageUseCase.execute(new GetImageQuery(imageId));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @GetMapping("/{imageId}/preview")
     public ResponseEntity<ApiResponse<ImagePreviewResponse>> getImagePreview(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long imageId,
             @RequestParam(required = false) String mode
     ) {
         ImagePreviewResponse response = getImagePreviewUseCase.execute(
-                new GetImagePreviewQuery(actorUserId, imageId, mode)
+                new GetImagePreviewQuery(imageId, mode)
         );
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PatchMapping("/{imageId}/deactivate")
     public ResponseEntity<ApiResponse<ImageResponse>> deactivateImage(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long imageId
     ) {
-        ImageResponse response = deactivateImageUseCase.execute(new DeactivateImageCommand(actorUserId, imageId));
+        ImageResponse response = deactivateImageUseCase.execute(new DeactivateImageCommand(imageId));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

@@ -4,4 +4,7 @@ public record GetPlantQuery(
         Long actorUserId,
         Long plantId
 ) {
+    public GetPlantQuery(Long plantId) {
+        this(null, plantId);
+    }
 }

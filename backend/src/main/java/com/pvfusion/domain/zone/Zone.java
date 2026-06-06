@@ -38,4 +38,40 @@ public class Zone {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
+
+    public Zone update(String name, String location, String description) {
+        return new Zone(
+                id,
+                plantId,
+                name,
+                location,
+                description,
+                status,
+                createdByUserId,
+                createdAt,
+                OffsetDateTime.now()
+        );
+    }
+
+    public Zone deactivate() {
+        return new Zone(
+                id,
+                plantId,
+                name,
+                location,
+                description,
+                ResourceStatus.INACTIVE,
+                createdByUserId,
+                createdAt,
+                OffsetDateTime.now()
+        );
+    }
+
+    public boolean isActive() {
+        return status == ResourceStatus.ACTIVE;
+    }
+
+    public boolean isInactive() {
+        return status == ResourceStatus.INACTIVE;
+    }
 }

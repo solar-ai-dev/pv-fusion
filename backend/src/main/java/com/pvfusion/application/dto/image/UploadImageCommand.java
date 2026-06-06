@@ -18,4 +18,32 @@ public record UploadImageCommand(
         String sourceKey,
         byte[] fileContent
 ) {
+    public UploadImageCommand(
+            Long inspectionId,
+            Long equipmentId,
+            TargetType targetType,
+            ImageType imageType,
+            String originalFilename,
+            String mimeType,
+            long fileSize,
+            OffsetDateTime capturedAt,
+            String memo,
+            String sourceKey,
+            byte[] fileContent
+    ) {
+        this(
+                null,
+                inspectionId,
+                equipmentId,
+                targetType,
+                imageType,
+                originalFilename,
+                mimeType,
+                fileSize,
+                capturedAt,
+                memo,
+                sourceKey,
+                fileContent
+        );
+    }
 }

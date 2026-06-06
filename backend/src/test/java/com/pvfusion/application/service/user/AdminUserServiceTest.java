@@ -12,6 +12,7 @@ import com.pvfusion.application.dto.user.DeactivateUserCommand;
 import com.pvfusion.application.dto.user.GetUserQuery;
 import com.pvfusion.application.dto.user.UserListQuery;
 import com.pvfusion.application.dto.user.UserSummaryResponse;
+import com.pvfusion.application.port.in.operation.RecordOperationLogUseCase;
 import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.user.UserRepositoryPort;
 import com.pvfusion.domain.user.AccountStatus;
@@ -41,12 +42,14 @@ class AdminUserServiceTest {
 
     @Mock
     private UserRepositoryPort userRepositoryPort;
+    @Mock
+    private RecordOperationLogUseCase recordOperationLogUseCase;
 
     private AdminUserService adminUserService;
 
     @BeforeEach
     void setUp() {
-        adminUserService = new AdminUserService(currentUserPort, userRepositoryPort);
+        adminUserService = new AdminUserService(currentUserPort, userRepositoryPort, recordOperationLogUseCase);
     }
 
     @Test
@@ -123,6 +126,7 @@ class AdminUserServiceTest {
 
         assertThat(response.userId()).isEqualTo(2L);
         assertThat(response.accountStatus()).isEqualTo(AccountStatus.APPROVED);
+        verify(recordOperationLogUseCase).execute(any());
     }
 
     @Test
@@ -152,6 +156,7 @@ class AdminUserServiceTest {
         var response = adminUserService.execute(new ChangeUserRoleCommand(null, 2L, UserRole.ADMIN));
 
         assertThat(response.role()).isEqualTo(UserRole.ADMIN);
+        verify(recordOperationLogUseCase).execute(any());
     }
 
     @Test
@@ -171,6 +176,7 @@ class AdminUserServiceTest {
         var response = adminUserService.execute(new DeactivateUserCommand(null, 2L));
 
         assertThat(response.accountStatus()).isEqualTo(AccountStatus.INACTIVE);
+        verify(recordOperationLogUseCase).execute(any());
     }
 
     @Test

@@ -36,7 +36,6 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -45,8 +44,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/analysis-results")
 @RequiredArgsConstructor
 public class AnalysisResultController {
-
-    private static final String ACTOR_USER_ID_HEADER = "X-Actor-User-Id";
 
     private final SaveAnalysisResultUseCase saveAnalysisResultUseCase;
     private final QueryAnalysisResultUseCase queryAnalysisResultUseCase;
@@ -57,11 +54,10 @@ public class AnalysisResultController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<AnalysisResultResponse>> saveAnalysisResult(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @Valid @RequestBody SaveAnalysisResultRequest request
     ) {
         AnalysisResultResponse response = saveAnalysisResultUseCase.execute(new SaveAnalysisResultCommand(
-                actorUserId,
+                null,
                 request.analysisJobId(),
                 request.modelName(),
                 request.modelVersion(),
@@ -94,7 +90,6 @@ public class AnalysisResultController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<AnalysisResultSummaryResponse>>> queryAnalysisResults(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @RequestParam(required = false) Long plantId,
             @RequestParam(required = false) Long zoneId,
             @RequestParam(required = false) Long inspectionId,
@@ -111,7 +106,7 @@ public class AnalysisResultController {
             @RequestParam(defaultValue = "20") int size
     ) {
         PageResponse<AnalysisResultSummaryResponse> response = queryAnalysisResultUseCase.execute(new AnalysisResultListQuery(
-                actorUserId,
+                null,
                 plantId,
                 zoneId,
                 inspectionId,
@@ -132,21 +127,18 @@ public class AnalysisResultController {
 
     @GetMapping("/{resultId}")
     public ResponseEntity<ApiResponse<AnalysisResultResponse>> getAnalysisResult(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long resultId
     ) {
-        AnalysisResultResponse response = getAnalysisResultUseCase.execute(new GetAnalysisResultQuery(actorUserId, resultId));
+        AnalysisResultResponse response = getAnalysisResultUseCase.execute(new GetAnalysisResultQuery(resultId));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PatchMapping("/{resultId}")
     public ResponseEntity<ApiResponse<AnalysisResultResponse>> updateAnalysisResult(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long resultId,
             @Valid @RequestBody UpdateAnalysisResultRequest request
     ) {
         AnalysisResultResponse response = updateResultActionCandidateUseCase.execute(new UpdateResultActionCandidateCommand(
-                actorUserId,
                 resultId,
                 request.actionCandidate(),
                 request.memo()
@@ -156,12 +148,10 @@ public class AnalysisResultController {
 
     @PatchMapping("/{resultId}/review")
     public ResponseEntity<ApiResponse<AnalysisResultResponse>> changeReviewStatus(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long resultId,
             @Valid @RequestBody ReviewAnalysisResultRequest request
     ) {
         AnalysisResultResponse response = changeResultReviewStatusUseCase.execute(new ChangeResultReviewStatusCommand(
-                actorUserId,
                 resultId,
                 request.reviewStatus(),
                 request.actionCandidate(),
@@ -172,13 +162,12 @@ public class AnalysisResultController {
 
     @GetMapping("/{resultId}/visualization")
     public ResponseEntity<ApiResponse<ResultVisualizationResponse>> getVisualization(
-            @RequestHeader(ACTOR_USER_ID_HEADER) Long actorUserId,
             @PathVariable Long resultId,
             @RequestParam String type,
             @RequestParam(required = false) String mode
     ) {
         ResultVisualizationResponse response = getResultVisualizationUseCase.execute(
-                new GetResultVisualizationQuery(actorUserId, resultId, type, mode)
+                new GetResultVisualizationQuery(resultId, type, mode)
         );
         return ResponseEntity.ok(ApiResponse.success(response));
     }

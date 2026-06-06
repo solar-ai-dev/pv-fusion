@@ -11,4 +11,13 @@ public record RequestAnalysisCommand(
         RequestedModelType requestedModelType,
         String traceId
 ) {
+    public RequestAnalysisCommand(
+            Long imageId,
+            Long imagePairId,
+            AnalysisInputType inputType,
+            RequestedModelType requestedModelType,
+            String traceId
+    ) {
+        this(null, imageId, imagePairId, inputType, requestedModelType, traceId);
+    }
 }

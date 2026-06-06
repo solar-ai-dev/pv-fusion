@@ -14,6 +14,7 @@ import com.pvfusion.application.dto.result.SaveAnalysisResultCommand;
 import com.pvfusion.application.dto.result.UpdateResultActionCandidateCommand;
 import com.pvfusion.application.dto.review.ChangeResultReviewStatusCommand;
 import com.pvfusion.application.port.in.access.AccessChecker;
+import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.analysis.LoadAnalysisJobPort;
 import com.pvfusion.application.port.out.defect.LoadDetectedDefectPort;
 import com.pvfusion.application.port.out.defect.SaveDetectedDefectPort;
@@ -83,6 +84,8 @@ class AnalysisResultServiceTest {
     private GenerateImageAccessUrlPort generateImageAccessUrlPort;
     @Mock
     private AccessChecker accessChecker;
+    @Mock
+    private CurrentUserPort currentUserPort;
 
     private AnalysisResultService analysisResultService;
 
@@ -102,8 +105,10 @@ class AnalysisResultServiceTest {
                 loadInspectionPort,
                 generateImageAccessUrlPort,
                 accessChecker,
-                Optional.empty()
+                Optional.empty(),
+                currentUserPort
         );
+        when(currentUserPort.getCurrentUserId()).thenReturn(Optional.of(1L));
     }
 
     @Test

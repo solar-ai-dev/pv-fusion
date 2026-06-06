@@ -23,4 +23,42 @@ public record OperationLogQuery(
         int size,
         String sort
 ) {
+    public OperationLogQuery(
+            Long actorUserId,
+            OperationEventCategory eventCategory,
+            OperationEventType eventType,
+            Long plantId,
+            Long zoneId,
+            Long inspectionId,
+            Long imageId,
+            Long imagePairId,
+            Long analysisJobId,
+            Long analysisResultId,
+            OffsetDateTime from,
+            OffsetDateTime to,
+            String keyword,
+            int page,
+            int size,
+            String sort
+    ) {
+        this(
+                actorUserId,
+                null,
+                eventCategory,
+                eventType,
+                plantId,
+                zoneId,
+                inspectionId,
+                imageId,
+                imagePairId,
+                analysisJobId,
+                analysisResultId,
+                from,
+                to,
+                keyword,
+                page,
+                size,
+                sort
+        );
+    }
 }

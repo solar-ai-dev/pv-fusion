@@ -22,4 +22,19 @@ public record TrackingQuery(
         PriorityLevel priorityLevel,
         SeverityLevel severityLevel
 ) {
+    public TrackingQuery(
+            Long plantId,
+            Long zoneId,
+            Long equipmentId,
+            TargetType targetType,
+            LocalDate from,
+            LocalDate to,
+            AnalysisInputType inputType,
+            AnalysisModelType modelType,
+            ActionCandidate actionCandidate,
+            PriorityLevel priorityLevel,
+            SeverityLevel severityLevel
+    ) {
+        this(null, plantId, zoneId, equipmentId, targetType, from, to, inputType, modelType, actionCandidate, priorityLevel, severityLevel);
+    }
 }

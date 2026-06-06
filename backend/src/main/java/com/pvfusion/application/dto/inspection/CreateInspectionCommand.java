@@ -12,4 +12,14 @@ public record CreateInspectionCommand(
         String inspectorName,
         String memo
 ) {
+    public CreateInspectionCommand(
+            Long zoneId,
+            String name,
+            OffsetDateTime capturedAt,
+            CaptureMethod captureMethod,
+            String inspectorName,
+            String memo
+    ) {
+        this(null, zoneId, name, capturedAt, captureMethod, inspectorName, memo);
+    }
 }

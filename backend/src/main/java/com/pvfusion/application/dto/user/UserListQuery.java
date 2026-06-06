@@ -11,4 +11,13 @@ public record UserListQuery(
         int page,
         int size
 ) {
+    public UserListQuery(
+            String keyword,
+            UserRole role,
+            AccountStatus accountStatus,
+            int page,
+            int size
+    ) {
+        this(null, keyword, role, accountStatus, page, size);
+    }
 }

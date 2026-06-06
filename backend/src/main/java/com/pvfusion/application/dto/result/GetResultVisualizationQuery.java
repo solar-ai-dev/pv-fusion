@@ -6,4 +6,7 @@ public record GetResultVisualizationQuery(
         String type,
         String mode
 ) {
+    public GetResultVisualizationQuery(Long resultId, String type, String mode) {
+        this(null, resultId, type, mode);
+    }
 }

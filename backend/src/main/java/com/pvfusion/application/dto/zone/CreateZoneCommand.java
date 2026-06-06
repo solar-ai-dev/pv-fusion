@@ -7,4 +7,7 @@ public record CreateZoneCommand(
         String location,
         String description
 ) {
+    public CreateZoneCommand(Long plantId, String name, String location, String description) {
+        this(null, plantId, name, location, description);
+    }
 }
