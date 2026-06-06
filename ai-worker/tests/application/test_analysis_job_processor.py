@@ -1,4 +1,5 @@
 from app.application.analysis_job_processor import AnalysisJobProcessor
+from app.application.errors import JobStateTransitionError
 from app.domain.analysis_job import AnalysisJob
 from app.domain.detected_defect import DetectedDefectDraft
 from app.domain.enums import (
@@ -49,8 +50,10 @@ def build_job(status: JobStatus, **overrides) -> AnalysisJob:
 
 
 class FakeJobRepository:
-    def __init__(self, job: AnalysisJob | None):
+    def __init__(self, job: AnalysisJob | None, running_error: Exception | None = None, failed_error: Exception | None = None):
         self.job = job
+        self.running_error = running_error
+        self.failed_error = failed_error
         self.running_ids: list[int] = []
         self.succeeded_ids: list[int] = []
         self.failed_calls: list[tuple[int, str, str]] = []
@@ -59,12 +62,16 @@ class FakeJobRepository:
         return self.job if self.job and self.job.jobId == job_id else None
 
     def mark_running(self, job_id: int) -> None:
+        if self.running_error:
+            raise self.running_error
         self.running_ids.append(job_id)
 
     def mark_succeeded(self, job_id: int) -> None:
         self.succeeded_ids.append(job_id)
 
     def mark_failed(self, job_id: int, failure_code: str, failure_message: str) -> None:
+        if self.failed_error:
+            raise self.failed_error
         self.failed_calls.append((job_id, failure_code, failure_message))
 
 
@@ -387,3 +394,34 @@ def test_marks_failed_when_defect_save_raises():
 
     assert result.status == "failed"
     assert job_repository.failed_calls[0][1] == "UNKNOWN_WORKER_ERROR"
+
+
+def test_returns_skipped_when_mark_running_transition_fails():
+    processor = AnalysisJobProcessor(
+        FakeJobRepository(build_job(JobStatus.QUEUED), running_error=JobStateTransitionError("transition failed")),
+        FakeImageMetadata(single_image=build_single_image()),
+        FakeModelRunner(),
+        FakeResultRepository(),
+    )
+
+    result = processor.process(build_message())
+
+    assert result.status == "skipped"
+
+
+def test_mark_failed_transition_error_does_not_hide_original_failure():
+    job_repository = FakeJobRepository(
+        build_job(JobStatus.QUEUED),
+        failed_error=JobStateTransitionError("failed transition"),
+    )
+    processor = AnalysisJobProcessor(
+        job_repository,
+        FakeImageMetadata(single_image=build_single_image()),
+        FakeModelRunner(error=RuntimeError("boom")),
+        FakeResultRepository(),
+    )
+
+    result = processor.process(build_message())
+
+    assert result.status == "failed"
+    assert result.failureCode == "UNKNOWN_WORKER_ERROR"

@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.application.errors import JobStateTransitionError
 from app.application.ports import (
     ImageMetadataPort,
     JobRepositoryPort,
@@ -58,6 +59,14 @@ class AnalysisJobProcessor:
 
         try:
             self._job_repository.mark_running(message.jobId)
+        except JobStateTransitionError:
+            return ProcessingResult(
+                status="skipped",
+                jobId=message.jobId,
+                message="Job state transition to RUNNING was not applied.",
+            )
+
+        try:
             image_input = self._load_image_input(message)
             model_info = self._build_model_info(message)
             inference_result = self._model_runner.run(image_input, model_info)
@@ -126,7 +135,10 @@ class AnalysisJobProcessor:
         return ModelType.FUSION
 
     def _fail_job(self, job_id: int, failure_code: str, failure_message: str) -> ProcessingResult:
-        self._job_repository.mark_failed(job_id, failure_code, failure_message)
+        try:
+            self._job_repository.mark_failed(job_id, failure_code, failure_message)
+        except JobStateTransitionError:
+            pass
         return ProcessingResult(
             status="failed",
             jobId=job_id,
