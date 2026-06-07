@@ -27,6 +27,7 @@ import {
   RESOURCE_STATUS_OPTIONS,
   type ResourceStatus,
 } from '../features/plants/types'
+import { useTracking } from '../features/tracking/hooks/useTracking'
 import {
   useDeactivateZone,
   useUpdateZone,
@@ -42,7 +43,9 @@ import { LoadingState } from '../shared/components/state/LoadingState'
 import { StatusBadge } from '../shared/components/state/StatusBadge'
 import { useToast } from '../shared/hooks/useToast'
 import {
+  formatCount,
   formatDateTime,
+  formatRatioPercent,
   getApiErrorMessage,
   parsePositiveNumber,
 } from '../shared/utils'
@@ -92,6 +95,7 @@ export function ZoneDetailPage() {
 
   const zoneQuery = useZone(zoneId ?? 0)
   const equipmentsQuery = useEquipments(zoneId ?? 0, equipmentFilters)
+  const trackingQuery = useTracking({ zoneId: zoneId ?? undefined }, Boolean(zoneId))
   const updateZoneMutation = useUpdateZone(zoneId ?? 0)
   const deactivateZoneMutation = useDeactivateZone(zoneId ?? 0)
   const createEquipmentMutation = useCreateEquipment(zoneId ?? 0, equipmentFilters)
@@ -133,6 +137,12 @@ export function ZoneDetailPage() {
     () => flattenEquipmentTree(equipmentsQuery.data?.data ?? []),
     [equipmentsQuery.data],
   )
+  const trackingItems = trackingQuery.data?.data.items ?? []
+  const latestTracking = [...trackingItems]
+    .filter((item) => item.analyzedAt)
+    .sort((left, right) => String(right.analyzedAt).localeCompare(String(left.analyzedAt)))[0]
+  const repeatedCount = trackingItems.filter((item) => item.repeated).length
+  const worsenedCount = trackingItems.filter((item) => item.worsened).length
 
   if (!zoneId) {
     return (
@@ -321,6 +331,63 @@ export function ZoneDetailPage() {
           </div>
         </section>
       ) : null}
+
+      <section className="panel stack-md">
+        <div className="toolbar">
+          <div>
+            <h2 className="panel-title">구역 변화 추적 요약</h2>
+            <p className="panel-description">
+              `GET /tracking?zoneId=...` 응답을 기준으로 반복 이상과 악화 상태를 요약합니다.
+            </p>
+          </div>
+          <div className="inline-actions">
+            <Link className="btn btn-secondary" to={`/tracking?zoneId=${zoneId}`}>
+              추적 화면
+            </Link>
+            {latestTracking?.currentResultId ? (
+              <Link
+                className="btn btn-secondary"
+                to={`/results/${latestTracking.currentResultId}`}
+              >
+                최근 결과
+              </Link>
+            ) : null}
+          </div>
+        </div>
+
+        {trackingQuery.isLoading ? (
+          <LoadingState message="구역 추적 요약을 불러오는 중입니다." />
+        ) : null}
+        {trackingQuery.isError ? (
+          <ErrorState
+            title="구역 추적 요약을 불러오지 못했습니다."
+            description={getApiErrorMessage(trackingQuery.error)}
+          />
+        ) : null}
+        {trackingQuery.data ? (
+          trackingItems.length > 0 ? (
+            <div className="detail-grid">
+              <DetailItem label="추적 대상 수" value={`${formatCount(trackingItems.length)}건`} />
+              <DetailItem label="반복 이상" value={`${formatCount(repeatedCount)}건`} />
+              <DetailItem label="악화 대상" value={`${formatCount(worsenedCount)}건`} />
+              <DetailItem label="최근 분석 시각" value={formatDateTime(latestTracking?.analyzedAt)} />
+              <DetailItem
+                label="최근 면적 비율"
+                value={formatRatioPercent(latestTracking?.currentAreaRatio)}
+              />
+              <DetailItem
+                label="최근 심각도 점수"
+                value={latestTracking?.currentSeverityScore ?? '-'}
+              />
+            </div>
+          ) : (
+            <EmptyState
+              title="이 구역의 변화 추적 데이터가 없습니다."
+              description="점검 결과가 누적되면 반복 이상과 악화 요약이 이 영역에 표시됩니다."
+            />
+          )
+        ) : null}
+      </section>
 
       <section className="panel stack-md">
         <div className="toolbar">

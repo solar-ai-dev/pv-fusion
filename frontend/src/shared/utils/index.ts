@@ -21,6 +21,58 @@ export function formatDateTime(value?: string | null) {
   }).format(date)
 }
 
+export function formatDate(value?: string | null) {
+  if (!value) {
+    return '-'
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    dateStyle: 'medium',
+  }).format(date)
+}
+
+export function formatCount(value?: number | null) {
+  if (typeof value !== 'number') {
+    return '-'
+  }
+
+  return new Intl.NumberFormat('ko-KR').format(value)
+}
+
+export function formatDecimal(value?: string | number | null, digits = 2) {
+  if (value == null || value === '') {
+    return '-'
+  }
+
+  const parsed = typeof value === 'number' ? value : Number(value)
+
+  if (Number.isNaN(parsed)) {
+    return String(value)
+  }
+
+  return parsed.toFixed(digits)
+}
+
+export function formatRatioPercent(value?: string | number | null, digits = 1) {
+  if (value == null || value === '') {
+    return '-'
+  }
+
+  const parsed = typeof value === 'number' ? value : Number(value)
+
+  if (Number.isNaN(parsed)) {
+    return String(value)
+  }
+
+  return `${(parsed * 100).toFixed(digits)}%`
+}
+
 export function getApiErrorMessage(
   error: unknown,
   fallback = '요청 처리 중 문제가 발생했습니다.',
@@ -39,6 +91,14 @@ export function getApiErrorMessage(
   }
 
   return fallback
+}
+
+export function getApiErrorStatus(error: unknown) {
+  if (axios.isAxiosError(error)) {
+    return error.response?.status ?? null
+  }
+
+  return null
 }
 
 export function parsePositiveNumber(value?: string) {

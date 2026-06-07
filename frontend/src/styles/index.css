@@ -160,6 +160,39 @@ textarea {
   color: #475569;
 }
 
+.kpi-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.dashboard-split {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.kpi-card {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 1.25rem;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
+}
+
+.kpi-card-warning {
+  background: linear-gradient(180deg, rgba(254, 249, 195, 0.85), rgba(255, 255, 255, 0.94));
+}
+
+.kpi-card-danger {
+  background: linear-gradient(180deg, rgba(254, 226, 226, 0.85), rgba(255, 255, 255, 0.94));
+}
+
+.chart-shell {
+  height: 320px;
+  width: 100%;
+}
+
 .marker-list {
   margin: 1rem 0 0;
   padding-left: 1.25rem;

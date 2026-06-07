@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import axios from 'axios'
 import {
   getAnalysisInputTypeLabel,
   getAnalysisModelTypeLabel,
@@ -27,6 +28,7 @@ import {
   useUpdateActionCandidate,
   useUpdateReviewStatus,
 } from '../features/results/hooks/useResults'
+import { useTrackingCompare } from '../features/tracking/hooks/useTracking'
 import { getTargetTypeLabel } from '../features/images/types'
 import { FormField } from '../shared/components/form/FormField'
 import { ConfirmModal } from '../shared/components/feedback/ConfirmModal'
@@ -39,7 +41,13 @@ import { LoadingState } from '../shared/components/state/LoadingState'
 import { StatusBadge } from '../shared/components/state/StatusBadge'
 import { DataTable } from '../shared/components/table/DataTable'
 import { useToast } from '../shared/hooks/useToast'
-import { formatDateTime, getApiErrorMessage, parsePositiveNumber } from '../shared/utils'
+import {
+  formatDateTime,
+  formatDecimal,
+  formatRatioPercent,
+  getApiErrorMessage,
+  parsePositiveNumber,
+} from '../shared/utils'
 
 export function ResultDetailPage() {
   const params = useParams()
@@ -63,6 +71,10 @@ export function ResultDetailPage() {
   )
   const updateActionMutation = useUpdateActionCandidate(resultId ?? 0)
   const updateReviewMutation = useUpdateReviewStatus(resultId ?? 0)
+  const compareQuery = useTrackingCompare(
+    { currentResultId: resultId ?? 0 },
+    Boolean(resultId),
+  )
 
   useEffect(() => {
     if (!resultQuery.data) {
@@ -227,6 +239,82 @@ export function ResultDetailPage() {
             onTypeChange={setVisualizationType}
           />
         </section>
+      </section>
+
+      <section className="panel stack-md">
+        <div>
+          <h2 className="panel-title">이전 점검 비교</h2>
+          <p className="panel-description">
+            실제 backend의 `GET /tracking/compare?currentResultId=...` 응답으로 이전 점검 대비 변화량을 표시합니다.
+          </p>
+        </div>
+        {compareQuery.isLoading ? (
+          <LoadingState message="이전 점검 비교를 불러오는 중입니다." />
+        ) : null}
+        {compareQuery.isError ? (
+          axios.isAxiosError(compareQuery.error) && compareQuery.error.response?.status === 404 ? (
+            <EmptyState
+              title="비교 가능한 이전 점검 결과가 없습니다."
+              description="현재 결과에 연결할 이전 result가 없거나 비교 응답이 준비되지 않았습니다."
+            />
+          ) : (
+            <ErrorState
+              title="이전 점검 비교를 불러오지 못했습니다."
+              description={getApiErrorMessage(compareQuery.error)}
+            />
+          )
+        ) : null}
+        {compareQuery.data ? (
+          <div className="detail-grid">
+            <DetailItem label="현재 결과 ID" value={String(compareQuery.data.data.currentResultId)} />
+            <DetailItem label="이전 결과 ID" value={String(compareQuery.data.data.previousResultId ?? '-')} />
+            <DetailItem
+              label="반복 이상"
+              value={compareQuery.data.data.repeatedAnomaly ? '예' : '아니오'}
+            />
+            <DetailItem
+              label="악화 여부"
+              value={compareQuery.data.data.worsened ? '악화됨' : '유지/완화'}
+            />
+            <DetailItem
+              label="면적 비율 변화"
+              value={formatRatioPercent(compareQuery.data.data.areaChange.areaRatioDiff)}
+            />
+            <DetailItem
+              label="심각도 점수 변화"
+              value={formatDecimal(compareQuery.data.data.severityChange.severityScoreDiff)}
+            />
+            <DetailItem
+              label="결함 개수 변화"
+              value={String(compareQuery.data.data.defectChange.defectCountDiff ?? '-')}
+            />
+            <DetailItem label="판단 사유" value={compareQuery.data.data.priorityReason ?? '-'} />
+          </div>
+        ) : null}
+        {compareQuery.data ? (
+          <div className="detail-grid">
+            <DetailItem
+              label="새 결함 유형"
+              value={
+                compareQuery.data.data.defectChange.newDefectTypes.length > 0
+                  ? compareQuery.data.data.defectChange.newDefectTypes
+                      .map((item) => getDefectTypeLabel(item))
+                      .join(', ')
+                  : '-'
+              }
+            />
+            <DetailItem
+              label="해소된 결함 유형"
+              value={
+                compareQuery.data.data.defectChange.resolvedDefectTypes.length > 0
+                  ? compareQuery.data.data.defectChange.resolvedDefectTypes
+                      .map((item) => getDefectTypeLabel(item))
+                      .join(', ')
+                  : '-'
+              }
+            />
+          </div>
+        ) : null}
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
