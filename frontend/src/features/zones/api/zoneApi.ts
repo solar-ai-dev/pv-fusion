@@ -1,22 +1,41 @@
 import { apiClient } from '../../../shared/api/client'
 import { ApiSuccessResponse } from '../../../shared/api/types'
+import {
+  CreateZoneRequest,
+  UpdateZoneRequest,
+  Zone,
+  ZoneSummary,
+} from '../types'
 
 export const zoneApi = {
-  fetchZone: async (zoneId: string | number) => {
-    const response = await apiClient.get<ApiSuccessResponse<unknown>>(
-      `/zones/${zoneId}`,
+  fetchZonesByPlantId: async (plantId: string | number) => {
+    const response = await apiClient.get<ApiSuccessResponse<ZoneSummary[]>>(
+      `/plants/${plantId}/zones`,
     )
     return response.data
   },
-  updateZone: async (zoneId: string | number, payload: unknown) => {
-    const response = await apiClient.patch<ApiSuccessResponse<unknown>>(
+  createZone: async (plantId: string | number, payload: CreateZoneRequest) => {
+    const response = await apiClient.post<ApiSuccessResponse<Zone>>(
+      `/plants/${plantId}/zones`,
+      payload,
+    )
+    return response.data
+  },
+  fetchZone: async (zoneId: string | number) => {
+    const response = await apiClient.get<ApiSuccessResponse<Zone>>(`/zones/${zoneId}`)
+    return response.data
+  },
+  updateZone: async (zoneId: string | number, payload: UpdateZoneRequest) => {
+    const response = await apiClient.patch<ApiSuccessResponse<Zone>>(
       `/zones/${zoneId}`,
       payload,
     )
     return response.data
   },
   deactivateZone: async (zoneId: string | number) => {
-    const response = await apiClient.patch<void>(`/zones/${zoneId}/deactivate`)
-    return response.status === 204 ? undefined : response.data
+    const response = await apiClient.patch<ApiSuccessResponse<Zone>>(
+      `/zones/${zoneId}/deactivate`,
+    )
+    return response.data
   },
 }

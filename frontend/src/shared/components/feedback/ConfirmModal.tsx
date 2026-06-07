@@ -6,6 +6,7 @@ type ConfirmModalProps = {
   description?: string
   confirmText?: string
   cancelText?: string
+  isConfirming?: boolean
   onConfirm?: () => void
   onCancel?: () => void
   children?: ReactNode
@@ -14,9 +15,10 @@ type ConfirmModalProps = {
 export function ConfirmModal({
   isOpen = false,
   title = '확인이 필요합니다.',
-  description = '실제 연결 전 단계의 플레이스홀더 모달입니다.',
+  description = '실제 연결 전 단계에서 사용하는 기본 확인 모달입니다.',
   confirmText = '확인',
   cancelText = '취소',
+  isConfirming = false,
   onConfirm,
   onCancel,
   children,
@@ -32,10 +34,20 @@ export function ConfirmModal({
         <p className="panel-description">{description}</p>
         {children}
         <div className="mt-6 flex justify-end gap-3">
-          <button className="btn btn-secondary" onClick={onCancel}>
+          <button
+            className="btn btn-secondary"
+            type="button"
+            disabled={isConfirming}
+            onClick={onCancel}
+          >
             {cancelText}
           </button>
-          <button className="btn btn-primary" onClick={onConfirm}>
+          <button
+            className="btn btn-primary"
+            type="button"
+            disabled={isConfirming}
+            onClick={onConfirm}
+          >
             {confirmText}
           </button>
         </div>

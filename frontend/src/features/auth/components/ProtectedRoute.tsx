@@ -20,9 +20,7 @@ export function ProtectedRoute({ children }: PropsWithChildren) {
       <ErrorState
         title="인증 상태를 확인할 수 없습니다."
         description={
-          error?.detail ??
-          error?.message ??
-          '잠시 후 다시 시도해 주세요.'
+          error?.detail ?? error?.message ?? '잠시 후 다시 시도해 주세요.'
         }
       />
     )

@@ -22,6 +22,7 @@ function attachAuthorization(
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
+  timeout: 5000,
 })
 
 apiClient.interceptors.request.use(attachAuthorization)

@@ -37,7 +37,9 @@ a {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -234,11 +236,29 @@ input {
   display: inline-flex;
   align-items: center;
   border-radius: 9999px;
-  background: rgba(15, 118, 110, 0.12);
   padding: 0.35rem 0.75rem;
   font-size: 0.75rem;
   font-weight: 700;
+}
+
+.status-badge-default {
+  background: rgba(51, 65, 85, 0.08);
+  color: #334155;
+}
+
+.status-badge-success {
+  background: rgba(15, 118, 110, 0.12);
   color: #0f766e;
+}
+
+.status-badge-warning {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
+
+.status-badge-danger {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
 }
 
 .modal-backdrop {
@@ -278,6 +298,116 @@ input {
   border-radius: 1rem;
   background: white;
   padding: 0.8rem 1rem;
+  width: 100%;
+}
+
+.input-field:focus {
+  outline: 2px solid rgba(14, 165, 233, 0.2);
+  border-color: #0ea5e9;
+}
+
+.textarea-field {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.filter-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.detail-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.detail-item {
+  border-radius: 1.25rem;
+  background: rgba(248, 250, 252, 0.95);
+  padding: 1rem;
+}
+
+.detail-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.detail-value {
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tree-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.tree-node {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 1rem;
+}
+
+.tree-node-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.tree-node-children {
+  margin-top: 0.75rem;
+  padding-left: 1rem;
+  border-left: 2px solid rgba(148, 163, 184, 0.22);
+  display: grid;
+  gap: 0.75rem;
+}
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.text-button {
+  border: 0;
+  background: transparent;
+  color: #0369a1;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.text-button-danger {
+  color: #dc2626;
+}
+
+.stack-sm {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.stack-md {
+  display: grid;
+  gap: 1rem;
 }
 
 .image-placeholder {

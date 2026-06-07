@@ -1,17 +1,36 @@
 import { ReactNode } from 'react'
+import { EmptyState } from '../state/EmptyState'
 
 type DataTableColumn<T> = {
   key: string
   header: string
   render: (row: T) => ReactNode
+  className?: string
 }
 
 type DataTableProps<T> = {
   columns: DataTableColumn<T>[]
   rows: T[]
+  rowKey?: (row: T, rowIndex: number) => string | number
+  emptyTitle?: string
+  emptyDescription?: string
 }
 
-export function DataTable<T>({ columns, rows }: DataTableProps<T>) {
+export function DataTable<T>({
+  columns,
+  rows,
+  rowKey,
+  emptyTitle,
+  emptyDescription,
+}: DataTableProps<T>) {
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white p-4">
+        <EmptyState title={emptyTitle} description={emptyDescription} />
+      </div>
+    )
+  }
+
   return (
     <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
       <table className="min-w-full text-left text-sm">
@@ -26,9 +45,15 @@ export function DataTable<T>({ columns, rows }: DataTableProps<T>) {
         </thead>
         <tbody>
           {rows.map((row, rowIndex) => (
-            <tr key={rowIndex} className="border-t border-slate-100">
+            <tr
+              key={rowKey ? rowKey(row, rowIndex) : rowIndex}
+              className="border-t border-slate-100 align-top"
+            >
               {columns.map((column) => (
-                <td key={column.key} className="px-4 py-3 text-slate-700">
+                <td
+                  key={column.key}
+                  className={`px-4 py-3 text-slate-700 ${column.className ?? ''}`}
+                >
                   {column.render(row)}
                 </td>
               ))}
