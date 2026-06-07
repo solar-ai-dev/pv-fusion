@@ -1,9 +1,7 @@
 import { PropsWithChildren, useState } from 'react'
 import { BrowserRouter } from 'react-router-dom'
-import {
-  QueryClient,
-  QueryClientProvider,
-} from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { AuthBootstrap } from '../features/auth/components/AuthBootstrap'
 import { ToastProvider } from '../shared/components/feedback/ToastProvider'
 
 export function AppProviders({ children }: PropsWithChildren) {
@@ -25,7 +23,10 @@ export function AppProviders({ children }: PropsWithChildren) {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          <AuthBootstrap />
+          {children}
+        </ToastProvider>
       </BrowserRouter>
     </QueryClientProvider>
   )

@@ -1,8 +1,27 @@
-import { authApi } from '../../../features/auth/api/authApi'
+import { useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../../features/auth/hooks/useAuth'
+import { useToast } from '../../hooks/useToast'
 
 export function TopNavbar() {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const pushToast = useToast().push
   const user = useAuth((state) => state.user)
+  const isLoggingOut = useAuth((state) => state.isLoggingOut)
+  const logout = useAuth((state) => state.logout)
+
+  const handleLogout = async () => {
+    const result = await logout()
+
+    if (!result.success) {
+      pushToast(result.message ?? '로그아웃 처리 중 오류가 발생했습니다.')
+      return
+    }
+
+    queryClient.clear()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <header className="top-navbar">
@@ -14,10 +33,15 @@ export function TopNavbar() {
       </div>
       <div className="flex items-center gap-3">
         <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600">
-          {user?.name ?? '사용자 메뉴'} / {user?.role ?? 'ADMIN'}
+          {user ? `${user.name} / ${user.role}` : '사용자 정보 확인 중'}
         </div>
-        <button className="btn btn-secondary" onClick={() => authApi.logout()}>
-          로그아웃
+        <button
+          className="btn btn-secondary"
+          disabled={isLoggingOut}
+          onClick={() => void handleLogout()}
+          type="button"
+        >
+          {isLoggingOut ? '로그아웃 처리 중' : '로그아웃'}
         </button>
       </div>
     </header>

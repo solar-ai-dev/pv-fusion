@@ -26,6 +26,8 @@ export function AppRouter() {
         <Route path="/pending" element={<PendingApprovalPage />} />
       </Route>
 
+      <Route path="/forbidden" element={<ForbiddenPage />} />
+
       <Route
         element={
           <ProtectedRoute>
@@ -54,7 +56,6 @@ export function AppRouter() {
             </AdminRoute>
           }
         />
-        <Route path="/forbidden" element={<ForbiddenPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />
