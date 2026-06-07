@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useSearchParams } from 'react-router-dom'
 import { z } from 'zod'
+import { useCreatePlant, usePlants } from '../features/plants/hooks/usePlants'
 import {
   getResourceStatusLabel,
   getResourceStatusTone,
@@ -12,10 +13,6 @@ import {
   type PlantListParams,
   type ResourceStatus,
 } from '../features/plants/types'
-import {
-  useCreatePlant,
-  usePlants,
-} from '../features/plants/hooks/usePlants'
 import { FormField } from '../shared/components/form/FormField'
 import { PageHeader } from '../shared/components/layout/PageHeader'
 import { ErrorState } from '../shared/components/state/ErrorState'
@@ -157,7 +154,13 @@ export function PlantListPage() {
           </button>
         </div>
         <div className="filter-grid">
-          <FormField label="검색어" value={filters.keyword} onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))} />
+          <FormField
+            label="검색어"
+            value={filters.keyword}
+            onChange={(event) =>
+              setFilters((current) => ({ ...current, keyword: event.target.value }))
+            }
+          />
           <FormField label="상태">
             <select
               className="input-field"
@@ -196,7 +199,10 @@ export function PlantListPage() {
       {plantsQuery.isError ? (
         <ErrorState
           title="발전소 목록 조회에 실패했습니다."
-          description={getApiErrorMessage(plantsQuery.error, 'backend 없이도 화면은 유지되지만 목록은 비어 있을 수 있습니다.')}
+          description={getApiErrorMessage(
+            plantsQuery.error,
+            'backend 없이도 화면은 유지되지만 목록은 비어 있을 수 있습니다.',
+          )}
         />
       ) : null}
 
@@ -215,9 +221,7 @@ export function PlantListPage() {
                     >
                       {plant.name}
                     </Link>
-                    <span className="text-xs text-slate-500">
-                      ID {plant.plantId}
-                    </span>
+                    <span className="text-xs text-slate-500">ID {plant.plantId}</span>
                   </div>
                 ),
               },

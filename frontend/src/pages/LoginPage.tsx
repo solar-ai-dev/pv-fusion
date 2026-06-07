@@ -40,7 +40,7 @@ export function LoginPage() {
         <span className="eyebrow">PV Fusion</span>
         <h1 className="text-3xl font-semibold text-slate-900">로그인</h1>
         <p className="text-sm text-slate-600">
-          Google OAuth2를 통해 시스템에 로그인합니다.
+          Google 계정으로 로그인한 뒤 서비스를 이용할 수 있습니다.
         </p>
       </div>
 
@@ -49,23 +49,23 @@ export function LoginPage() {
         onClick={() => authApi.redirectToGoogleLogin()}
         type="button"
       >
-        Google로 로그인
+        Google 계정으로 로그인
       </button>
 
       {resolution === 'error' ? (
         <ErrorState
-          title="인증 서버에 연결하지 못했습니다."
+          title="인증 서버에 연결할 수 없습니다."
           description={
             error?.detail ??
             error?.message ??
-            'backend가 내려가 있어도 로그인 화면 자체는 접근할 수 있어야 합니다.'
+            'backend가 꺼져 있어도 로그인 화면 자체는 확인할 수 있습니다.'
           }
         />
       ) : null}
 
       {resolution === 'forbidden' ? (
         <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-          {error?.message ?? '현재 계정 상태로는 로그인 이후 접근이 제한됩니다.'}
+          {error?.message ?? '현재 계정 상태로는 로그인 이후 화면에 접근할 수 없습니다.'}
         </div>
       ) : null}
     </section>

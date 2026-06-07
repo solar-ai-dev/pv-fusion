@@ -53,7 +53,7 @@ const zoneFormSchema = z.object({
   description: z.string().trim().optional(),
 })
 
-const createEquipmentFormSchema = z.object({
+const equipmentFormSchema = z.object({
   parentEquipmentId: z.string().optional(),
   equipmentType: z.enum(EQUIPMENT_TYPE_OPTIONS),
   name: z.string().trim().min(1, '장비 이름은 필수입니다.'),
@@ -61,7 +61,7 @@ const createEquipmentFormSchema = z.object({
 })
 
 type ZoneFormValues = z.infer<typeof zoneFormSchema>
-type EquipmentFormValues = z.infer<typeof createEquipmentFormSchema>
+type EquipmentFormValues = z.infer<typeof equipmentFormSchema>
 
 export function ZoneDetailPage() {
   const params = useParams()
@@ -108,7 +108,7 @@ export function ZoneDetailPage() {
   })
 
   const createEquipmentForm = useForm<EquipmentFormValues>({
-    resolver: zodResolver(createEquipmentFormSchema),
+    resolver: zodResolver(equipmentFormSchema),
     defaultValues: {
       parentEquipmentId: '',
       equipmentType: 'ARRAY',
@@ -118,7 +118,7 @@ export function ZoneDetailPage() {
   })
 
   const editEquipmentForm = useForm<EquipmentFormValues>({
-    resolver: zodResolver(createEquipmentFormSchema),
+    resolver: zodResolver(equipmentFormSchema),
     values: {
       parentEquipmentId: selectedEquipment?.parentEquipmentId
         ? String(selectedEquipment.parentEquipmentId)
@@ -484,7 +484,7 @@ export function ZoneDetailPage() {
         description={
           equipmentToDeactivate
             ? `${equipmentToDeactivate.name} 장비를 비활성화합니다.`
-            : '선택된 장비를 비활성화합니다.'
+            : '선택한 장비를 비활성화합니다.'
         }
         confirmText="비활성화"
         cancelText="취소"

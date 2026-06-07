@@ -3,10 +3,7 @@ import {
   getResourceStatusLabel,
   getResourceStatusTone,
 } from '../../plants/types'
-import {
-  EquipmentTreeNode,
-  getEquipmentTypeLabel,
-} from '../types'
+import { EquipmentTreeNode, getEquipmentTypeLabel } from '../types'
 
 type EquipmentTreeProps = {
   nodes: EquipmentTreeNode[]

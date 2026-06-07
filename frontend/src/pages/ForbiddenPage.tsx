@@ -15,7 +15,7 @@ export function ForbiddenPage() {
         ? '승인 대기 상태에서는 이 화면에 접근할 수 없습니다.'
         : user?.role !== 'ADMIN'
           ? '관리자 권한이 필요한 화면입니다.'
-          : '현재 계정 상태로는 접근할 수 없습니다.'
+          : '현재 계정 상태로는 이 화면에 접근할 수 없습니다.'
 
   const handleLogout = async () => {
     const result = await logout()

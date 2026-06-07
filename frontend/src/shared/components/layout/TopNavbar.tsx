@@ -33,7 +33,7 @@ export function TopNavbar() {
       </div>
       <div className="flex items-center gap-3">
         <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600">
-          {user ? `${user.name} / ${user.role}` : '사용자 정보 확인 중'}
+          {user ? `${user.name} / ${user.role}` : '사용자 정보를 확인하는 중'}
         </div>
         <button
           className="btn btn-secondary"

@@ -5,19 +5,16 @@ import { useForm } from 'react-hook-form'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { z } from 'zod'
 import {
-  getResourceStatusLabel,
-  getResourceStatusTone,
-  type UpdatePlantRequest,
-} from '../features/plants/types'
-import {
   useDeactivatePlant,
   usePlant,
   useUpdatePlant,
 } from '../features/plants/hooks/usePlants'
 import {
-  useCreateZone,
-  useZonesByPlantId,
-} from '../features/zones/hooks/useZones'
+  getResourceStatusLabel,
+  getResourceStatusTone,
+  type UpdatePlantRequest,
+} from '../features/plants/types'
+import { useCreateZone, useZonesByPlantId } from '../features/zones/hooks/useZones'
 import type { CreateZoneRequest } from '../features/zones/types'
 import { ConfirmModal } from '../shared/components/feedback/ConfirmModal'
 import { FormField } from '../shared/components/form/FormField'

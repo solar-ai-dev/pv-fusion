@@ -9,7 +9,7 @@ export function AdminRoute({ children }: PropsWithChildren) {
   const user = useAuth((state) => state.user)
 
   if (!hasInitialized || resolution === 'loading') {
-    return <LoadingState message="권한을 확인하는 중입니다." />
+    return <LoadingState message="권한 상태를 확인하는 중입니다." />
   }
 
   if (!user) {

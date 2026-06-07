@@ -61,7 +61,7 @@ export function PendingApprovalPage() {
         <span className="eyebrow">Pending</span>
         <h1 className="text-3xl font-semibold text-slate-900">승인 대기</h1>
         <p className="text-sm text-slate-600">
-          관리자 승인 전까지 주요 기능에 접근할 수 없습니다.
+          관리자 승인 전까지 주요 기능 화면에는 접근할 수 없습니다.
         </p>
       </div>
 

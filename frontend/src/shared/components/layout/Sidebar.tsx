@@ -16,7 +16,7 @@ export function Sidebar() {
         <span className="eyebrow">Workspace</span>
         <h2 className="text-2xl font-semibold text-white">PV Fusion</h2>
         <p className="text-sm text-slate-300">
-          발전소, 점검, 분석 결과를 한 흐름으로 확인하는 운영 UI 골격입니다.
+          발전소, 점검, 분석 결과를 한 흐름으로 확인하는 운영 화면입니다.
         </p>
       </div>
       <nav className="mt-8 space-y-2">
