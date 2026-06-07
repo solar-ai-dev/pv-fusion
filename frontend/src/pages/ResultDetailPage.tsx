@@ -153,8 +153,8 @@ export function ResultDetailPage() {
       <section className="panel stack-md">
         <div className="toolbar">
           <div>
-            <h2 className="panel-title">{`Result #${result.resultId}`}</h2>
-            <p className="panel-description">{`Job #${result.jobId} · 분석 시각 ${formatDateTime(result.analyzedAt)}`}</p>
+            <h2 className="panel-title">{`결과 #${result.resultId}`}</h2>
+            <p className="panel-description">{`작업 #${result.jobId} · 분석 시각 ${formatDateTime(result.analyzedAt)}`}</p>
           </div>
           <div className="inline-actions">
             <StatusBadge
@@ -168,13 +168,13 @@ export function ResultDetailPage() {
           </div>
         </div>
         <div className="detail-grid">
-          <DetailItem label="Plant ID" value={String(result.plantId ?? '-')} />
-          <DetailItem label="Zone ID" value={String(result.zoneId ?? '-')} />
-          <DetailItem label="Inspection ID" value={String(result.inspectionId ?? '-')} />
-          <DetailItem label="Target" value={result.targetType ? getTargetTypeLabel(result.targetType) : '-'} />
-          <DetailItem label="Equipment ID" value={String(result.equipmentId ?? '-')} />
-          <DetailItem label="Input Type" value={result.inputType ? getAnalysisInputTypeLabel(result.inputType) : '-'} />
-          <DetailItem label="Model Type" value={getAnalysisModelTypeLabel(result.modelType)} />
+          <DetailItem label="발전소 ID" value={String(result.plantId ?? '-')} />
+          <DetailItem label="구역 ID" value={String(result.zoneId ?? '-')} />
+          <DetailItem label="점검 ID" value={String(result.inspectionId ?? '-')} />
+          <DetailItem label="대상" value={result.targetType ? getTargetTypeLabel(result.targetType) : '-'} />
+          <DetailItem label="장비 ID" value={String(result.equipmentId ?? '-')} />
+          <DetailItem label="입력 유형" value={result.inputType ? getAnalysisInputTypeLabel(result.inputType) : '-'} />
+          <DetailItem label="모델 유형" value={getAnalysisModelTypeLabel(result.modelType)} />
           <DetailItem label="이상 수" value={String(result.anomalyCount ?? 0)} />
           <DetailItem label="최대 신뢰도" value={result.maxConfidence ?? '-'} />
           <DetailItem label="면적 비율" value={result.areaRatio ?? '-'} />
@@ -398,7 +398,7 @@ export function ResultDetailPage() {
               <DetailItem label="포맷" value={result.modelInfo.modelFormat} />
               <DetailItem label="런타임" value={result.modelInfo.runtime} />
               <DetailItem label="입력 크기" value={String(result.modelInfo.inputSize)} />
-              <DetailItem label="Threshold" value={result.modelInfo.threshold} />
+              <DetailItem label="임계값" value={result.modelInfo.threshold} />
             </div>
           ) : (
             <EmptyState
@@ -420,7 +420,7 @@ export function ResultDetailPage() {
               {
                 key: 'reviewer',
                 header: '검토자',
-                render: (row) => `User ${row.reviewerUserId}`,
+                render: (row) => `사용자 ${row.reviewerUserId}`,
               },
               {
                 key: 'status',

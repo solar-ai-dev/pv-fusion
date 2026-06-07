@@ -1393,7 +1393,7 @@ export function InspectionDetailPage() {
           <div>
             <h2 className="panel-title">실패 사유 / 재요청</h2>
             <p className="panel-description">
-              실패한 작업을 선택하면 failureCode, failureMessage, traceId를 확인하고 다시 요청할 수 있습니다.
+              실패한 작업을 선택하면 실패 코드, 실패 메시지, 추적 ID를 확인하고 다시 요청할 수 있습니다.
             </p>
           </div>
 
@@ -1429,7 +1429,7 @@ export function InspectionDetailPage() {
                 <div className="stack-sm">
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                      Failure Code
+                      실패 코드
                     </div>
                     <div className="mt-1 text-sm text-slate-900">
                       {selectedJob.failureCode ?? '-'}
@@ -1437,7 +1437,7 @@ export function InspectionDetailPage() {
                   </div>
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                      Failure Message
+                      실패 메시지
                     </div>
                     <div className="mt-1 text-sm text-slate-900">
                       {selectedJob.failureMessage ?? '현재 선택한 작업에 실패 메시지가 없습니다.'}
@@ -1445,7 +1445,7 @@ export function InspectionDetailPage() {
                   </div>
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                      Trace ID
+                      추적 ID
                     </div>
                     <div className="mt-1 text-sm text-slate-900">
                       {selectedJob.traceId ?? '-'}
@@ -1474,15 +1474,15 @@ export function InspectionDetailPage() {
 
         <section className="panel stack-md">
           <div>
-            <h2 className="panel-title">다음 단계 안내</h2>
+            <h2 className="panel-title">화면 안내</h2>
             <p className="panel-description">
-              이번 단계는 Pair, 분석 요청, 상태 확인까지를 다룹니다. 분석 결과 상세와 시각화는 다음 단계에서 연결합니다.
+              점검 상세에서는 이미지, Pair, 분석 작업 상태를 확인하고 결과 화면으로 이동할 수 있습니다.
             </p>
           </div>
           <ul className="marker-list">
-            <li>결과 목록/상세와 bbox, heatmap, mask 시각화는 후속 단계 범위입니다.</li>
+            <li>성공한 분석 작업에서는 결과 목록으로 이동해 상세와 시각화를 이어서 확인할 수 있습니다.</li>
             <li>관리자 전용 운영 화면과 대시보드 실데이터 연동은 이번 작업 범위가 아닙니다.</li>
-            <li>backend가 내려주는 failureCode/failureMessage를 그대로 표시하고, 해석은 최소 안내만 제공합니다.</li>
+            <li>backend가 내려주는 실패 코드와 실패 메시지는 원문 기준으로 보여 주고, 해석은 최소 안내만 제공합니다.</li>
           </ul>
         </section>
       </section>

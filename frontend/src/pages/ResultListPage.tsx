@@ -118,14 +118,14 @@ export function ResultListPage() {
     <section className="space-y-6">
       <PageHeader
         title="분석 결과 목록"
-        description="실제 backend가 지원하는 범위에서 inspection, 장비, 상태 기준으로 결과를 검색하고 상세 화면으로 이동합니다."
+        description="실제 backend가 지원하는 범위에서 점검, 장비, 상태 기준으로 결과를 검색하고 상세 화면으로 이동합니다."
       />
 
       <section className="panel stack-md">
         <div>
           <h2 className="panel-title">검색 필터</h2>
           <p className="panel-description">
-            일반 사용자는 plant, zone, inspection, equipment 중 하나 이상의 scope 필터가 필요합니다.
+            일반 사용자는 발전소, 구역, 점검, 장비 중 하나 이상의 범위 필터가 필요합니다.
           </p>
         </div>
         <form
@@ -136,7 +136,7 @@ export function ResultListPage() {
           }}
         >
           <div className="filter-grid">
-            <FormField label="Plant ID">
+            <FormField label="발전소 ID">
               <input
                 className="input-field"
                 name="plantId"
@@ -144,7 +144,7 @@ export function ResultListPage() {
                 onChange={(event) => setPlantIdInput(event.target.value)}
               />
             </FormField>
-            <FormField label="Zone ID">
+            <FormField label="구역 ID">
               <input
                 className="input-field"
                 name="zoneId"
@@ -152,7 +152,7 @@ export function ResultListPage() {
                 onChange={(event) => setZoneIdInput(event.target.value)}
               />
             </FormField>
-            <FormField label="Inspection ID">
+            <FormField label="점검 ID">
               <input
                 className="input-field"
                 name="inspectionId"
@@ -160,7 +160,7 @@ export function ResultListPage() {
                 onChange={(event) => setInspectionIdInput(event.target.value)}
               />
             </FormField>
-            <FormField label="Equipment ID">
+            <FormField label="장비 ID">
               <input
                 className="input-field"
                 name="equipmentId"
@@ -168,7 +168,7 @@ export function ResultListPage() {
                 onChange={(event) => setEquipmentIdInput(event.target.value)}
               />
             </FormField>
-            <FormField label="Target Type">
+            <FormField label="대상 유형">
               <select
                 className="input-field"
                 name="targetType"
@@ -182,7 +182,7 @@ export function ResultListPage() {
                 ))}
               </select>
             </FormField>
-            <FormField label="Input Type">
+            <FormField label="입력 유형">
               <select
                 className="input-field"
                 name="inputType"
@@ -196,7 +196,7 @@ export function ResultListPage() {
                 ))}
               </select>
             </FormField>
-            <FormField label="Model Type">
+            <FormField label="모델 유형">
               <select
                 className="input-field"
                 name="modelType"
@@ -208,7 +208,7 @@ export function ResultListPage() {
                 <option value="FUSION">Fusion</option>
               </select>
             </FormField>
-            <FormField label="Job Status">
+            <FormField label="작업 상태">
               <select
                 className="input-field"
                 name="jobStatus"
@@ -221,7 +221,7 @@ export function ResultListPage() {
                 <option value="FAILED">실패</option>
               </select>
             </FormField>
-            <FormField label="Result Status">
+            <FormField label="결과 상태">
               <select
                 className="input-field"
                 name="resultStatus"
@@ -235,7 +235,7 @@ export function ResultListPage() {
                 ))}
               </select>
             </FormField>
-            <FormField label="Action Candidate">
+            <FormField label="조치 후보">
               <select
                 className="input-field"
                 name="actionCandidate"
@@ -249,7 +249,7 @@ export function ResultListPage() {
                 ))}
               </select>
             </FormField>
-            <FormField label="Severity">
+            <FormField label="심각도">
               <select
                 className="input-field"
                 name="severityLevel"
@@ -263,7 +263,7 @@ export function ResultListPage() {
                 ))}
               </select>
             </FormField>
-            <FormField label="Review Status">
+            <FormField label="검토 상태">
               <select
                 className="input-field"
                 name="reviewStatus"
@@ -291,8 +291,8 @@ export function ResultListPage() {
 
       {!hasScopedFilter ? (
         <EmptyState
-          title="먼저 scope 필터를 입력해 주세요."
-          description="inspectionId, zoneId, plantId, equipmentId 중 하나를 넣으면 결과 목록을 조회할 수 있습니다."
+          title="먼저 범위 필터를 입력해 주세요."
+          description="점검 ID, 구역 ID, 발전소 ID, 장비 ID 중 하나를 넣으면 결과 목록을 조회할 수 있습니다."
         />
       ) : null}
 
@@ -323,7 +323,7 @@ export function ResultListPage() {
                 render: (row) => (
                   <div className="stack-sm">
                     <span className="font-semibold text-slate-900">{`Result #${row.resultId}`}</span>
-                    <span className="text-xs text-slate-500">{`Job #${row.jobId}`}</span>
+                    <span className="text-xs text-slate-500">{`작업 #${row.jobId}`}</span>
                   </div>
                 ),
               },
@@ -332,9 +332,9 @@ export function ResultListPage() {
                 header: '대상',
                 render: (row) => (
                   <div className="stack-sm text-sm">
-                    <span>{`Plant ${row.plantId ?? '-'}`}</span>
-                    <span>{`Zone ${row.zoneId ?? '-'}`}</span>
-                    <span>{`Inspection ${row.inspectionId ?? '-'}`}</span>
+                    <span>{`발전소 ${row.plantId ?? '-'}`}</span>
+                    <span>{`구역 ${row.zoneId ?? '-'}`}</span>
+                    <span>{`점검 ${row.inspectionId ?? '-'}`}</span>
                   </div>
                 ),
               },
@@ -417,7 +417,7 @@ export function ResultListPage() {
             rows={rows}
             rowKey={(row) => row.resultId}
             emptyTitle="검색 조건에 맞는 결과가 없습니다."
-            emptyDescription="필터를 조정하거나 다른 inspection 범위를 선택해 보세요."
+            emptyDescription="필터를 조정하거나 다른 점검 범위를 선택해 보세요."
           />
           <Pagination
             page={(resultsQuery.data.data.page ?? 0) + 1}
