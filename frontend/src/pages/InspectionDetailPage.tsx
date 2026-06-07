@@ -1359,6 +1359,14 @@ export function InspectionDetailPage() {
                       >
                         상세/실패 사유
                       </button>
+                      {job.jobStatus === 'SUCCEEDED' ? (
+                        <Link
+                          className="text-button"
+                          to={`/results?inspectionId=${inspectionId}`}
+                        >
+                          결과 목록
+                        </Link>
+                      ) : null}
                       <button
                         className="text-button"
                         type="button"

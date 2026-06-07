@@ -1,17 +1,23 @@
 import { apiClient } from '../../../shared/api/client'
 import { ApiSuccessResponse, PageResponse } from '../../../shared/api/types'
+import type {
+  AnalysisResult,
+  AnalysisResultSummary,
+  ResultVisualization,
+  UpdateActionCandidateRequest,
+  UpdateReviewStatusRequest,
+} from '../types'
 
 export const resultApi = {
   fetchResults: async (params?: Record<string, unknown>) => {
-    const response = await apiClient.get<ApiSuccessResponse<PageResponse<unknown>>>(
-      '/results',
-      { params },
-    )
+    const response = await apiClient.get<
+      ApiSuccessResponse<PageResponse<AnalysisResultSummary>>
+    >('/analysis-results', { params })
     return response.data
   },
   fetchResult: async (resultId: string | number) => {
-    const response = await apiClient.get<ApiSuccessResponse<unknown>>(
-      `/results/${resultId}`,
+    const response = await apiClient.get<ApiSuccessResponse<AnalysisResult>>(
+      `/analysis-results/${resultId}`,
     )
     return response.data
   },
@@ -19,25 +25,28 @@ export const resultApi = {
     resultId: string | number,
     params?: Record<string, unknown>,
   ) => {
-    const response = await apiClient.get(`/results/${resultId}/visualization`, {
-      params,
-      responseType: 'blob',
-    })
+    const response = await apiClient.get<ApiSuccessResponse<ResultVisualization>>(
+      `/analysis-results/${resultId}/visualization`,
+      { params },
+    )
     return response.data
   },
-  updateReviewStatus: async (resultId: string | number, payload: unknown) => {
-    const response = await apiClient.patch<ApiSuccessResponse<unknown>>(
-      `/results/${resultId}/review-status`,
+  updateReviewStatus: async (
+    resultId: string | number,
+    payload: UpdateReviewStatusRequest,
+  ) => {
+    const response = await apiClient.patch<ApiSuccessResponse<AnalysisResult>>(
+      `/analysis-results/${resultId}/review`,
       payload,
     )
     return response.data
   },
   updateActionCandidate: async (
     resultId: string | number,
-    payload: unknown,
+    payload: UpdateActionCandidateRequest,
   ) => {
-    const response = await apiClient.patch<ApiSuccessResponse<unknown>>(
-      `/results/${resultId}/action`,
+    const response = await apiClient.patch<ApiSuccessResponse<AnalysisResult>>(
+      `/analysis-results/${resultId}`,
       payload,
     )
     return response.data
