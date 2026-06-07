@@ -69,12 +69,7 @@ export type UploadImageRequest = {
   file: File
 }
 
-export const TARGET_TYPE_OPTIONS = [
-  'ZONE',
-  'ARRAY',
-  'PANEL',
-  'MODULE',
-] as const
+export const TARGET_TYPE_OPTIONS = ['ZONE', 'ARRAY', 'PANEL', 'MODULE'] as const
 
 export const IMAGE_TYPE_OPTIONS = ['RGB', 'THERMAL'] as const
 

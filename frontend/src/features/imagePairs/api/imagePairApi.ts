@@ -1,41 +1,43 @@
 import { apiClient } from '../../../shared/api/client'
-import { ApiSuccessResponse, PageResponse } from '../../../shared/api/types'
+import { ApiSuccessResponse } from '../../../shared/api/types'
+import type {
+  CreateImagePairRequest,
+  ImagePair,
+  ImagePairCandidate,
+  ImagePairCandidateParams,
+  UpdateImagePairRequest,
+} from '../types'
 
 export const imagePairApi = {
-  fetchImagePairCandidates: async (params?: Record<string, unknown>) => {
-    const response = await apiClient.get<ApiSuccessResponse<PageResponse<unknown>>>(
+  fetchImagePairCandidates: async (params: ImagePairCandidateParams) => {
+    const response = await apiClient.get<ApiSuccessResponse<ImagePairCandidate>>(
       '/image-pairs/candidates',
       { params },
     )
     return response.data
   },
-  createImagePair: async (payload: unknown) => {
-    const response = await apiClient.post<ApiSuccessResponse<unknown>>(
-      '/image-pairs',
-      payload,
-    )
+  createImagePair: async (payload: CreateImagePairRequest) => {
+    const response = await apiClient.post<ApiSuccessResponse<ImagePair>>('/image-pairs', payload)
     return response.data
   },
   fetchImagePair: async (imagePairId: string | number) => {
-    const response = await apiClient.get<ApiSuccessResponse<unknown>>(
-      `/image-pairs/${imagePairId}`,
-    )
+    const response = await apiClient.get<ApiSuccessResponse<ImagePair>>(`/image-pairs/${imagePairId}`)
     return response.data
   },
   updateImagePair: async (
     imagePairId: string | number,
-    payload: unknown,
+    payload: UpdateImagePairRequest,
   ) => {
-    const response = await apiClient.patch<ApiSuccessResponse<unknown>>(
+    const response = await apiClient.patch<ApiSuccessResponse<ImagePair>>(
       `/image-pairs/${imagePairId}`,
       payload,
     )
     return response.data
   },
   deactivateImagePair: async (imagePairId: string | number) => {
-    const response = await apiClient.patch<void>(
+    const response = await apiClient.patch<ApiSuccessResponse<ImagePair>>(
       `/image-pairs/${imagePairId}/deactivate`,
     )
-    return response.status === 204 ? undefined : response.data
+    return response.data
   },
 }

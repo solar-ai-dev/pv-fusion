@@ -1,3 +1,6 @@
+import type { ImageSummary } from '../images/types'
+import type { ImagePairSummary } from '../imagePairs/types'
+
 export type InspectionStatus =
   | 'READY'
   | 'UPLOADING'
@@ -31,8 +34,8 @@ export type Inspection = {
   createdByUserId: number
   createdAt: string
   updatedAt: string
-  images: unknown[]
-  imagePairs: unknown[]
+  images: ImageSummary[]
+  imagePairs: ImagePairSummary[]
   analysisJobIds: number[]
 }
 

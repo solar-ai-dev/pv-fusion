@@ -114,3 +114,11 @@ export function formatFileSize(value?: number | null) {
 
   return `${(value / (1024 * 1024)).toFixed(1)} MB`
 }
+
+export function isActiveResource(status?: string | null) {
+  return status === 'ACTIVE'
+}
+
+export function isRunningAnalysisJob(status?: string | null) {
+  return status === 'QUEUED' || status === 'RUNNING'
+}
