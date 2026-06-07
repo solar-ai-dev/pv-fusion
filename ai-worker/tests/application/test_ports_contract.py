@@ -67,3 +67,9 @@ def test_stage1_worker_message_still_imports():
     )
 
     assert message.jobId == 1000
+
+
+def test_model_runner_port_run_signature_exposes_image_bytes():
+    hints = get_type_hints(ModelRunnerPort.run)
+
+    assert hints["image_bytes"] is bytes

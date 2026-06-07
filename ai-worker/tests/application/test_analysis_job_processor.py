@@ -91,13 +91,26 @@ class FakeModelRunner:
     def __init__(self, result: InferenceResult | None = None, error: Exception | None = None):
         self.result = result or build_inference_result()
         self.error = error
-        self.calls: list[tuple[object, ModelInfo]] = []
+        self.calls: list[tuple[object, ModelInfo, bytes]] = []
 
-    def run(self, input_data, model_info: ModelInfo) -> InferenceResult:
-        self.calls.append((input_data, model_info))
+    def run(self, input_data, model_info: ModelInfo, image_bytes: bytes) -> InferenceResult:
+        self.calls.append((input_data, model_info, image_bytes))
         if self.error:
             raise self.error
         return self.result
+
+
+class FakeStorage:
+    def __init__(self, payload: bytes = b"fake-image-bytes"):
+        self.payload = payload
+        self.calls: list[tuple[str, str]] = []
+
+    def read_object(self, bucket_name: str, object_key: str) -> bytes:
+        self.calls.append((bucket_name, object_key))
+        return self.payload
+
+    def write_object(self, bucket_name: str, object_key: str, data: bytes, content_type: str) -> str:
+        return object_key
 
 
 class FakeResultRepository:
@@ -160,6 +173,7 @@ def build_paired_image() -> PairedImageInput:
 def build_inference_result() -> InferenceResult:
     return InferenceResult(
         modelInfo=ModelInfo(
+            modelPath="models/rgb.onnx",
             modelType=ModelType.RGB_ONLY,
             requestedModelType=RequestedModelType.RGB_ONLY,
             modelName="pv-rgb",
@@ -201,6 +215,7 @@ def build_processor(job, single_image=None, paired_image=None, runner_error=None
     return AnalysisJobProcessor(
         FakeJobRepository(job),
         FakeImageMetadata(single_image=single_image, paired_image=paired_image),
+        FakeStorage(),
         FakeModelRunner(error=runner_error),
         FakeResultRepository(save_result_error=save_result_error, save_defects_error=save_defects_error),
     )
@@ -209,9 +224,10 @@ def build_processor(job, single_image=None, paired_image=None, runner_error=None
 def test_processes_queued_rgb_single_job():
     job_repository = FakeJobRepository(build_job(JobStatus.QUEUED))
     image_metadata = FakeImageMetadata(single_image=build_single_image())
+    storage = FakeStorage()
     model_runner = FakeModelRunner()
     result_repository = FakeResultRepository()
-    processor = AnalysisJobProcessor(job_repository, image_metadata, model_runner, result_repository)
+    processor = AnalysisJobProcessor(job_repository, image_metadata, storage, model_runner, result_repository)
 
     result = processor.process(build_message())
 
@@ -219,8 +235,10 @@ def test_processes_queued_rgb_single_job():
     assert job_repository.running_ids == [1000]
     assert job_repository.succeeded_ids == [1000]
     assert not job_repository.failed_calls
+    assert storage.calls == [("images", "originals/201.jpg")]
     assert len(result_repository.saved_results) == 1
     assert result_repository.saved_defects[0][0] == 999
+    assert model_runner.calls[0][2] == b"fake-image-bytes"
 
 
 def test_processes_queued_thermal_single_job():
@@ -232,9 +250,10 @@ def test_processes_queued_thermal_single_job():
         )
     )
     image_metadata = FakeImageMetadata(single_image=build_single_image())
+    storage = FakeStorage()
     model_runner = FakeModelRunner()
     result_repository = FakeResultRepository()
-    processor = AnalysisJobProcessor(job_repository, image_metadata, model_runner, result_repository)
+    processor = AnalysisJobProcessor(job_repository, image_metadata, storage, model_runner, result_repository)
 
     result = processor.process(
         build_message(inputType="THERMAL_SINGLE", requestedModelType="THERMAL_ONLY")
@@ -244,7 +263,7 @@ def test_processes_queued_thermal_single_job():
     assert model_runner.calls[0][1].modelType is ModelType.THERMAL_ONLY
 
 
-def test_processes_pair_job_until_runner():
+def test_marks_failed_when_pair_inference_is_not_supported():
     job_repository = FakeJobRepository(
         build_job(
             JobStatus.QUEUED,
@@ -255,9 +274,10 @@ def test_processes_pair_job_until_runner():
         )
     )
     image_metadata = FakeImageMetadata(paired_image=build_paired_image())
+    storage = FakeStorage()
     model_runner = FakeModelRunner()
     result_repository = FakeResultRepository()
-    processor = AnalysisJobProcessor(job_repository, image_metadata, model_runner, result_repository)
+    processor = AnalysisJobProcessor(job_repository, image_metadata, storage, model_runner, result_repository)
 
     result = processor.process(
         build_message(
@@ -268,9 +288,10 @@ def test_processes_pair_job_until_runner():
         )
     )
 
-    assert result.status == "processed"
-    assert isinstance(model_runner.calls[0][0], PairedImageInput)
-    assert model_runner.calls[0][1].modelType is ModelType.FUSION
+    assert result.status == "failed"
+    assert result.failureCode == "PAIR_INFERENCE_UNSUPPORTED"
+    assert storage.calls == []
+    assert model_runner.calls == []
 
 
 def test_returns_failed_when_job_is_missing():
@@ -311,6 +332,7 @@ def test_marks_failed_when_single_image_metadata_missing():
     processor = AnalysisJobProcessor(
         job_repository,
         FakeImageMetadata(single_image=None),
+        FakeStorage(),
         FakeModelRunner(),
         FakeResultRepository(),
     )
@@ -334,6 +356,7 @@ def test_marks_failed_when_pair_metadata_missing():
     processor = AnalysisJobProcessor(
         job_repository,
         FakeImageMetadata(paired_image=None),
+        FakeStorage(),
         FakeModelRunner(),
         FakeResultRepository(),
     )
@@ -356,6 +379,7 @@ def test_marks_failed_when_model_runner_raises():
     processor = AnalysisJobProcessor(
         job_repository,
         FakeImageMetadata(single_image=build_single_image()),
+        FakeStorage(),
         FakeModelRunner(error=RuntimeError("boom")),
         FakeResultRepository(),
     )
@@ -371,6 +395,7 @@ def test_marks_failed_when_result_save_raises():
     processor = AnalysisJobProcessor(
         job_repository,
         FakeImageMetadata(single_image=build_single_image()),
+        FakeStorage(),
         FakeModelRunner(),
         FakeResultRepository(save_result_error=RuntimeError("save failed")),
     )
@@ -386,6 +411,7 @@ def test_marks_failed_when_defect_save_raises():
     processor = AnalysisJobProcessor(
         job_repository,
         FakeImageMetadata(single_image=build_single_image()),
+        FakeStorage(),
         FakeModelRunner(),
         FakeResultRepository(save_defects_error=RuntimeError("save defects failed")),
     )
@@ -400,6 +426,7 @@ def test_returns_skipped_when_mark_running_transition_fails():
     processor = AnalysisJobProcessor(
         FakeJobRepository(build_job(JobStatus.QUEUED), running_error=JobStateTransitionError("transition failed")),
         FakeImageMetadata(single_image=build_single_image()),
+        FakeStorage(),
         FakeModelRunner(),
         FakeResultRepository(),
     )
@@ -417,6 +444,7 @@ def test_mark_failed_transition_error_does_not_hide_original_failure():
     processor = AnalysisJobProcessor(
         job_repository,
         FakeImageMetadata(single_image=build_single_image()),
+        FakeStorage(),
         FakeModelRunner(error=RuntimeError("boom")),
         FakeResultRepository(),
     )

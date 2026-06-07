@@ -9,6 +9,7 @@ from app.application.ports import (
     JobRepositoryPort,
     ModelRunnerPort,
     ResultRepositoryPort,
+    StoragePort,
 )
 from app.domain.analysis_result import AnalysisResultDraft
 from app.domain.enums import InputType, JobStatus, ModelType
@@ -31,11 +32,13 @@ class AnalysisJobProcessor:
         self,
         job_repository: JobRepositoryPort,
         image_metadata: ImageMetadataPort,
+        storage: StoragePort,
         model_runner: ModelRunnerPort,
         result_repository: ResultRepositoryPort,
     ) -> None:
         self._job_repository = job_repository
         self._image_metadata = image_metadata
+        self._storage = storage
         self._model_runner = model_runner
         self._result_repository = result_repository
 
@@ -69,8 +72,9 @@ class AnalysisJobProcessor:
         try:
             image_input = self._load_image_input(message)
             model_info = self._build_model_info(message)
-            inference_result = self._model_runner.run(image_input, model_info)
-            result_draft = self._to_result_draft(message, model_info, inference_result)
+            image_bytes = self._load_image_bytes(message, image_input)
+            inference_result = self._model_runner.run(image_input, model_info, image_bytes)
+            result_draft = self._to_result_draft(message, inference_result)
             analysis_result_id = self._result_repository.save_result(result_draft)
             self._result_repository.save_defects(analysis_result_id, inference_result.defects)
             self._job_repository.mark_succeeded(message.jobId)
@@ -95,6 +99,7 @@ class AnalysisJobProcessor:
     def _build_model_info(self, message: WorkerMessage) -> ModelInfo:
         model_type = self._resolve_model_type(message.inputType)
         return ModelInfo(
+            modelPath="",
             modelType=model_type,
             requestedModelType=message.requestedModelType,
             modelName=f"{model_type.value.lower()}-placeholder",
@@ -105,7 +110,16 @@ class AnalysisJobProcessor:
             threshold=Decimal("0.50"),
         )
 
-    def _to_result_draft(self, message: WorkerMessage, model_info: ModelInfo, inference_result) -> AnalysisResultDraft:
+    def _load_image_bytes(self, message: WorkerMessage, image_input) -> bytes:
+        if message.inputType is InputType.RGB_THERMAL_PAIR:
+            raise ProcessingError(
+                "PAIR_INFERENCE_UNSUPPORTED",
+                "RGB_THERMAL_PAIR inference is not supported yet.",
+            )
+        return self._storage.read_object(image_input.bucketName, image_input.objectKey)
+
+    def _to_result_draft(self, message: WorkerMessage, inference_result) -> AnalysisResultDraft:
+        model_info = inference_result.modelInfo
         return AnalysisResultDraft(
             analysisJobId=message.jobId,
             modelType=model_info.modelType,
