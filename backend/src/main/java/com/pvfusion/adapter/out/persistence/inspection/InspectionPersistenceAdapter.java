@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -32,11 +31,7 @@ public class InspectionPersistenceAdapter implements LoadInspectionPort, SaveIns
                         query.inspectionStatus() != null ? query.inspectionStatus().name() : null,
                         query.from(),
                         query.to(),
-                        PageRequest.of(
-                                query.page(),
-                                query.size(),
-                                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))
-                        )
+                        PageRequest.of(query.page(), query.size())
                 )
                 .stream()
                 .map(InspectionPersistenceMapper::toDomain)
