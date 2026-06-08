@@ -93,14 +93,20 @@ class FakeModelRunner:
         result: InferenceResult | None = None,
         error: Exception | None = None,
         results: list[InferenceResult] | None = None,
+        errors: list[Exception | None] | None = None,
     ):
         self.result = result or build_inference_result()
         self.error = error
         self.results = list(results or [])
+        self.errors = list(errors or [])
         self.calls: list[tuple[object, ModelInfo, bytes]] = []
 
     def run(self, input_data, model_info: ModelInfo, image_bytes: bytes) -> InferenceResult:
         self.calls.append((input_data, model_info, image_bytes))
+        if self.errors:
+            next_error = self.errors.pop(0)
+            if next_error is not None:
+                raise next_error
         if self.error:
             raise self.error
         if self.results:
@@ -109,7 +115,13 @@ class FakeModelRunner:
 
 
 class FakeStorage:
-    def __init__(self, payload: bytes | None = None, write_error: Exception | None = None):
+    def __init__(
+        self,
+        payload: bytes | None = None,
+        write_error: Exception | None = None,
+        read_error: Exception | None = None,
+        read_errors: list[Exception] | None = None,
+    ):
         self.payload = payload or (
             b"\x89PNG\r\n\x1a\n"
             b"\x00\x00\x00\rIHDR"
@@ -118,10 +130,16 @@ class FakeStorage:
             b"\x00\x00\x00\x00IEND\xaeB`\x82"
         )
         self.write_error = write_error
+        self.read_error = read_error
+        self.read_errors = list(read_errors or [])
         self.calls: list[tuple[str, str]] = []
         self.write_calls: list[tuple[str, str, bytes, str]] = []
 
     def read_object(self, bucket_name: str, object_key: str) -> bytes:
+        if self.read_error:
+            raise self.read_error
+        if self.read_errors:
+            raise self.read_errors.pop(0)
         self.calls.append((bucket_name, object_key))
         return self.payload
 
@@ -415,6 +433,58 @@ def test_processes_pair_with_thermal_only_anomalies_without_mask_overlay():
     assert result_repository.saved_results[0].maskObjectKey is None
 
 
+def test_processes_pair_with_no_anomalies_without_mask_overlay():
+    job_repository = FakeJobRepository(
+        build_job(
+            JobStatus.QUEUED,
+            inputType=InputType.RGB_THERMAL_PAIR,
+            imageId=None,
+            imagePairId=301,
+            requestedModelType=RequestedModelType.FUSION_AUTO,
+        )
+    )
+    image_metadata = FakeImageMetadata(paired_image=build_paired_image())
+    storage = FakeStorage()
+    rgb_normal = build_inference_result().model_copy(
+        update={
+            "resultStatus": ResultStatus.NORMAL,
+            "anomalyCount": 0,
+            "maxConfidence": None,
+            "defects": [],
+            "restoredMasks": [],
+            "actionCandidate": ActionCandidate.CLEANING,
+        }
+    )
+    thermal_normal = build_thermal_inference_result().model_copy(
+        update={
+            "resultStatus": ResultStatus.NORMAL,
+            "anomalyCount": 0,
+            "maxConfidence": None,
+            "defects": [],
+            "actionCandidate": ActionCandidate.CLEANING,
+        }
+    )
+    model_runner = FakeModelRunner(results=[rgb_normal, thermal_normal])
+    result_repository = FakeResultRepository()
+    processor = AnalysisJobProcessor(job_repository, image_metadata, storage, model_runner, result_repository)
+
+    result = processor.process(
+        build_message(
+            inputType="RGB_THERMAL_PAIR",
+            imageId=None,
+            imagePairId=301,
+            requestedModelType="FUSION_AUTO",
+        )
+    )
+
+    assert result.status == "processed"
+    assert result_repository.saved_results[0].resultStatus is ResultStatus.NORMAL
+    assert result_repository.saved_results[0].anomalyCount == 0
+    assert len(storage.write_calls) == 1
+    assert result_repository.saved_results[0].maskBucketName is None
+    assert result_repository.saved_defects == [(999, [])]
+
+
 def test_returns_failed_when_job_is_missing():
     processor = build_processor(None)
 
@@ -493,6 +563,93 @@ def test_returns_skipped_when_job_already_failed():
     assert result_repository.saved_defects == []
 
 
+def test_returns_skipped_when_fusion_job_already_succeeded():
+    processor = AnalysisJobProcessor(
+        FakeJobRepository(
+            build_job(
+                JobStatus.SUCCEEDED,
+                inputType=InputType.RGB_THERMAL_PAIR,
+                imageId=None,
+                imagePairId=301,
+                requestedModelType=RequestedModelType.FUSION_AUTO,
+            )
+        ),
+        FakeImageMetadata(paired_image=build_paired_image()),
+        FakeStorage(),
+        FakeModelRunner(results=[build_inference_result(), build_thermal_inference_result()]),
+        FakeResultRepository(),
+    )
+
+    result = processor.process(
+        build_message(
+            inputType="RGB_THERMAL_PAIR",
+            imageId=None,
+            imagePairId=301,
+            requestedModelType="FUSION_AUTO",
+        )
+    )
+
+    assert result.status == "skipped"
+
+
+def test_returns_skipped_when_fusion_job_already_running():
+    processor = AnalysisJobProcessor(
+        FakeJobRepository(
+            build_job(
+                JobStatus.RUNNING,
+                inputType=InputType.RGB_THERMAL_PAIR,
+                imageId=None,
+                imagePairId=301,
+                requestedModelType=RequestedModelType.FUSION_AUTO,
+            )
+        ),
+        FakeImageMetadata(paired_image=build_paired_image()),
+        FakeStorage(),
+        FakeModelRunner(results=[build_inference_result(), build_thermal_inference_result()]),
+        FakeResultRepository(),
+    )
+
+    result = processor.process(
+        build_message(
+            inputType="RGB_THERMAL_PAIR",
+            imageId=None,
+            imagePairId=301,
+            requestedModelType="FUSION_AUTO",
+        )
+    )
+
+    assert result.status == "skipped"
+
+
+def test_returns_skipped_when_fusion_job_already_failed():
+    processor = AnalysisJobProcessor(
+        FakeJobRepository(
+            build_job(
+                JobStatus.FAILED,
+                inputType=InputType.RGB_THERMAL_PAIR,
+                imageId=None,
+                imagePairId=301,
+                requestedModelType=RequestedModelType.FUSION_AUTO,
+            )
+        ),
+        FakeImageMetadata(paired_image=build_paired_image()),
+        FakeStorage(),
+        FakeModelRunner(results=[build_inference_result(), build_thermal_inference_result()]),
+        FakeResultRepository(),
+    )
+
+    result = processor.process(
+        build_message(
+            inputType="RGB_THERMAL_PAIR",
+            imageId=None,
+            imagePairId=301,
+            requestedModelType="FUSION_AUTO",
+        )
+    )
+
+    assert result.status == "skipped"
+
+
 def test_marks_failed_when_single_image_metadata_missing():
     job_repository = FakeJobRepository(build_job(JobStatus.QUEUED))
     processor = AnalysisJobProcessor(
@@ -538,6 +695,137 @@ def test_marks_failed_when_pair_metadata_missing():
 
     assert result.status == "failed"
     assert job_repository.failed_calls[0][1] == "PAIR_METADATA_NOT_FOUND"
+
+
+def test_marks_failed_when_fusion_storage_read_raises():
+    job_repository = FakeJobRepository(
+        build_job(
+            JobStatus.QUEUED,
+            inputType=InputType.RGB_THERMAL_PAIR,
+            imageId=None,
+            imagePairId=301,
+            requestedModelType=RequestedModelType.FUSION_AUTO,
+        )
+    )
+    processor = AnalysisJobProcessor(
+        job_repository,
+        FakeImageMetadata(paired_image=build_paired_image()),
+        FakeStorage(read_error=RuntimeError("storage read failed")),
+        FakeModelRunner(results=[build_inference_result(), build_thermal_inference_result()]),
+        FakeResultRepository(),
+    )
+
+    result = processor.process(
+        build_message(
+            inputType="RGB_THERMAL_PAIR",
+            imageId=None,
+            imagePairId=301,
+            requestedModelType="FUSION_AUTO",
+        )
+    )
+
+    assert result.status == "failed"
+    assert job_repository.failed_calls[0][1] == "UNKNOWN_WORKER_ERROR"
+
+
+def test_marks_failed_when_thermal_runner_raises_in_fusion():
+    job_repository = FakeJobRepository(
+        build_job(
+            JobStatus.QUEUED,
+            inputType=InputType.RGB_THERMAL_PAIR,
+            imageId=None,
+            imagePairId=301,
+            requestedModelType=RequestedModelType.FUSION_AUTO,
+        )
+    )
+    image_metadata = FakeImageMetadata(paired_image=build_paired_image())
+    storage = FakeStorage()
+    model_runner = FakeModelRunner(
+        results=[build_inference_result()],
+        errors=[None, RuntimeError("boom")],
+    )
+    processor = AnalysisJobProcessor(
+        job_repository,
+        image_metadata,
+        storage,
+        model_runner,
+        FakeResultRepository(),
+    )
+
+    result = processor.process(
+        build_message(
+            inputType="RGB_THERMAL_PAIR",
+            imageId=None,
+            imagePairId=301,
+            requestedModelType="FUSION_AUTO",
+        )
+    )
+
+    assert result.status == "failed"
+    assert len(model_runner.calls) == 2
+    assert job_repository.failed_calls[0][1] == "UNKNOWN_WORKER_ERROR"
+
+
+def test_marks_failed_when_fusion_result_save_raises():
+    job_repository = FakeJobRepository(
+        build_job(
+            JobStatus.QUEUED,
+            inputType=InputType.RGB_THERMAL_PAIR,
+            imageId=None,
+            imagePairId=301,
+            requestedModelType=RequestedModelType.FUSION_AUTO,
+        )
+    )
+    processor = AnalysisJobProcessor(
+        job_repository,
+        FakeImageMetadata(paired_image=build_paired_image()),
+        FakeStorage(),
+        FakeModelRunner(results=[build_inference_result(), build_thermal_inference_result()]),
+        FakeResultRepository(save_result_error=RuntimeError("save failed")),
+    )
+
+    result = processor.process(
+        build_message(
+            inputType="RGB_THERMAL_PAIR",
+            imageId=None,
+            imagePairId=301,
+            requestedModelType="FUSION_AUTO",
+        )
+    )
+
+    assert result.status == "failed"
+    assert job_repository.failed_calls[0][1] == "UNKNOWN_WORKER_ERROR"
+
+
+def test_marks_failed_when_fusion_defect_save_raises():
+    job_repository = FakeJobRepository(
+        build_job(
+            JobStatus.QUEUED,
+            inputType=InputType.RGB_THERMAL_PAIR,
+            imageId=None,
+            imagePairId=301,
+            requestedModelType=RequestedModelType.FUSION_AUTO,
+        )
+    )
+    processor = AnalysisJobProcessor(
+        job_repository,
+        FakeImageMetadata(paired_image=build_paired_image()),
+        FakeStorage(),
+        FakeModelRunner(results=[build_inference_result(), build_thermal_inference_result()]),
+        FakeResultRepository(save_defects_error=RuntimeError("save defects failed")),
+    )
+
+    result = processor.process(
+        build_message(
+            inputType="RGB_THERMAL_PAIR",
+            imageId=None,
+            imagePairId=301,
+            requestedModelType="FUSION_AUTO",
+        )
+    )
+
+    assert result.status == "failed"
+    assert job_repository.failed_calls[0][1] == "UNKNOWN_WORKER_ERROR"
 
 
 def test_marks_failed_when_model_runner_raises():
