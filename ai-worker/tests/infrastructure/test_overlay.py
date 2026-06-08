@@ -3,7 +3,8 @@ from io import BytesIO
 import pytest
 
 from app.infrastructure.model.output_parser import ParsedDetection
-from app.infrastructure.visualization.overlay import draw_bbox_overlay
+from app.domain.inference_result import RestoredMask
+from app.infrastructure.visualization.overlay import draw_bbox_overlay, draw_mask_overlay
 
 
 def _require_pillow():
@@ -107,5 +108,23 @@ def test_draw_bbox_overlay_returns_valid_image_for_empty_detections():
     image_bytes = make_image_bytes()
 
     result = draw_bbox_overlay(image_bytes, [])
+
+    assert result.startswith(b"\x89PNG")
+
+
+def test_draw_mask_overlay_returns_png_bytes():
+    _require_pillow()
+    image_bytes = make_image_bytes()
+    masks = [
+        RestoredMask(
+            bboxX=10,
+            bboxY=10,
+            bboxWidth=20,
+            bboxHeight=20,
+            data=[[1 if 20 <= x < 60 and 20 <= y < 60 else 0 for x in range(100)] for y in range(80)],
+        )
+    ]
+
+    result = draw_mask_overlay(image_bytes, masks)
 
     assert result.startswith(b"\x89PNG")

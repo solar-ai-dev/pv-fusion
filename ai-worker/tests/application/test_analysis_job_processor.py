@@ -11,7 +11,7 @@ from app.domain.enums import (
     ResultStatus,
 )
 from app.domain.image_input import PairedImageInput, SingleImageInput
-from app.domain.inference_result import InferenceResult, VisualizationPaths
+from app.domain.inference_result import InferenceResult, RestoredMask, VisualizationPaths
 from app.domain.model import ModelInfo
 from app.domain.worker_message import WorkerMessage
 
@@ -219,6 +219,15 @@ def build_inference_result() -> InferenceResult:
             heatmapObjectKey="results/1000/heatmap.jpg",
             maskObjectKey="results/1000/mask.png",
         ),
+        restoredMasks=[
+            RestoredMask(
+                bboxX=1,
+                bboxY=2,
+                bboxWidth=3,
+                bboxHeight=4,
+                data=[[1, 1], [1, 1]],
+            )
+        ],
     )
 
 
@@ -250,10 +259,16 @@ def test_processes_queued_rgb_single_job():
     assert storage.write_calls[0][0] == "images"
     assert storage.write_calls[0][1] == "analysis-results/1000/bbox_overlay.png"
     assert storage.write_calls[0][3] == "image/png"
+    assert storage.write_calls[1][0] == "images"
+    assert storage.write_calls[1][1] == "analysis-results/1000/mask_overlay.png"
+    assert storage.write_calls[1][3] == "image/png"
     assert len(result_repository.saved_results) == 1
     assert result_repository.saved_results[0].bboxBucketName == "images"
     assert result_repository.saved_results[0].bboxObjectKey == "analysis-results/1000/bbox_overlay.png"
     assert result_repository.saved_results[0].bboxFileUrl is None
+    assert result_repository.saved_results[0].maskBucketName == "images"
+    assert result_repository.saved_results[0].maskObjectKey == "analysis-results/1000/mask_overlay.png"
+    assert result_repository.saved_results[0].maskFileUrl is None
     assert result_repository.saved_defects[0][0] == 999
     assert model_runner.calls[0][2].startswith(b"\x89PNG")
 
@@ -278,6 +293,9 @@ def test_processes_queued_thermal_single_job():
 
     assert result.status == "processed"
     assert model_runner.calls[0][1].modelType is ModelType.THERMAL_ONLY
+    assert len(storage.write_calls) == 1
+    assert result_repository.saved_results[0].maskBucketName is None
+    assert result_repository.saved_results[0].maskObjectKey is None
 
 
 def test_marks_failed_when_pair_inference_is_not_supported():
@@ -321,27 +339,72 @@ def test_returns_failed_when_job_is_missing():
 
 
 def test_returns_skipped_when_job_already_succeeded():
-    processor = build_processor(build_job(JobStatus.SUCCEEDED))
+    image_metadata = FakeImageMetadata(single_image=build_single_image())
+    storage = FakeStorage()
+    model_runner = FakeModelRunner()
+    result_repository = FakeResultRepository()
+    processor = AnalysisJobProcessor(
+        FakeJobRepository(build_job(JobStatus.SUCCEEDED)),
+        image_metadata,
+        storage,
+        model_runner,
+        result_repository,
+    )
 
     result = processor.process(build_message())
 
     assert result.status == "skipped"
+    assert storage.calls == []
+    assert storage.write_calls == []
+    assert model_runner.calls == []
+    assert result_repository.saved_results == []
+    assert result_repository.saved_defects == []
 
 
 def test_returns_skipped_when_job_already_running():
-    processor = build_processor(build_job(JobStatus.RUNNING))
+    image_metadata = FakeImageMetadata(single_image=build_single_image())
+    storage = FakeStorage()
+    model_runner = FakeModelRunner()
+    result_repository = FakeResultRepository()
+    processor = AnalysisJobProcessor(
+        FakeJobRepository(build_job(JobStatus.RUNNING)),
+        image_metadata,
+        storage,
+        model_runner,
+        result_repository,
+    )
 
     result = processor.process(build_message())
 
     assert result.status == "skipped"
+    assert storage.calls == []
+    assert storage.write_calls == []
+    assert model_runner.calls == []
+    assert result_repository.saved_results == []
+    assert result_repository.saved_defects == []
 
 
 def test_returns_skipped_when_job_already_failed():
-    processor = build_processor(build_job(JobStatus.FAILED))
+    image_metadata = FakeImageMetadata(single_image=build_single_image())
+    storage = FakeStorage()
+    model_runner = FakeModelRunner()
+    result_repository = FakeResultRepository()
+    processor = AnalysisJobProcessor(
+        FakeJobRepository(build_job(JobStatus.FAILED)),
+        image_metadata,
+        storage,
+        model_runner,
+        result_repository,
+    )
 
     result = processor.process(build_message())
 
     assert result.status == "skipped"
+    assert storage.calls == []
+    assert storage.write_calls == []
+    assert model_runner.calls == []
+    assert result_repository.saved_results == []
+    assert result_repository.saved_defects == []
 
 
 def test_marks_failed_when_single_image_metadata_missing():
@@ -421,7 +484,7 @@ def test_marks_failed_when_result_save_raises():
 
     assert result.status == "failed"
     assert job_repository.failed_calls[0][1] == "UNKNOWN_WORKER_ERROR"
-    assert len(processor._storage.write_calls) == 1
+    assert len(processor._storage.write_calls) == 2
 
 
 def test_marks_failed_when_defect_save_raises():
@@ -477,6 +540,7 @@ def test_saves_normal_result_even_when_defects_are_empty():
         actionCandidate=ActionCandidate.CLEANING,
         defects=[],
         visualizationPaths=VisualizationPaths(),
+        restoredMasks=[],
     )
     job_repository = FakeJobRepository(build_job(JobStatus.QUEUED))
     result_repository = FakeResultRepository()
@@ -497,18 +561,47 @@ def test_saves_normal_result_even_when_defects_are_empty():
     assert result_repository.saved_defects == [(999, [])]
 
 
+def test_skips_mask_overlay_when_rgb_result_has_no_restored_masks():
+    result_without_masks = build_inference_result().model_copy(update={"restoredMasks": []})
+    job_repository = FakeJobRepository(build_job(JobStatus.QUEUED))
+    storage = FakeStorage()
+    result_repository = FakeResultRepository()
+    processor = AnalysisJobProcessor(
+        job_repository,
+        FakeImageMetadata(single_image=build_single_image()),
+        storage,
+        FakeModelRunner(result=result_without_masks),
+        result_repository,
+    )
+
+    result = processor.process(build_message())
+
+    assert result.status == "processed"
+    assert len(storage.write_calls) == 1
+    assert result_repository.saved_results[0].maskBucketName is None
+    assert result_repository.saved_results[0].maskObjectKey is None
+
+
 def test_returns_skipped_when_mark_running_transition_fails():
+    storage = FakeStorage()
+    model_runner = FakeModelRunner()
+    result_repository = FakeResultRepository()
     processor = AnalysisJobProcessor(
         FakeJobRepository(build_job(JobStatus.QUEUED), running_error=JobStateTransitionError("transition failed")),
         FakeImageMetadata(single_image=build_single_image()),
-        FakeStorage(),
-        FakeModelRunner(),
-        FakeResultRepository(),
+        storage,
+        model_runner,
+        result_repository,
     )
 
     result = processor.process(build_message())
 
     assert result.status == "skipped"
+    assert storage.calls == []
+    assert storage.write_calls == []
+    assert model_runner.calls == []
+    assert result_repository.saved_results == []
+    assert result_repository.saved_defects == []
 
 
 def test_mark_failed_transition_error_does_not_hide_original_failure():

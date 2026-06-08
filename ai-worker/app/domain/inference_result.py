@@ -15,6 +15,16 @@ class VisualizationPaths(BaseModel):
     maskObjectKey: str | None = None
 
 
+class RestoredMask(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    bboxX: float
+    bboxY: float
+    bboxWidth: float
+    bboxHeight: float
+    data: list[list[int]]
+
+
 class InferenceResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -27,3 +37,4 @@ class InferenceResult(BaseModel):
     actionCandidate: ActionCandidate
     defects: list[DetectedDefectDraft]
     visualizationPaths: VisualizationPaths = VisualizationPaths()
+    restoredMasks: list[RestoredMask] = []

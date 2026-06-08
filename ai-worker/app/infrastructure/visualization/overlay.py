@@ -1,5 +1,6 @@
 from io import BytesIO
 
+from app.domain.inference_result import RestoredMask
 from app.infrastructure.model.output_parser import ParsedDetection
 
 
@@ -34,6 +35,42 @@ def draw_bbox_overlay(
 
         output = BytesIO()
         canvas.save(output, format=image_format)
+        return output.getvalue()
+
+
+def draw_mask_overlay(
+    image_bytes: bytes,
+    masks: list[RestoredMask],
+    image_format: str = "PNG",
+) -> bytes:
+    try:
+        import numpy as np
+        from PIL import Image
+    except ModuleNotFoundError as exc:  # pragma: no cover - environment dependent
+        raise ModuleNotFoundError("Pillow and numpy are required to draw mask overlays.") from exc
+
+    if not image_bytes:
+        raise ValueError("Image bytes are empty.")
+
+    with Image.open(BytesIO(image_bytes)) as image:
+        canvas = image.convert("RGBA")
+        alpha = np.zeros((canvas.height, canvas.width), dtype="uint8")
+
+        for restored_mask in masks:
+            if not restored_mask.data:
+                continue
+
+            mask_array = np.asarray(restored_mask.data, dtype="uint8")
+            if mask_array.ndim != 2:
+                continue
+
+            resized = Image.fromarray(mask_array * 255, mode="L").resize(canvas.size, resample=Image.NEAREST)
+            alpha = np.maximum(alpha, np.asarray(resized, dtype="uint8"))
+
+        overlay = Image.new("RGBA", canvas.size, (255, 0, 0, 0))
+        overlay.putalpha(Image.fromarray((alpha > 0).astype("uint8") * 96, mode="L"))
+        output = BytesIO()
+        Image.alpha_composite(canvas, overlay).convert("RGB").save(output, format=image_format)
         return output.getvalue()
 
 

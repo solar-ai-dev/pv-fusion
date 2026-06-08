@@ -1,14 +1,21 @@
+from io import BytesIO
 from pathlib import Path
 
 import pytest
 
-from app.config.settings import Settings
-from app.domain.enums import RequestedModelType, ResultStatus
+from app.application.analysis_job_processor import AnalysisJobProcessor
+from app.domain.analysis_job import AnalysisJob
+from app.domain.detected_defect import DetectedDefectDraft
+from app.domain.enums import ActionCandidate, InputType, JobStatus, ModelType, RequestedModelType, ResultStatus
 from app.domain.image_input import SingleImageInput
+from app.config.settings import Settings
 from app.domain.model import ModelInfo
+from app.domain.worker_message import WorkerMessage
 from app.infrastructure.model.model_registry import ModelRegistry
 from app.infrastructure.model.onnx_model_runner import OnnxModelRunner
+from app.infrastructure.model.output_parser import ParsedDetection, parse_inference_output
 from app.infrastructure.model.onnx_session import OnnxSessionProvider
+from app.infrastructure.visualization.overlay import draw_bbox_overlay, draw_mask_overlay
 
 
 AI_WORKER_ROOT = Path(__file__).resolve().parents[2]
@@ -135,6 +142,165 @@ def test_onnx_model_runner_smoke_for_thermal():
     assert result.anomalyCount == 0
 
 
+def test_rgb_runtime_output_parser_smoke():
+    np = pytest.importorskip("numpy")
+    raw_output = _run_rgb_runtime_output(np.zeros((1, 3, 768, 768), dtype=np.float32))
+    model_info = _build_settings(
+        rgbModelPath=_relative_model_path(RGB_MODEL_PATH),
+        rgbModelName="rgb-only-yolo26s-seg-768-e10-dev",
+        rgbModelVersion="dev-e10",
+        rgbModelInputSize=768,
+        rgbModelConfidenceThreshold="0.00",
+    )
+    parsed = parse_inference_output(
+        raw_output,
+        ModelRegistry(model_info).resolve(InputType.RGB_SINGLE, RequestedModelType.RGB_ONLY),
+    )
+
+    assert parsed.modelInfo.modelType is ModelType.RGB_ONLY
+    assert parsed.anomalyCount >= 0
+    assert len(parsed.restoredMasks) <= len(parsed.defects)
+
+
+def test_rgb_runtime_output_coefficients_match_prototype_channels():
+    np = pytest.importorskip("numpy")
+    output0, output1 = _run_rgb_runtime_output(np.zeros((1, 3, 768, 768), dtype=np.float32))
+
+    assert output0.shape[-1] == 38
+    assert output1.shape[1] == 32
+    assert output0.shape[-1] - 6 == output1.shape[1]
+
+
+def test_rgb_runtime_output_overlay_smoke():
+    image_module = pytest.importorskip("PIL.Image")
+    np = pytest.importorskip("numpy")
+    raw_output = _run_rgb_runtime_output(np.zeros((1, 3, 768, 768), dtype=np.float32))
+    model_info = ModelRegistry(
+        _build_settings(
+            rgbModelPath=_relative_model_path(RGB_MODEL_PATH),
+            rgbModelName="rgb-only-yolo26s-seg-768-e10-dev",
+            rgbModelVersion="dev-e10",
+            rgbModelInputSize=768,
+            rgbModelConfidenceThreshold="0.00",
+        )
+    ).resolve(InputType.RGB_SINGLE, RequestedModelType.RGB_ONLY)
+    parsed = parse_inference_output(raw_output, model_info)
+    image_bytes = _make_png_bytes(image_module, size=(768, 768))
+
+    bbox_overlay = draw_bbox_overlay(image_bytes, _defects_to_detections(parsed.defects))
+    assert bbox_overlay.startswith(b"\x89PNG")
+
+    if not parsed.restoredMasks:
+        pytest.skip("Actual RGB ONNX output did not yield restored masks for the zero tensor input.")
+
+    mask_overlay = draw_mask_overlay(image_bytes, parsed.restoredMasks)
+    assert mask_overlay.startswith(b"\x89PNG")
+    image_module.open(BytesIO(mask_overlay)).load()
+
+
+def test_rgb_processor_smoke_with_actual_runtime_output():
+    image_module = pytest.importorskip("PIL.Image")
+    np = pytest.importorskip("numpy")
+    pytest.importorskip("onnxruntime")
+    _skip_if_missing(RGB_MODEL_PATH)
+
+    storage = _SmokeStorage(_make_png_bytes(image_module, size=(768, 768)))
+    result_repository = _SmokeResultRepository()
+    processor = AnalysisJobProcessor(
+        _SmokeJobRepository(),
+        _SmokeImageMetadata(),
+        storage,
+        OnnxModelRunner(
+            ModelRegistry(
+                _build_settings(
+                    rgbModelPath=_relative_model_path(RGB_MODEL_PATH),
+                    rgbModelName="rgb-only-yolo26s-seg-768-e10-dev",
+                    rgbModelVersion="dev-e10",
+                    rgbModelInputSize=768,
+                    rgbModelConfidenceThreshold="0.00",
+                    thermalModelPath=_relative_model_path(THERMAL_MODEL_PATH),
+                    thermalModelName="thermal-only-yolo26n-det-dev-untrained",
+                    thermalModelVersion="dev-untrained-001",
+                    thermalModelInputSize=640,
+                    thermalModelConfidenceThreshold="0.25",
+                )
+            ),
+            OnnxSessionProvider(),
+            preprocess=lambda image_bytes, input_size: np.zeros((1, 3, input_size, input_size), dtype=np.float32),
+        ),
+        result_repository,
+    )
+
+    result = processor.process(_build_worker_message())
+
+    assert result.status == "processed"
+    assert storage.write_calls[0][1] == "analysis-results/1000/bbox_overlay.png"
+    assert storage.write_calls[0][3] == "image/png"
+    assert result_repository.saved_results[0].bboxObjectKey == "analysis-results/1000/bbox_overlay.png"
+
+    if len(storage.write_calls) == 1:
+        pytest.skip("Actual RGB ONNX output did not yield restorable masks for the zero tensor input.")
+
+    assert storage.write_calls[1][1] == "analysis-results/1000/mask_overlay.png"
+    assert storage.write_calls[1][3] == "image/png"
+    assert result_repository.saved_results[0].maskObjectKey == "analysis-results/1000/mask_overlay.png"
+
+
+def test_thermal_processor_smoke_keeps_mask_fields_null():
+    np = pytest.importorskip("numpy")
+    pytest.importorskip("onnxruntime")
+    _skip_if_missing(THERMAL_MODEL_PATH)
+
+    storage = _SmokeStorage(_make_png_bytes(pytest.importorskip("PIL.Image"), size=(640, 640)))
+    result_repository = _SmokeResultRepository()
+    processor = AnalysisJobProcessor(
+        _SmokeJobRepository(
+            AnalysisJob(
+                jobId=1000,
+                inputType=InputType.THERMAL_SINGLE,
+                imageId=201,
+                imagePairId=None,
+                requestedModelType=RequestedModelType.THERMAL_ONLY,
+                modelType=None,
+                jobStatus=JobStatus.QUEUED,
+                requestedByUserId=1,
+                traceId="req-20260607-0001",
+                failureCode=None,
+                failureMessage=None,
+            )
+        ),
+        _SmokeImageMetadata(image_type="THERMAL"),
+        storage,
+        OnnxModelRunner(
+            ModelRegistry(
+                _build_settings(
+                    rgbModelPath=_relative_model_path(RGB_MODEL_PATH),
+                    rgbModelName="rgb-only-yolo26s-seg-768-e10-dev",
+                    rgbModelVersion="dev-e10",
+                    rgbModelInputSize=768,
+                    rgbModelConfidenceThreshold="0.00",
+                    thermalModelPath=_relative_model_path(THERMAL_MODEL_PATH),
+                    thermalModelName="thermal-only-yolo26n-det-dev-untrained",
+                    thermalModelVersion="dev-untrained-001",
+                    thermalModelInputSize=640,
+                    thermalModelConfidenceThreshold="0.00",
+                )
+            ),
+            OnnxSessionProvider(),
+            preprocess=lambda image_bytes, input_size: np.zeros((1, 3, input_size, input_size), dtype=np.float32),
+        ),
+        result_repository,
+    )
+
+    result = processor.process(_build_worker_message(input_type="THERMAL_SINGLE", requested_model_type="THERMAL_ONLY"))
+
+    assert result.status == "processed"
+    assert len(storage.write_calls) == 1
+    assert result_repository.saved_results[0].maskBucketName is None
+    assert result_repository.saved_results[0].maskObjectKey is None
+    assert all(defect.maskObjectKey is None for _, defects in result_repository.saved_defects for defect in defects)
+
+
 def _build_settings(**overrides) -> Settings:
     payload = {
         "rgbModelPath": "",
@@ -193,3 +359,119 @@ def _relative_model_path(model_path: Path) -> str:
 def _skip_if_missing(model_path: Path) -> None:
     if not model_path.exists():
         pytest.skip(f"ONNX model file is not available: {model_path}")
+
+
+def _run_rgb_runtime_output(tensor):
+    ort = pytest.importorskip("onnxruntime")
+    _skip_if_missing(RGB_MODEL_PATH)
+    session = ort.InferenceSession(str(RGB_MODEL_PATH), providers=["CPUExecutionProvider"])
+    return session.run(None, {"images": tensor})
+
+
+def _make_png_bytes(image_module, size=(64, 64), color=(255, 255, 255)):
+    image = image_module.new("RGB", size, color)
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _defects_to_detections(defects: list[DetectedDefectDraft]) -> list[ParsedDetection]:
+    detections: list[ParsedDetection] = []
+    for defect in defects:
+        if defect.bboxX is None or defect.bboxY is None or defect.bboxWidth is None or defect.bboxHeight is None:
+            continue
+        detections.append(
+            ParsedDetection(
+                class_id=-1,
+                class_name=defect.defectType,
+                confidence=defect.confidence or 0,
+                bbox_x=float(defect.bboxX),
+                bbox_y=float(defect.bboxY),
+                bbox_width=float(defect.bboxWidth),
+                bbox_height=float(defect.bboxHeight),
+                source=defect.defectSource,
+            )
+        )
+    return detections
+
+
+def _build_worker_message(
+    input_type: str = "RGB_SINGLE",
+    requested_model_type: str = "RGB_ONLY",
+) -> WorkerMessage:
+    return WorkerMessage(
+        jobId=1000,
+        inputType=input_type,
+        imageId=201,
+        imagePairId=None,
+        requestedModelType=requested_model_type,
+        requestedByUserId=1,
+        traceId="req-20260607-0001",
+        createdAt="2026-06-07T10:00:00+09:00",
+    )
+
+
+class _SmokeJobRepository:
+    def __init__(self, job: AnalysisJob | None = None):
+        self.job = job or AnalysisJob(
+            jobId=1000,
+            inputType=InputType.RGB_SINGLE,
+            imageId=201,
+            imagePairId=None,
+            requestedModelType=RequestedModelType.RGB_ONLY,
+            modelType=None,
+            jobStatus=JobStatus.QUEUED,
+            requestedByUserId=1,
+            traceId="req-20260607-0001",
+            failureCode=None,
+            failureMessage=None,
+        )
+
+    def get_by_id(self, job_id: int) -> AnalysisJob | None:
+        return self.job if self.job.jobId == job_id else None
+
+    def mark_running(self, job_id: int) -> None:
+        return None
+
+    def mark_succeeded(self, job_id: int) -> None:
+        return None
+
+    def mark_failed(self, job_id: int, failure_code: str, failure_message: str) -> None:
+        raise AssertionError(f"Processor smoke should not fail: {failure_code} {failure_message}")
+
+
+class _SmokeImageMetadata:
+    def __init__(self, image_type: str = "RGB") -> None:
+        self._image = _build_single_image(image_type)
+
+    def get_single_image(self, image_id: int) -> SingleImageInput | None:
+        return self._image
+
+    def get_paired_image(self, image_pair_id: int):
+        return None
+
+
+class _SmokeStorage:
+    def __init__(self, payload: bytes):
+        self.payload = payload
+        self.write_calls: list[tuple[str, str, bytes, str]] = []
+
+    def read_object(self, bucket_name: str, object_key: str) -> bytes:
+        return self.payload
+
+    def write_object(self, bucket_name: str, object_key: str, data: bytes, content_type: str) -> str:
+        self.write_calls.append((bucket_name, object_key, data, content_type))
+        return object_key
+
+
+class _SmokeResultRepository:
+    def __init__(self) -> None:
+        self.saved_results = []
+        self.saved_defects = []
+
+    def save_result(self, result):
+        self.saved_results.append(result)
+        return 999
+
+    def save_defects(self, analysis_result_id: int, defects: list[DetectedDefectDraft]) -> None:
+        self.saved_defects.append((analysis_result_id, defects))

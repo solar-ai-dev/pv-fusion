@@ -17,7 +17,7 @@ from app.domain.inference_result import InferenceResult
 from app.domain.model import ModelInfo
 from app.domain.worker_message import WorkerMessage
 from app.infrastructure.model.output_parser import ParsedDetection
-from app.infrastructure.visualization.overlay import draw_bbox_overlay
+from app.infrastructure.visualization.overlay import draw_bbox_overlay, draw_mask_overlay
 
 
 class ProcessingResult(BaseModel):
@@ -83,11 +83,20 @@ class AnalysisJobProcessor:
                 image_bytes,
                 inference_result,
             )
+            mask_bucket_name, mask_object_key = self._store_mask_overlay(
+                message.jobId,
+                message.inputType,
+                image_input.bucketName,
+                image_bytes,
+                inference_result,
+            )
             result_draft = self._to_result_draft(
                 message,
                 inference_result,
                 bbox_bucket_name=bbox_bucket_name,
                 bbox_object_key=bbox_object_key,
+                mask_bucket_name=mask_bucket_name,
+                mask_object_key=mask_object_key,
             )
             analysis_result_id = self._result_repository.save_result(result_draft)
             self._result_repository.save_defects(analysis_result_id, inference_result.defects)
@@ -159,6 +168,8 @@ class AnalysisJobProcessor:
         inference_result,
         bbox_bucket_name: str | None,
         bbox_object_key: str | None,
+        mask_bucket_name: str | None,
+        mask_object_key: str | None,
     ) -> AnalysisResultDraft:
         model_info = inference_result.modelInfo
         return AnalysisResultDraft(
@@ -179,8 +190,10 @@ class AnalysisJobProcessor:
             bboxBucketName=bbox_bucket_name,
             bboxObjectKey=bbox_object_key,
             bboxFileUrl=None,
+            maskBucketName=mask_bucket_name,
+            maskObjectKey=mask_object_key,
+            maskFileUrl=None,
             heatmapObjectKey=inference_result.visualizationPaths.heatmapObjectKey,
-            maskObjectKey=inference_result.visualizationPaths.maskObjectKey,
             analyzedAt=message.createdAt,
         )
 
@@ -206,6 +219,34 @@ class AnalysisJobProcessor:
 
     def _build_bbox_object_key(self, job_id: int) -> str:
         return f"analysis-results/{job_id}/bbox_overlay.png"
+
+    def _build_mask_object_key(self, job_id: int) -> str:
+        return f"analysis-results/{job_id}/mask_overlay.png"
+
+    def _store_mask_overlay(
+        self,
+        job_id: int,
+        input_type: InputType,
+        bucket_name: str,
+        image_bytes: bytes,
+        inference_result: InferenceResult,
+    ) -> tuple[str | None, str | None]:
+        if input_type is not InputType.RGB_SINGLE or not inference_result.restoredMasks:
+            return None, None
+
+        overlay_bytes = draw_mask_overlay(
+            image_bytes=image_bytes,
+            masks=inference_result.restoredMasks,
+            image_format="PNG",
+        )
+        object_key = self._build_mask_object_key(job_id)
+        stored_object_key = self._storage.write_object(
+            bucket_name,
+            object_key,
+            overlay_bytes,
+            "image/png",
+        )
+        return bucket_name, stored_object_key
 
     def _defects_to_detections(self, inference_result: InferenceResult) -> list[ParsedDetection]:
         detections: list[ParsedDetection] = []

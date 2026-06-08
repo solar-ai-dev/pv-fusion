@@ -106,7 +106,27 @@ def test_save_result_inserts_analysis_result_and_returns_id():
     assert params[16] == "UNCHECKED"
     assert params[17] == "images"
     assert params[18] == "analysis-results/1000/bbox_overlay.png"
+    assert params[23] is None
+    assert params[24] is None
     assert connection.committed is True
+
+
+def test_save_result_includes_mask_columns_when_present():
+    cursor = FakeCursor(fetchone_result={"id": 321})
+    connection = FakeConnection(cursor)
+    repository = PostgresResultRepository(lambda: connection)
+    result = build_result_draft().model_copy(
+        update={
+            "maskBucketName": "images",
+            "maskObjectKey": "analysis-results/1000/mask_overlay.png",
+        }
+    )
+
+    repository.save_result(result)
+
+    _, params = cursor.executed[0]
+    assert params[23] == "images"
+    assert params[24] == "analysis-results/1000/mask_overlay.png"
 
 
 def test_save_defects_inserts_each_defect():

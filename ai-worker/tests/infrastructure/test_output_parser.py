@@ -1,6 +1,6 @@
 from app.domain.enums import ModelType, RequestedModelType, ResultStatus
 from app.domain.model import ModelInfo
-from app.infrastructure.model.output_parser import extract_detections, parse_inference_output
+from app.infrastructure.model.output_parser import extract_detections, parse_inference_output, restore_rgb_instance_masks
 
 
 def build_model_info(model_type: ModelType, threshold: str = "0.50") -> ModelInfo:
@@ -72,3 +72,26 @@ def test_empty_detections_return_normal_result():
     assert result.resultStatus is ResultStatus.NORMAL
     assert result.anomalyCount == 0
     assert result.maxConfidence is None
+
+
+def test_restore_rgb_instance_masks_returns_mask_for_matching_coefficients():
+    output0 = [[[10, 20, 30, 50, 0.9, 1] + ([1.0] * 32)]]
+    output1 = [[[[1.0] * 192 for _ in range(192)] for _ in range(32)]]
+
+    restored_masks = restore_rgb_instance_masks([output0, output1], build_model_info(ModelType.RGB_ONLY))
+
+    assert len(restored_masks) == 1
+    assert len(restored_masks[0].data) == 192
+    assert len(restored_masks[0].data[0]) == 192
+    assert sum(sum(row) for row in restored_masks[0].data) > 0
+
+
+def test_restore_rgb_instance_masks_skips_when_coefficient_count_mismatches_prototype_channels():
+    output0 = [[[10, 20, 30, 50, 0.9, 1] + ([1.0] * 31)]]
+    output1 = [[[[1.0] * 192 for _ in range(192)] for _ in range(32)]]
+
+    restored_masks = restore_rgb_instance_masks([output0, output1], build_model_info(ModelType.RGB_ONLY))
+    result = parse_inference_output([output0, output1], build_model_info(ModelType.RGB_ONLY))
+
+    assert restored_masks == []
+    assert result.anomalyCount == 1
