@@ -1,0 +1,28 @@
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: test-google-client-id
+            client-secret: test-google-client-secret
+
+app:
+  auth:
+    oauth2:
+      success-redirect-url: /api/v1/auth/me
+      failure-redirect-url: /login?error=oauth
+
+storage:
+  provider: s3
+  presign-duration-seconds: 900
+  minio:
+    region: ap-northeast-2
+    path-style-access-enabled: true
+  s3:
+    region: ap-northeast-2
+    path-style-access-enabled: false
+
+queue:
+  sqs:
+    region: ap-northeast-2

@@ -28,7 +28,7 @@ class SqsAnalysisJobPublisherAdapterTest {
         SqsAnalysisJobPublisherAdapter adapter = new SqsAnalysisJobPublisherAdapter(
                 sqsClient,
                 new ObjectMapper().findAndRegisterModules(),
-                "http://localhost:4566/000000000000/analysis-jobs"
+                "http://localhost:4566/000000000000/analysis-job-queue"
         );
 
         adapter.publish(new AnalysisJobMessage(

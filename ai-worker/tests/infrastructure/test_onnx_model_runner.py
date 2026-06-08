@@ -68,8 +68,26 @@ def test_runner_routes_rgb_single_to_rgb_model(tmp_path: Path):
     model_path.write_bytes(b"fake")
     registry = ModelRegistry(
         build_settings(
-            rgbModelPath=str(model_path),
-            thermalModelPath=str(tmp_path / "thermal.onnx"),
+            rgbModelManifestPath=_write_manifest(
+                tmp_path / "rgb-manifest.yaml",
+                model_name="pv-rgb",
+                model_version="v1.0.0",
+                input_type="RGB_SINGLE",
+                model_type="RGB_ONLY",
+                input_size=640,
+                confidence_threshold="0.50",
+                model_path=str(model_path),
+            ),
+            thermalModelManifestPath=_write_manifest(
+                tmp_path / "thermal-manifest.yaml",
+                model_name="pv-thermal",
+                model_version="v1.0.0",
+                input_type="THERMAL_SINGLE",
+                model_type="THERMAL_ONLY",
+                input_size=512,
+                confidence_threshold="0.60",
+                model_path=str(tmp_path / "thermal.onnx"),
+            ),
         )
     )
     session = FakeSession(
@@ -114,8 +132,26 @@ def test_runner_routes_thermal_single_to_thermal_model(tmp_path: Path):
     thermal_path.write_bytes(b"fake")
     registry = ModelRegistry(
         build_settings(
-            rgbModelPath=str(tmp_path / "rgb.onnx"),
-            thermalModelPath=str(thermal_path),
+            rgbModelManifestPath=_write_manifest(
+                tmp_path / "rgb-manifest.yaml",
+                model_name="pv-rgb",
+                model_version="v1.0.0",
+                input_type="RGB_SINGLE",
+                model_type="RGB_ONLY",
+                input_size=640,
+                confidence_threshold="0.50",
+                model_path=str(tmp_path / "rgb.onnx"),
+            ),
+            thermalModelManifestPath=_write_manifest(
+                tmp_path / "thermal-manifest.yaml",
+                model_name="pv-thermal",
+                model_version="v1.0.0",
+                input_type="THERMAL_SINGLE",
+                model_type="THERMAL_ONLY",
+                input_size=512,
+                confidence_threshold="0.60",
+                model_path=str(thermal_path),
+            ),
         )
     )
     session = FakeSession([[[10, 20, 30, 50, 0.8, 1]]])
@@ -142,8 +178,26 @@ def test_runner_handles_rgb_outputs_with_bbox_and_mask_tensors(tmp_path: Path):
     model_path.write_bytes(b"fake")
     registry = ModelRegistry(
         build_settings(
-            rgbModelPath=str(model_path),
-            thermalModelPath=str(tmp_path / "thermal.onnx"),
+            rgbModelManifestPath=_write_manifest(
+                tmp_path / "rgb-manifest.yaml",
+                model_name="pv-rgb",
+                model_version="v1.0.0",
+                input_type="RGB_SINGLE",
+                model_type="RGB_ONLY",
+                input_size=640,
+                confidence_threshold="0.50",
+                model_path=str(model_path),
+            ),
+            thermalModelManifestPath=_write_manifest(
+                tmp_path / "thermal-manifest.yaml",
+                model_name="pv-thermal",
+                model_version="v1.0.0",
+                input_type="THERMAL_SINGLE",
+                model_type="THERMAL_ONLY",
+                input_size=512,
+                confidence_threshold="0.60",
+                model_path=str(tmp_path / "thermal.onnx"),
+            ),
         )
     )
     session = FakeSession(
@@ -170,8 +224,26 @@ def test_runner_rejects_pair_input(tmp_path: Path):
     model_path.write_bytes(b"fake")
     registry = ModelRegistry(
         build_settings(
-            rgbModelPath=str(model_path),
-            thermalModelPath=str(tmp_path / "thermal.onnx"),
+            rgbModelManifestPath=_write_manifest(
+                tmp_path / "rgb-manifest.yaml",
+                model_name="pv-rgb",
+                model_version="v1.0.0",
+                input_type="RGB_SINGLE",
+                model_type="RGB_ONLY",
+                input_size=640,
+                confidence_threshold="0.50",
+                model_path=str(model_path),
+            ),
+            thermalModelManifestPath=_write_manifest(
+                tmp_path / "thermal-manifest.yaml",
+                model_name="pv-thermal",
+                model_version="v1.0.0",
+                input_type="THERMAL_SINGLE",
+                model_type="THERMAL_ONLY",
+                input_size=512,
+                confidence_threshold="0.60",
+                model_path=str(tmp_path / "thermal.onnx"),
+            ),
         )
     )
     provider = OnnxSessionProvider(session_factory=lambda _: FakeSession({}))
@@ -200,16 +272,46 @@ def build_settings(**overrides):
     from app.config.settings import Settings
 
     payload = {
-        "rgbModelPath": "models/rgb.onnx",
-        "rgbModelName": "pv-rgb",
-        "rgbModelVersion": "v1.0.0",
-        "rgbModelInputSize": 640,
-        "rgbModelConfidenceThreshold": "0.50",
-        "thermalModelPath": "models/thermal.onnx",
-        "thermalModelName": "pv-thermal",
-        "thermalModelVersion": "v1.0.0",
-        "thermalModelInputSize": 512,
-        "thermalModelConfidenceThreshold": "0.60",
+        "rgbModelManifestPath": "models/rgb/model-manifest.dev.yaml",
+        "thermalModelManifestPath": "models/thermal/model-manifest.dev.yaml",
     }
     payload.update(overrides)
     return Settings(**payload)
+
+
+def _write_manifest(
+    path: Path,
+    *,
+    model_name: str,
+    model_version: str,
+    input_type: str,
+    model_type: str,
+    input_size: int,
+    confidence_threshold: str,
+    model_path: str,
+) -> str:
+    path.write_text(
+        "\n".join(
+            [
+                "models:",
+                f"  - model_name: {model_name}",
+                f"    model_version: {model_version}",
+                "    model_status: DEV_ONLY",
+                f"    input_type: {input_type}",
+                f"    model_type: {model_type}",
+                "    task: detection",
+                "    format: ONNX",
+                "    precision: FP32",
+                "    runtime: ONNX_RUNTIME",
+                f"    input_size: {input_size}",
+                f"    confidence_threshold: {confidence_threshold}",
+                "    nms_iou_threshold: 0.70",
+                f"    model_path: {model_path}",
+                "    class_names:",
+                "      - HOTSPOT",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return str(path)

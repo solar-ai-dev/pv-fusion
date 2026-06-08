@@ -18,7 +18,7 @@ class FakeSqsClient:
 
 def build_settings(**overrides) -> Settings:
     payload = {
-        "sqsQueueUrl": "http://localhost:4566/000000000000/pv-analysis-queue",
+        "sqsQueueUrl": "http://localhost:4566/000000000000/analysis-job-queue",
         "sqsWaitTimeSeconds": 10,
         "sqsVisibilityTimeoutSeconds": 30,
         "awsRegion": "ap-northeast-2",
@@ -67,7 +67,7 @@ def test_delete_message_passes_queue_url_and_receipt_handle():
 
     assert client.delete_calls == [
         {
-            "QueueUrl": "http://localhost:4566/000000000000/pv-analysis-queue",
+            "QueueUrl": "http://localhost:4566/000000000000/analysis-job-queue",
             "ReceiptHandle": "receipt-1",
         }
     ]

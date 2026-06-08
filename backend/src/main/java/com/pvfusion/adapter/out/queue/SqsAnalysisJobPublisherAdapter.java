@@ -33,7 +33,7 @@ public class SqsAnalysisJobPublisherAdapter implements PublishAnalysisJobPort {
             @Value("${queue.sqs.endpoint:}") String endpoint,
             @Value("${queue.sqs.access-key:}") String accessKey,
             @Value("${queue.sqs.secret-key:}") String secretKey,
-            @Value("${queue.sqs.region:${AWS_REGION:ap-northeast-2}}") String region,
+            @Value("${queue.sqs.region}") String region,
             @Value("${queue.sqs.queue-url:}") String queueUrl
     ) {
         this.objectMapper = objectMapper;

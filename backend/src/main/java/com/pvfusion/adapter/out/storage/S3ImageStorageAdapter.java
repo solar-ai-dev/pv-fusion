@@ -40,20 +40,20 @@ public class S3ImageStorageAdapter implements StoreImageFilePort, GenerateImageA
 
     @Autowired
     public S3ImageStorageAdapter(
-            @Value("${storage.provider:minio}") String provider,
+            @Value("${storage.provider}") String provider,
             @Value("${storage.minio.endpoint:}") String minioEndpoint,
             @Value("${storage.minio.access-key:}") String minioAccessKey,
             @Value("${storage.minio.secret-key:}") String minioSecretKey,
             @Value("${storage.minio.bucket-name:}") String minioBucketName,
-            @Value("${storage.minio.region:ap-northeast-2}") String minioRegion,
-            @Value("${storage.minio.path-style-access-enabled:true}") boolean minioPathStyleAccessEnabled,
+            @Value("${storage.minio.region}") String minioRegion,
+            @Value("${storage.minio.path-style-access-enabled}") boolean minioPathStyleAccessEnabled,
             @Value("${storage.s3.endpoint:}") String s3Endpoint,
             @Value("${storage.s3.access-key:}") String s3AccessKey,
             @Value("${storage.s3.secret-key:}") String s3SecretKey,
             @Value("${storage.s3.bucket-name:}") String s3BucketName,
-            @Value("${storage.s3.region:${AWS_REGION:ap-northeast-2}}") String s3Region,
-            @Value("${storage.s3.path-style-access-enabled:false}") boolean s3PathStyleAccessEnabled,
-            @Value("${storage.presign-duration-seconds:900}") long presignDurationSeconds
+            @Value("${storage.s3.region}") String s3Region,
+            @Value("${storage.s3.path-style-access-enabled}") boolean s3PathStyleAccessEnabled,
+            @Value("${storage.presign-duration-seconds}") long presignDurationSeconds
     ) {
         boolean minio = "minio".equalsIgnoreCase(provider);
         String endpoint = minio ? minioEndpoint : s3Endpoint;
