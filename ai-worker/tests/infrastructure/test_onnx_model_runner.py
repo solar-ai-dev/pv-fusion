@@ -118,7 +118,7 @@ def test_runner_routes_thermal_single_to_thermal_model(tmp_path: Path):
             thermalModelPath=str(thermal_path),
         )
     )
-    session = FakeSession({"resultStatus": "NORMAL", "anomalyCount": 0, "actionCandidate": "CLEANING"})
+    session = FakeSession([[[10, 20, 30, 50, 0.8, 1]]])
     provider = OnnxSessionProvider(session_factory=lambda _: session)
     runner = OnnxModelRunner(
         registry,
@@ -134,6 +134,35 @@ def test_runner_routes_thermal_single_to_thermal_model(tmp_path: Path):
 
     assert result.modelInfo.modelType is ModelType.THERMAL_ONLY
     assert result.modelInfo.modelName == "pv-thermal"
+    assert result.anomalyCount == 1
+
+
+def test_runner_handles_rgb_outputs_with_bbox_and_mask_tensors(tmp_path: Path):
+    model_path = tmp_path / "rgb.onnx"
+    model_path.write_bytes(b"fake")
+    registry = ModelRegistry(
+        build_settings(
+            rgbModelPath=str(model_path),
+            thermalModelPath=str(tmp_path / "thermal.onnx"),
+        )
+    )
+    session = FakeSession(
+        [
+            [[10, 20, 30, 50, 0.9, 1] + ([0] * 32)],
+            [[0]],
+        ]
+    )
+    provider = OnnxSessionProvider(session_factory=lambda _: session)
+    runner = OnnxModelRunner(
+        registry,
+        provider,
+        preprocess=lambda image_bytes, input_size: ("tensor", image_bytes, input_size),
+    )
+
+    result = runner.run(build_single_image("RGB"), build_placeholder_model(RequestedModelType.RGB_ONLY), b"img")
+
+    assert result.modelInfo.modelType is ModelType.RGB_ONLY
+    assert result.anomalyCount == 1
 
 
 def test_runner_rejects_pair_input(tmp_path: Path):
