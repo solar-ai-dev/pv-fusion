@@ -1,3 +1,4 @@
+from decimal import Decimal
 from functools import lru_cache
 
 from pydantic import Field
@@ -22,6 +23,21 @@ class Settings(BaseSettings):
     sqsEndpointUrl: str | None = Field(default=None, validation_alias="SQS_ENDPOINT_URL")
     sqsWaitTimeSeconds: int = Field(default=5, validation_alias="SQS_WAIT_TIME_SECONDS")
     sqsVisibilityTimeoutSeconds: int | None = Field(default=None, validation_alias="SQS_VISIBILITY_TIMEOUT_SECONDS")
+    storageEndpointUrl: str | None = Field(default=None, validation_alias="STORAGE_ENDPOINT_URL")
+    storageRegion: str | None = Field(default=None, validation_alias="STORAGE_REGION")
+    storageAccessKey: str | None = Field(default=None, validation_alias="STORAGE_ACCESS_KEY")
+    storageSecretKey: str | None = Field(default=None, validation_alias="STORAGE_SECRET_KEY")
+    storageDefaultBucket: str | None = Field(default=None, validation_alias="STORAGE_DEFAULT_BUCKET")
+    rgbModelPath: str = Field(default="", validation_alias="RGB_MODEL_PATH")
+    rgbModelName: str = Field(default="pv-rgb", validation_alias="RGB_MODEL_NAME")
+    rgbModelVersion: str = Field(default="v0.0.0", validation_alias="RGB_MODEL_VERSION")
+    rgbModelInputSize: int = Field(default=640, validation_alias="RGB_MODEL_INPUT_SIZE")
+    rgbModelConfidenceThreshold: Decimal = Field(default=Decimal("0.50"), validation_alias="RGB_MODEL_CONFIDENCE_THRESHOLD")
+    thermalModelPath: str = Field(default="", validation_alias="THERMAL_MODEL_PATH")
+    thermalModelName: str = Field(default="pv-thermal", validation_alias="THERMAL_MODEL_NAME")
+    thermalModelVersion: str = Field(default="v0.0.0", validation_alias="THERMAL_MODEL_VERSION")
+    thermalModelInputSize: int = Field(default=640, validation_alias="THERMAL_MODEL_INPUT_SIZE")
+    thermalModelConfidenceThreshold: Decimal = Field(default=Decimal("0.50"), validation_alias="THERMAL_MODEL_CONFIDENCE_THRESHOLD")
 
 
 @lru_cache
