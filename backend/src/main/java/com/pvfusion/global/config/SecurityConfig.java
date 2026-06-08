@@ -1,6 +1,8 @@
 package com.pvfusion.global.config;
 
 import com.pvfusion.adapter.out.auth.OAuth2LoginUserService;
+import java.util.Arrays;
+import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -12,6 +14,9 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 public class SecurityConfig {
@@ -24,9 +29,11 @@ public class SecurityConfig {
             HttpSecurity http,
             ObjectProvider<ClientRegistrationRepository> clientRegistrationRepositoryProvider,
             OAuth2LoginUserService oAuth2LoginUserService,
-            @Value("${app.auth.oauth2.success-redirect-url:/api/v1/auth/me}") String successRedirectUrl
+            @Value("${app.auth.oauth2.success-redirect-url:/api/v1/auth/me}") String successRedirectUrl,
+            @Value("${app.auth.oauth2.failure-redirect-url:/login?error=oauth}") String failureRedirectUrl
     ) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable);
+        http.cors(Customizer.withDefaults());
         http.authorizeHttpRequests(authorize -> authorize
                 .requestMatchers("/actuator/health", "/error").permitAll()
                 .requestMatchers(
@@ -54,6 +61,7 @@ public class SecurityConfig {
                             .userService(oAuth2LoginUserService::loadOAuth2User)
                             .oidcUserService(oAuth2LoginUserService::loadOidcUser)
                     )
+                    .failureUrl(failureRedirectUrl)
                     .defaultSuccessUrl(successRedirectUrl, true)
             );
         } else {
@@ -61,5 +69,27 @@ public class SecurityConfig {
         }
 
         return http.build();
+    }
+
+    @Bean
+    CorsConfigurationSource corsConfigurationSource(
+            @Value("${app.cors.allowed-origins:}") String allowedOriginsProperty
+    ) {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(
+                Arrays.stream(allowedOriginsProperty.split(","))
+                        .map(String::trim)
+                        .filter(origin -> !origin.isEmpty())
+                        .toList()
+        );
+        configuration.setAllowCredentials(true);
+        configuration.setAllowedMethods(List.of("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-Requested-With", "Accept"));
+        configuration.setExposedHeaders(List.of("Location"));
+        configuration.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 }

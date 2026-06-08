@@ -19,6 +19,7 @@ public interface InspectionJpaRepository extends JpaRepository<InspectionJpaEnti
                       AND (:inspectionStatus IS NULL OR i.inspection_status = :inspectionStatus)
                       AND (:fromDate IS NULL OR CAST(i.captured_at AS date) >= :fromDate)
                       AND (:toDate IS NULL OR CAST(i.captured_at AS date) <= :toDate)
+                    ORDER BY i.created_at DESC, i.id DESC
                     """,
             countQuery = """
                     SELECT COUNT(*)

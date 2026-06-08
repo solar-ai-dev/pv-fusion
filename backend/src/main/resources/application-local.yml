@@ -40,9 +40,14 @@ spring:
             user-name-attribute: sub
 
 app:
+  frontend:
+    base-url: http://localhost:5173
+  cors:
+    allowed-origins: http://localhost:5173,http://localhost:5174,http://localhost:5175
   auth:
     oauth2:
-      success-redirect-url: ${OAUTH2_SUCCESS_REDIRECT_URL:/api/v1/auth/me}
+      success-redirect-url: ${OAUTH2_SUCCESS_REDIRECT_URL:${app.frontend.base-url}/dashboard}
+      failure-redirect-url: ${OAUTH2_FAILURE_REDIRECT_URL:${app.frontend.base-url}/login?error=oauth}
 
 logging:
   level:
