@@ -49,8 +49,16 @@ Thumbs.db
 **/*.mlflow
 
 # AI worker model and temp directories
-ai-worker/models/*
+ai-worker/models/**
+!ai-worker/models/
 !ai-worker/models/.gitkeep
+!ai-worker/models/README.md
+ai-worker/models/**/*.onnx
+ai-worker/models/**/*.pt
+ai-worker/models/**/*.engine
+ai-worker/models/**/*.torchscript
+ai-worker/models/**/model-manifest*.yaml
+ai-worker/models/*/README.md
 ai-worker/tmp/*
 !ai-worker/tmp/.gitkeep
 

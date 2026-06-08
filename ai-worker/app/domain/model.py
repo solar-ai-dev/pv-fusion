@@ -8,6 +8,7 @@ from app.domain.enums import ModelType, RequestedModelType
 class ModelInfo(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    modelPath: str
     modelType: ModelType
     requestedModelType: RequestedModelType
     modelName: str

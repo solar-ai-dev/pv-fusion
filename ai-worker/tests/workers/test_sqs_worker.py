@@ -134,3 +134,31 @@ def test_invalid_worker_message_is_not_deleted():
     assert result.failureCode == "INVALID_WORKER_MESSAGE"
     assert queue.deleted_receipts == []
     assert processor.messages == []
+
+
+def test_rgb_thermal_pair_message_is_passed_to_processor_and_deleted_when_skipped():
+    queue = FakeQueuePort(
+        [
+            build_queue_message(
+                build_valid_body(
+                    inputType="RGB_THERMAL_PAIR",
+                    imageId=None,
+                    imagePairId=301,
+                    requestedModelType="FUSION_AUTO",
+                )
+            )
+        ]
+    )
+    processor = FakeProcessor(
+        ProcessingResult(status="skipped", jobId=1000, message="skip")
+    )
+    runner = SqsWorkerRunner(queue, processor)
+
+    result = runner.handle_message(queue.messages[0])
+
+    assert result.status == "skipped"
+    assert len(processor.messages) == 1
+    assert processor.messages[0].inputType.value == "RGB_THERMAL_PAIR"
+    assert processor.messages[0].imageId is None
+    assert processor.messages[0].imagePairId == 301
+    assert queue.deleted_receipts == ["receipt-1"]

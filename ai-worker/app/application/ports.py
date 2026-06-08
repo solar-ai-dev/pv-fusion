@@ -49,7 +49,12 @@ class StoragePort(Protocol):
 
 
 class ModelRunnerPort(Protocol):
-    def run(self, input_data: SingleImageInput | PairedImageInput, model_info: ModelInfo) -> InferenceResult:
+    def run(
+        self,
+        input_data: SingleImageInput | PairedImageInput,
+        model_info: ModelInfo,
+        image_bytes: bytes,
+    ) -> InferenceResult:
         """Run inference for a single or paired image input."""
 
 
