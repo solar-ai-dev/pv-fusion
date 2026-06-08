@@ -101,15 +101,26 @@ class FakeModelRunner:
 
 
 class FakeStorage:
-    def __init__(self, payload: bytes = b"fake-image-bytes"):
-        self.payload = payload
+    def __init__(self, payload: bytes | None = None, write_error: Exception | None = None):
+        self.payload = payload or (
+            b"\x89PNG\r\n\x1a\n"
+            b"\x00\x00\x00\rIHDR"
+            b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00"
+            b"\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfeA\x0f\xb1\x8b"
+            b"\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        self.write_error = write_error
         self.calls: list[tuple[str, str]] = []
+        self.write_calls: list[tuple[str, str, bytes, str]] = []
 
     def read_object(self, bucket_name: str, object_key: str) -> bytes:
         self.calls.append((bucket_name, object_key))
         return self.payload
 
     def write_object(self, bucket_name: str, object_key: str, data: bytes, content_type: str) -> str:
+        if self.write_error:
+            raise self.write_error
+        self.write_calls.append((bucket_name, object_key, data, content_type))
         return object_key
 
 
@@ -236,9 +247,15 @@ def test_processes_queued_rgb_single_job():
     assert job_repository.succeeded_ids == [1000]
     assert not job_repository.failed_calls
     assert storage.calls == [("images", "originals/201.jpg")]
+    assert storage.write_calls[0][0] == "images"
+    assert storage.write_calls[0][1] == "analysis-results/1000/bbox_overlay.png"
+    assert storage.write_calls[0][3] == "image/png"
     assert len(result_repository.saved_results) == 1
+    assert result_repository.saved_results[0].bboxBucketName == "images"
+    assert result_repository.saved_results[0].bboxObjectKey == "analysis-results/1000/bbox_overlay.png"
+    assert result_repository.saved_results[0].bboxFileUrl is None
     assert result_repository.saved_defects[0][0] == 999
-    assert model_runner.calls[0][2] == b"fake-image-bytes"
+    assert model_runner.calls[0][2].startswith(b"\x89PNG")
 
 
 def test_processes_queued_thermal_single_job():
@@ -404,6 +421,7 @@ def test_marks_failed_when_result_save_raises():
 
     assert result.status == "failed"
     assert job_repository.failed_calls[0][1] == "UNKNOWN_WORKER_ERROR"
+    assert len(processor._storage.write_calls) == 1
 
 
 def test_marks_failed_when_defect_save_raises():
@@ -420,6 +438,63 @@ def test_marks_failed_when_defect_save_raises():
 
     assert result.status == "failed"
     assert job_repository.failed_calls[0][1] == "UNKNOWN_WORKER_ERROR"
+
+
+def test_marks_failed_when_storage_write_raises():
+    job_repository = FakeJobRepository(build_job(JobStatus.QUEUED))
+    processor = AnalysisJobProcessor(
+        job_repository,
+        FakeImageMetadata(single_image=build_single_image()),
+        FakeStorage(write_error=RuntimeError("storage failed")),
+        FakeModelRunner(),
+        FakeResultRepository(),
+    )
+
+    result = processor.process(build_message())
+
+    assert result.status == "failed"
+    assert job_repository.failed_calls[0][1] == "UNKNOWN_WORKER_ERROR"
+
+
+def test_saves_normal_result_even_when_defects_are_empty():
+    normal_result = InferenceResult(
+        modelInfo=ModelInfo(
+            modelPath="models/thermal.onnx",
+            modelType=ModelType.THERMAL_ONLY,
+            requestedModelType=RequestedModelType.THERMAL_ONLY,
+            modelName="pv-thermal",
+            modelVersion="v1.0.0",
+            modelFormat="onnx",
+            runtime="onnxruntime",
+            inputSize=640,
+            threshold="0.5",
+        ),
+        resultStatus=ResultStatus.NORMAL,
+        anomalyCount=0,
+        maxConfidence=None,
+        areaRatio=None,
+        severityScore=None,
+        actionCandidate=ActionCandidate.CLEANING,
+        defects=[],
+        visualizationPaths=VisualizationPaths(),
+    )
+    job_repository = FakeJobRepository(build_job(JobStatus.QUEUED))
+    result_repository = FakeResultRepository()
+    processor = AnalysisJobProcessor(
+        job_repository,
+        FakeImageMetadata(single_image=build_single_image()),
+        FakeStorage(),
+        FakeModelRunner(result=normal_result),
+        result_repository,
+    )
+
+    result = processor.process(build_message())
+
+    assert result.status == "processed"
+    assert len(result_repository.saved_results) == 1
+    assert result_repository.saved_results[0].resultStatus is ResultStatus.NORMAL
+    assert result_repository.saved_results[0].anomalyCount == 0
+    assert result_repository.saved_defects == [(999, [])]
 
 
 def test_returns_skipped_when_mark_running_transition_fails():

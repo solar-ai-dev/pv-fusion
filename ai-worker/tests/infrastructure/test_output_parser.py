@@ -49,7 +49,7 @@ def test_thermal_output_uses_none_class_name_and_fallback_defect_type():
     result = parse_inference_output([[[10, 20, 30, 50, 0.9, 99]]], build_model_info(ModelType.THERMAL_ONLY))
 
     assert detections[0].class_name is None
-    assert result.defects[0].defectType == "CLASS_99"
+    assert result.defects[0].defectType == "THERMAL_CLASS_99"
 
 
 def test_rgb_output_with_two_tensors_does_not_crash_and_ignores_mask_proto():

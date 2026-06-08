@@ -13,8 +13,11 @@ from app.application.ports import (
 )
 from app.domain.analysis_result import AnalysisResultDraft
 from app.domain.enums import InputType, JobStatus, ModelType
+from app.domain.inference_result import InferenceResult
 from app.domain.model import ModelInfo
 from app.domain.worker_message import WorkerMessage
+from app.infrastructure.model.output_parser import ParsedDetection
+from app.infrastructure.visualization.overlay import draw_bbox_overlay
 
 
 class ProcessingResult(BaseModel):
@@ -74,7 +77,18 @@ class AnalysisJobProcessor:
             model_info = self._build_model_info(message)
             image_bytes = self._load_image_bytes(message, image_input)
             inference_result = self._model_runner.run(image_input, model_info, image_bytes)
-            result_draft = self._to_result_draft(message, inference_result)
+            bbox_bucket_name, bbox_object_key = self._store_bbox_overlay(
+                message.jobId,
+                image_input.bucketName,
+                image_bytes,
+                inference_result,
+            )
+            result_draft = self._to_result_draft(
+                message,
+                inference_result,
+                bbox_bucket_name=bbox_bucket_name,
+                bbox_object_key=bbox_object_key,
+            )
             analysis_result_id = self._result_repository.save_result(result_draft)
             self._result_repository.save_defects(analysis_result_id, inference_result.defects)
             self._job_repository.mark_succeeded(message.jobId)
@@ -118,7 +132,34 @@ class AnalysisJobProcessor:
             )
         return self._storage.read_object(image_input.bucketName, image_input.objectKey)
 
-    def _to_result_draft(self, message: WorkerMessage, inference_result) -> AnalysisResultDraft:
+    def _store_bbox_overlay(
+        self,
+        job_id: int,
+        bucket_name: str,
+        image_bytes: bytes,
+        inference_result: InferenceResult,
+    ) -> tuple[str, str]:
+        overlay_bytes = draw_bbox_overlay(
+            image_bytes=image_bytes,
+            detections=self._defects_to_detections(inference_result),
+            image_format="PNG",
+        )
+        object_key = self._build_bbox_object_key(job_id)
+        stored_object_key = self._storage.write_object(
+            bucket_name,
+            object_key,
+            overlay_bytes,
+            "image/png",
+        )
+        return bucket_name, stored_object_key
+
+    def _to_result_draft(
+        self,
+        message: WorkerMessage,
+        inference_result,
+        bbox_bucket_name: str | None,
+        bbox_object_key: str | None,
+    ) -> AnalysisResultDraft:
         model_info = inference_result.modelInfo
         return AnalysisResultDraft(
             analysisJobId=message.jobId,
@@ -135,7 +176,9 @@ class AnalysisJobProcessor:
             areaRatio=inference_result.areaRatio,
             severityScore=inference_result.severityScore,
             actionCandidate=inference_result.actionCandidate,
-            bboxObjectKey=inference_result.visualizationPaths.bboxObjectKey,
+            bboxBucketName=bbox_bucket_name,
+            bboxObjectKey=bbox_object_key,
+            bboxFileUrl=None,
             heatmapObjectKey=inference_result.visualizationPaths.heatmapObjectKey,
             maskObjectKey=inference_result.visualizationPaths.maskObjectKey,
             analyzedAt=message.createdAt,
@@ -160,6 +203,28 @@ class AnalysisJobProcessor:
             failureCode=failure_code,
             failureMessage=failure_message,
         )
+
+    def _build_bbox_object_key(self, job_id: int) -> str:
+        return f"analysis-results/{job_id}/bbox_overlay.png"
+
+    def _defects_to_detections(self, inference_result: InferenceResult) -> list[ParsedDetection]:
+        detections: list[ParsedDetection] = []
+        for defect in inference_result.defects:
+            if defect.bboxX is None or defect.bboxY is None or defect.bboxWidth is None or defect.bboxHeight is None:
+                continue
+            detections.append(
+                ParsedDetection(
+                    class_id=-1,
+                    class_name=defect.defectType,
+                    confidence=defect.confidence or Decimal("0"),
+                    bbox_x=float(defect.bboxX),
+                    bbox_y=float(defect.bboxY),
+                    bbox_width=float(defect.bboxWidth),
+                    bbox_height=float(defect.bboxHeight),
+                    source=defect.defectSource,
+                )
+            )
+        return detections
 
 
 class ProcessingError(Exception):

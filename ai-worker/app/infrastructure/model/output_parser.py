@@ -79,7 +79,7 @@ def detections_to_defects(detections: list[ParsedDetection]) -> list[DetectedDef
     for detection in detections:
         defects.append(
             DetectedDefectDraft(
-                defectType=detection.class_name or f"CLASS_{detection.class_id}",
+                defectType=detection.class_name or _fallback_defect_type(detection),
                 defectSource=detection.source,
                 confidence=detection.confidence,
                 areaRatio=None,
@@ -200,3 +200,11 @@ def _max_confidence(detections: list[ParsedDetection]) -> Decimal | None:
     if not detections:
         return None
     return max(detection.confidence for detection in detections)
+
+
+def _fallback_defect_type(detection: ParsedDetection) -> str:
+    if detection.source == "THERMAL":
+        return f"THERMAL_CLASS_{detection.class_id}"
+    if detection.source == "RGB":
+        return f"RGB_CLASS_{detection.class_id}"
+    return f"CLASS_{detection.class_id}"
