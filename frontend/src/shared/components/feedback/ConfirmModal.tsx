@@ -15,7 +15,7 @@ type ConfirmModalProps = {
 export function ConfirmModal({
   isOpen = false,
   title = '확인이 필요합니다.',
-  description = '현재 단계에서 사용하는 기본 확인 모달입니다.',
+  description = '현재 단계에서 사용자 확인이 필요한 작업입니다.',
   confirmText = '확인',
   cancelText = '취소',
   isConfirming = false,
