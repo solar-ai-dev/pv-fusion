@@ -29,8 +29,8 @@ public class SecurityConfig {
             HttpSecurity http,
             ObjectProvider<ClientRegistrationRepository> clientRegistrationRepositoryProvider,
             OAuth2LoginUserService oAuth2LoginUserService,
-            @Value("${app.auth.oauth2.success-redirect-url:/api/v1/auth/me}") String successRedirectUrl,
-            @Value("${app.auth.oauth2.failure-redirect-url:/login?error=oauth}") String failureRedirectUrl
+            @Value("${app.auth.oauth2.success-redirect-url}") String successRedirectUrl,
+            @Value("${app.auth.oauth2.failure-redirect-url}") String failureRedirectUrl
     ) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable);
         http.cors(Customizer.withDefaults());

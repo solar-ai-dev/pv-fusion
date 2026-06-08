@@ -21,6 +21,8 @@ from app.infrastructure.visualization.overlay import draw_bbox_overlay, draw_mas
 AI_WORKER_ROOT = Path(__file__).resolve().parents[2]
 RGB_MODEL_PATH = AI_WORKER_ROOT / "models" / "rgb" / "rgb-only-yolo26s-seg-768-e10-dev.onnx"
 THERMAL_MODEL_PATH = AI_WORKER_ROOT / "models" / "thermal" / "thermal-only-yolo26n-det-dev-untrained-640.onnx"
+RGB_MANIFEST_PATH = AI_WORKER_ROOT / "models" / "rgb" / "model-manifest.dev.yaml"
+THERMAL_MANIFEST_PATH = AI_WORKER_ROOT / "models" / "thermal" / "model-manifest.dev.yaml"
 
 
 def test_rgb_onnx_runtime_smoke():
@@ -78,16 +80,8 @@ def test_onnx_model_runner_smoke_for_rgb():
     _skip_if_missing(RGB_MODEL_PATH)
 
     settings = _build_settings(
-        rgbModelPath=_relative_model_path(RGB_MODEL_PATH),
-        rgbModelName="rgb-only-yolo26s-seg-768-e10-dev",
-        rgbModelVersion="dev-e10",
-        rgbModelInputSize=768,
-        rgbModelConfidenceThreshold="0.25",
-        thermalModelPath=_relative_model_path(THERMAL_MODEL_PATH),
-        thermalModelName="thermal-only-yolo26n-det-dev-untrained",
-        thermalModelVersion="dev-untrained-001",
-        thermalModelInputSize=640,
-        thermalModelConfidenceThreshold="0.25",
+        rgbModelManifestPath=_relative_model_path(RGB_MANIFEST_PATH),
+        thermalModelManifestPath=_relative_model_path(THERMAL_MANIFEST_PATH),
     )
     runner = OnnxModelRunner(
         ModelRegistry(settings),
@@ -113,16 +107,8 @@ def test_onnx_model_runner_smoke_for_thermal():
     _skip_if_missing(THERMAL_MODEL_PATH)
 
     settings = _build_settings(
-        rgbModelPath=_relative_model_path(RGB_MODEL_PATH),
-        rgbModelName="rgb-only-yolo26s-seg-768-e10-dev",
-        rgbModelVersion="dev-e10",
-        rgbModelInputSize=768,
-        rgbModelConfidenceThreshold="0.25",
-        thermalModelPath=_relative_model_path(THERMAL_MODEL_PATH),
-        thermalModelName="thermal-only-yolo26n-det-dev-untrained",
-        thermalModelVersion="dev-untrained-001",
-        thermalModelInputSize=640,
-        thermalModelConfidenceThreshold="0.25",
+        rgbModelManifestPath=_relative_model_path(RGB_MANIFEST_PATH),
+        thermalModelManifestPath=_relative_model_path(THERMAL_MANIFEST_PATH),
     )
     runner = OnnxModelRunner(
         ModelRegistry(settings),
@@ -146,11 +132,7 @@ def test_rgb_runtime_output_parser_smoke():
     np = pytest.importorskip("numpy")
     raw_output = _run_rgb_runtime_output(np.zeros((1, 3, 768, 768), dtype=np.float32))
     model_info = _build_settings(
-        rgbModelPath=_relative_model_path(RGB_MODEL_PATH),
-        rgbModelName="rgb-only-yolo26s-seg-768-e10-dev",
-        rgbModelVersion="dev-e10",
-        rgbModelInputSize=768,
-        rgbModelConfidenceThreshold="0.00",
+        rgbModelManifestPath=_relative_model_path(RGB_MANIFEST_PATH),
     )
     parsed = parse_inference_output(
         raw_output,
@@ -177,11 +159,7 @@ def test_rgb_runtime_output_overlay_smoke():
     raw_output = _run_rgb_runtime_output(np.zeros((1, 3, 768, 768), dtype=np.float32))
     model_info = ModelRegistry(
         _build_settings(
-            rgbModelPath=_relative_model_path(RGB_MODEL_PATH),
-            rgbModelName="rgb-only-yolo26s-seg-768-e10-dev",
-            rgbModelVersion="dev-e10",
-            rgbModelInputSize=768,
-            rgbModelConfidenceThreshold="0.00",
+            rgbModelManifestPath=_relative_model_path(RGB_MANIFEST_PATH),
         )
     ).resolve(InputType.RGB_SINGLE, RequestedModelType.RGB_ONLY)
     parsed = parse_inference_output(raw_output, model_info)
@@ -213,16 +191,8 @@ def test_rgb_processor_smoke_with_actual_runtime_output():
         OnnxModelRunner(
             ModelRegistry(
                 _build_settings(
-                    rgbModelPath=_relative_model_path(RGB_MODEL_PATH),
-                    rgbModelName="rgb-only-yolo26s-seg-768-e10-dev",
-                    rgbModelVersion="dev-e10",
-                    rgbModelInputSize=768,
-                    rgbModelConfidenceThreshold="0.00",
-                    thermalModelPath=_relative_model_path(THERMAL_MODEL_PATH),
-                    thermalModelName="thermal-only-yolo26n-det-dev-untrained",
-                    thermalModelVersion="dev-untrained-001",
-                    thermalModelInputSize=640,
-                    thermalModelConfidenceThreshold="0.25",
+                    rgbModelManifestPath=_relative_model_path(RGB_MANIFEST_PATH),
+                    thermalModelManifestPath=_relative_model_path(THERMAL_MANIFEST_PATH),
                 )
             ),
             OnnxSessionProvider(),
@@ -274,16 +244,8 @@ def test_thermal_processor_smoke_keeps_mask_fields_null():
         OnnxModelRunner(
             ModelRegistry(
                 _build_settings(
-                    rgbModelPath=_relative_model_path(RGB_MODEL_PATH),
-                    rgbModelName="rgb-only-yolo26s-seg-768-e10-dev",
-                    rgbModelVersion="dev-e10",
-                    rgbModelInputSize=768,
-                    rgbModelConfidenceThreshold="0.00",
-                    thermalModelPath=_relative_model_path(THERMAL_MODEL_PATH),
-                    thermalModelName="thermal-only-yolo26n-det-dev-untrained",
-                    thermalModelVersion="dev-untrained-001",
-                    thermalModelInputSize=640,
-                    thermalModelConfidenceThreshold="0.00",
+                    rgbModelManifestPath=_relative_model_path(RGB_MANIFEST_PATH),
+                    thermalModelManifestPath=_relative_model_path(THERMAL_MANIFEST_PATH),
                 )
             ),
             OnnxSessionProvider(),
@@ -303,16 +265,8 @@ def test_thermal_processor_smoke_keeps_mask_fields_null():
 
 def _build_settings(**overrides) -> Settings:
     payload = {
-        "rgbModelPath": "",
-        "rgbModelName": "pv-rgb",
-        "rgbModelVersion": "v0.0.0",
-        "rgbModelInputSize": 640,
-        "rgbModelConfidenceThreshold": "0.50",
-        "thermalModelPath": "",
-        "thermalModelName": "pv-thermal",
-        "thermalModelVersion": "v0.0.0",
-        "thermalModelInputSize": 640,
-        "thermalModelConfidenceThreshold": "0.50",
+        "rgbModelManifestPath": _relative_model_path(RGB_MANIFEST_PATH),
+        "thermalModelManifestPath": _relative_model_path(THERMAL_MANIFEST_PATH),
     }
     payload.update(overrides)
     return Settings(**payload)
