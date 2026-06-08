@@ -88,15 +88,23 @@ class FakeImageMetadata:
 
 
 class FakeModelRunner:
-    def __init__(self, result: InferenceResult | None = None, error: Exception | None = None):
+    def __init__(
+        self,
+        result: InferenceResult | None = None,
+        error: Exception | None = None,
+        results: list[InferenceResult] | None = None,
+    ):
         self.result = result or build_inference_result()
         self.error = error
+        self.results = list(results or [])
         self.calls: list[tuple[object, ModelInfo, bytes]] = []
 
     def run(self, input_data, model_info: ModelInfo, image_bytes: bytes) -> InferenceResult:
         self.calls.append((input_data, model_info, image_bytes))
         if self.error:
             raise self.error
+        if self.results:
+            return self.results.pop(0)
         return self.result
 
 
@@ -143,12 +151,12 @@ class FakeResultRepository:
         self.saved_defects.append((analysis_result_id, defects))
 
 
-def build_single_image() -> SingleImageInput:
+def build_single_image(image_type: str = "RGB", image_id: int = 201, object_key: str | None = None) -> SingleImageInput:
     return SingleImageInput(
-        imageId=201,
-        imageType="RGB",
+        imageId=image_id,
+        imageType=image_type,
         bucketName="images",
-        objectKey="originals/201.jpg",
+        objectKey=object_key or f"originals/{image_id}.jpg",
         fileUrl=None,
         targetType="PANEL",
         equipmentId=10,
@@ -160,24 +168,8 @@ def build_paired_image() -> PairedImageInput:
         imagePairId=301,
         targetType="PANEL",
         equipmentId=10,
-        rgbImage=SingleImageInput(
-            imageId=201,
-            imageType="RGB",
-            bucketName="images",
-            objectKey="originals/201.jpg",
-            fileUrl=None,
-            targetType="PANEL",
-            equipmentId=10,
-        ),
-        thermalImage=SingleImageInput(
-            imageId=202,
-            imageType="THERMAL",
-            bucketName="images",
-            objectKey="originals/202.jpg",
-            fileUrl=None,
-            targetType="PANEL",
-            equipmentId=10,
-        ),
+        rgbImage=build_single_image("RGB", image_id=201),
+        thermalImage=build_single_image("THERMAL", image_id=202),
     )
 
 
@@ -228,6 +220,44 @@ def build_inference_result() -> InferenceResult:
                 data=[[1, 1], [1, 1]],
             )
         ],
+    )
+
+
+def build_thermal_inference_result() -> InferenceResult:
+    return InferenceResult(
+        modelInfo=ModelInfo(
+            modelPath="models/thermal.onnx",
+            modelType=ModelType.THERMAL_ONLY,
+            requestedModelType=RequestedModelType.THERMAL_ONLY,
+            modelName="pv-thermal",
+            modelVersion="v1.0.0",
+            modelFormat="onnx",
+            runtime="onnxruntime",
+            inputSize=640,
+            threshold="0.5",
+        ),
+        resultStatus=ResultStatus.ANOMALY,
+        anomalyCount=1,
+        maxConfidence="0.8",
+        areaRatio=None,
+        severityScore="0.4",
+        actionCandidate=ActionCandidate.CLEANING,
+        defects=[
+            DetectedDefectDraft(
+                defectType="THERMAL_CLASS_1",
+                defectSource="THERMAL",
+                confidence="0.8",
+                areaRatio=None,
+                bboxX=11,
+                bboxY=12,
+                bboxWidth=13,
+                bboxHeight=14,
+                severityScore="0.4",
+                actionCandidate=ActionCandidate.CLEANING,
+            )
+        ],
+        visualizationPaths=VisualizationPaths(),
+        restoredMasks=[],
     )
 
 
@@ -298,7 +328,7 @@ def test_processes_queued_thermal_single_job():
     assert result_repository.saved_results[0].maskObjectKey is None
 
 
-def test_marks_failed_when_pair_inference_is_not_supported():
+def test_processes_queued_rgb_thermal_pair_job():
     job_repository = FakeJobRepository(
         build_job(
             JobStatus.QUEUED,
@@ -310,7 +340,7 @@ def test_marks_failed_when_pair_inference_is_not_supported():
     )
     image_metadata = FakeImageMetadata(paired_image=build_paired_image())
     storage = FakeStorage()
-    model_runner = FakeModelRunner()
+    model_runner = FakeModelRunner(results=[build_inference_result(), build_thermal_inference_result()])
     result_repository = FakeResultRepository()
     processor = AnalysisJobProcessor(job_repository, image_metadata, storage, model_runner, result_repository)
 
@@ -323,10 +353,66 @@ def test_marks_failed_when_pair_inference_is_not_supported():
         )
     )
 
-    assert result.status == "failed"
-    assert result.failureCode == "PAIR_INFERENCE_UNSUPPORTED"
-    assert storage.calls == []
-    assert model_runner.calls == []
+    assert result.status == "processed"
+    assert storage.calls == [("images", "originals/201.jpg"), ("images", "originals/202.jpg")]
+    assert len(model_runner.calls) == 2
+    assert model_runner.calls[0][0].imageType == "RGB"
+    assert model_runner.calls[0][1].modelType is ModelType.RGB_ONLY
+    assert model_runner.calls[1][0].imageType == "THERMAL"
+    assert model_runner.calls[1][1].modelType is ModelType.THERMAL_ONLY
+    assert len(storage.write_calls) == 2
+    assert storage.write_calls[0][1] == "analysis-results/1000/bbox_overlay.png"
+    assert storage.write_calls[1][1] == "analysis-results/1000/mask_overlay.png"
+    assert result_repository.saved_results[0].modelType is ModelType.FUSION
+    assert result_repository.saved_results[0].bboxBucketName == "images"
+    assert result_repository.saved_results[0].maskBucketName == "images"
+    assert result_repository.saved_results[0].maskObjectKey == "analysis-results/1000/mask_overlay.png"
+    assert len(result_repository.saved_defects[0][1]) == 2
+    assert result_repository.saved_defects[0][1][0].defectSource == "RGB"
+    assert result_repository.saved_defects[0][1][1].defectSource == "THERMAL"
+    assert result_repository.saved_defects[0][1][1].maskObjectKey is None
+
+
+def test_processes_pair_with_thermal_only_anomalies_without_mask_overlay():
+    job_repository = FakeJobRepository(
+        build_job(
+            JobStatus.QUEUED,
+            inputType=InputType.RGB_THERMAL_PAIR,
+            imageId=None,
+            imagePairId=301,
+            requestedModelType=RequestedModelType.FUSION_AUTO,
+        )
+    )
+    image_metadata = FakeImageMetadata(paired_image=build_paired_image())
+    storage = FakeStorage()
+    rgb_normal = build_inference_result().model_copy(
+        update={
+            "resultStatus": ResultStatus.NORMAL,
+            "anomalyCount": 0,
+            "maxConfidence": None,
+            "defects": [],
+            "restoredMasks": [],
+            "actionCandidate": ActionCandidate.CLEANING,
+        }
+    )
+    model_runner = FakeModelRunner(results=[rgb_normal, build_thermal_inference_result()])
+    result_repository = FakeResultRepository()
+    processor = AnalysisJobProcessor(job_repository, image_metadata, storage, model_runner, result_repository)
+
+    result = processor.process(
+        build_message(
+            inputType="RGB_THERMAL_PAIR",
+            imageId=None,
+            imagePairId=301,
+            requestedModelType="FUSION_AUTO",
+        )
+    )
+
+    assert result.status == "processed"
+    assert len(storage.write_calls) == 1
+    assert storage.write_calls[0][1] == "analysis-results/1000/bbox_overlay.png"
+    assert result_repository.saved_results[0].maskBucketName is None
+    assert result_repository.saved_results[0].maskObjectKey is None
 
 
 def test_returns_failed_when_job_is_missing():
