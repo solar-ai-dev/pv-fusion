@@ -232,15 +232,21 @@ export function InspectionDetailPage() {
   )
 
   const selectedTargetType = uploadForm.watch('targetType')
+  const isZoneUploadTarget = selectedTargetType === 'ZONE'
   const uploadEquipmentOptions = useMemo(
     () =>
-      selectedTargetType === 'ZONE'
+      isZoneUploadTarget
         ? []
         : flattenedEquipments.filter(
             (equipment) => equipment.equipmentType === selectedTargetType,
           ),
-    [flattenedEquipments, selectedTargetType],
+    [flattenedEquipments, isZoneUploadTarget, selectedTargetType],
   )
+  const isUploadEquipmentEmpty =
+    !isZoneUploadTarget &&
+    !equipmentsQuery.isLoading &&
+    !equipmentsQuery.isError &&
+    uploadEquipmentOptions.length === 0
 
   const pairEquipmentOptions = useMemo(
     () =>
@@ -251,6 +257,11 @@ export function InspectionDetailPage() {
           ),
     [candidateTargetType, flattenedEquipments],
   )
+  const isPairEquipmentEmpty =
+    candidateTargetType !== 'ZONE' &&
+    !equipmentsQuery.isLoading &&
+    !equipmentsQuery.isError &&
+    pairEquipmentOptions.length === 0
 
   const imageRows = useMemo(() => imagesQuery.data?.data ?? [], [imagesQuery.data])
   const currentPair = pairQuery.data?.data ?? null
@@ -696,10 +707,15 @@ export function InspectionDetailPage() {
                 ))}
               </select>
             </FormField>
+            {isUploadEquipmentEmpty ? (
+              <p className="text-sm text-amber-700">
+                등록된 설비가 없습니다. 구역 상세에서 Array/Panel/Module을 먼저 등록하세요.
+              </p>
+            ) : null}
             <FormField
               label="장비 선택"
               hint={
-                selectedTargetType === 'ZONE'
+                isZoneUploadTarget
                   ? '구역 대상 이미지는 장비를 선택하지 않습니다.'
                   : '선택한 targetType과 같은 장비 타입만 표시됩니다.'
               }
@@ -708,7 +724,7 @@ export function InspectionDetailPage() {
               <select
                 className="input-field"
                 {...uploadForm.register('equipmentId')}
-                disabled={selectedTargetType === 'ZONE'}
+                disabled={isZoneUploadTarget || isUploadEquipmentEmpty}
               >
                 <option value="">
                   {selectedTargetType === 'ZONE'
@@ -959,7 +975,7 @@ export function InspectionDetailPage() {
             >
               <select
                 className="input-field"
-                disabled={candidateTargetType === 'ZONE'}
+                disabled={candidateTargetType === 'ZONE' || isPairEquipmentEmpty}
                 value={candidateEquipmentId}
                 onChange={(event) => setCandidateEquipmentId(event.target.value)}
               >
@@ -973,6 +989,11 @@ export function InspectionDetailPage() {
                 ))}
               </select>
             </FormField>
+            {isPairEquipmentEmpty ? (
+              <p className="text-sm text-amber-700">
+                등록된 설비가 없습니다. 구역 상세에서 Array/Panel/Module을 먼저 등록하세요.
+              </p>
+            ) : null}
           </div>
 
           {pairCandidatesQuery.isLoading ? (

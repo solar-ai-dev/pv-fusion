@@ -7,11 +7,32 @@ import type {
   OperationLogSummary,
 } from '../types'
 
+function sanitizeParams(params?: Record<string, unknown>) {
+  if (!params) {
+    return undefined
+  }
+
+  return Object.fromEntries(
+    Object.entries(params).filter(([, value]) => {
+      if (value == null) {
+        return false
+      }
+
+      if (typeof value === 'string') {
+        const trimmed = value.trim()
+        return trimmed.length > 0 && trimmed !== 'ALL' && trimmed !== '전체'
+      }
+
+      return true
+    }),
+  )
+}
+
 export const adminApi = {
   fetchPendingUsers: async (params?: Record<string, unknown>) => {
     const response = await apiClient.get<
       ApiSuccessResponse<PageResponse<AdminUserSummary>>
-    >('/admin/users/pending', { params })
+    >('/admin/users/pending', { params: sanitizeParams(params) })
     return response.data
   },
   approveUser: async (userId: string | number) => {
@@ -23,7 +44,7 @@ export const adminApi = {
   fetchUsers: async (params?: Record<string, unknown>) => {
     const response = await apiClient.get<
       ApiSuccessResponse<PageResponse<AdminUserSummary>>
-    >('/admin/users', { params })
+    >('/admin/users', { params: sanitizeParams(params) })
     return response.data
   },
   fetchUser: async (userId: string | number) => {
@@ -51,7 +72,7 @@ export const adminApi = {
   fetchOperationLogs: async (params?: Record<string, unknown>) => {
     const response = await apiClient.get<
       ApiSuccessResponse<PageResponse<OperationLogSummary>>
-    >('/admin/operation-logs', { params })
+    >('/admin/operation-logs', { params: sanitizeParams(params) })
     return response.data
   },
 }

@@ -30,8 +30,8 @@ public final class ResultReviewHistoryPersistenceMapper {
                 entity.getPreviousActionCandidate(),
                 entity.getNewActionCandidate(),
                 entity.getMemo(),
-                entity.getCreatedAt(),
-                entity.getUpdatedAt()
+                entity.getCreatedAtOffsetDateTime(),
+                entity.getUpdatedAtOffsetDateTime()
         );
     }
 }

@@ -31,9 +31,9 @@ public class AnalysisJobPersistenceAdapter implements LoadAnalysisJobPort, SaveA
                         query.plantId(),
                         query.zoneId(),
                         query.inspectionId(),
-                        query.jobStatus() != null ? query.jobStatus().name() : null,
-                        query.inputType() != null ? query.inputType().name() : null,
-                        query.modelType() != null ? query.modelType().name() : null,
+                        query.jobStatus(),
+                        query.inputType(),
+                        query.modelType(),
                         PageRequest.of(
                                 query.page(),
                                 query.size(),
@@ -51,9 +51,9 @@ public class AnalysisJobPersistenceAdapter implements LoadAnalysisJobPort, SaveA
                         query.plantId(),
                         query.zoneId(),
                         query.inspectionId(),
-                        query.jobStatus() != null ? query.jobStatus().name() : null,
-                        query.inputType() != null ? query.inputType().name() : null,
-                        query.modelType() != null ? query.modelType().name() : null,
+                        query.jobStatus(),
+                        query.inputType(),
+                        query.modelType(),
                         PageRequest.of(0, Math.max(query.size(), 1))
                 )
                 .getTotalElements();

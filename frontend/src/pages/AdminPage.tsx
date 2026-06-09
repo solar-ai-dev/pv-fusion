@@ -174,7 +174,7 @@ export function AdminPage() {
   const dashboardQuery = useDashboardSummary({})
   const pendingUsersQuery = usePendingAdminUsers(pendingParams)
   const usersQuery = useAdminUsers(userParams)
-  const selectedUserQuery = useAdminUser(selectedUserId ?? 0)
+  const selectedUserQuery = useAdminUser(selectedUserId)
   const operationLogsQuery = useOperationLogs(logParams)
 
   const approveUserMutation = useApproveAdminUser(approveTarget?.userId ?? 0)
@@ -262,7 +262,9 @@ export function AdminPage() {
               void dashboardQuery.refetch()
               void pendingUsersQuery.refetch()
               void usersQuery.refetch()
-              void selectedUserQuery.refetch()
+              if (selectedUserId) {
+                void selectedUserQuery.refetch()
+              }
               void operationLogsQuery.refetch()
             }}
           >

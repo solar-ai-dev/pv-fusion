@@ -32,8 +32,8 @@ public final class InspectionPersistenceMapper {
                 entity.getMemo(),
                 entity.getInspectionStatus(),
                 entity.getCreatedByUserId(),
-                entity.getCreatedAt(),
-                entity.getUpdatedAt()
+                entity.getCreatedAtOffsetDateTime(),
+                entity.getUpdatedAtOffsetDateTime()
         );
     }
 }

@@ -9,6 +9,7 @@ import com.pvfusion.adapter.out.persistence.user.UserPersistenceMapper;
 import com.pvfusion.adapter.out.persistence.zone.ZonePersistenceAdapter;
 import com.pvfusion.adapter.out.persistence.zone.ZonePersistenceMapper;
 import com.pvfusion.application.dto.inspection.InspectionListQuery;
+import com.pvfusion.global.config.JpaAuditingConfig;
 import com.pvfusion.domain.common.ResourceStatus;
 import com.pvfusion.domain.inspection.CaptureMethod;
 import com.pvfusion.domain.inspection.Inspection;
@@ -28,6 +29,7 @@ import org.springframework.context.annotation.Import;
 
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @Import({
+        JpaAuditingConfig.class,
         UserPersistenceAdapter.class,
         UserPersistenceMapper.class,
         PlantPersistenceAdapter.class,
@@ -100,6 +102,27 @@ class InspectionPersistenceAdapterJpaTest {
         assertThat(inspections).hasSize(1);
         assertThat(totalElements).isEqualTo(1);
         assertThat(inspections.get(0).getName()).isEqualTo("Inspection A");
+    }
+
+    @Test
+    void saveInspectionPersistsAuditTimestampsWhenDomainTimestampsAreNull() {
+        Inspection saved = inspectionPersistenceAdapter.saveInspection(new Inspection(
+                null,
+                zone.getId(),
+                "Inspection B",
+                now(),
+                CaptureMethod.DRONE,
+                "Kim",
+                "memo",
+                InspectionStatus.READY,
+                ownerUser.getId(),
+                null,
+                null
+        ));
+
+        assertThat(saved.getId()).isNotNull();
+        assertThat(saved.getCreatedAt()).isNotNull();
+        assertThat(saved.getUpdatedAt()).isNotNull();
     }
 
     private User saveUser() {

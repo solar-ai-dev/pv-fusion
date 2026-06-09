@@ -59,7 +59,8 @@ public class PlantController {
         PlantResponse response = createPlantUseCase.execute(
                 new CreatePlantCommand(request.name(), request.location(), request.description())
         );
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(response, "발전소가 등록되었습니다."));
     }
 
     @GetMapping("/{plantId}")

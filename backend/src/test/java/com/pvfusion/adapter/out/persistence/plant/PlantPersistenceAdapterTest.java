@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.pvfusion.adapter.out.persistence.user.UserPersistenceAdapter;
 import com.pvfusion.adapter.out.persistence.user.UserPersistenceMapper;
 import com.pvfusion.application.dto.plant.PlantListQuery;
+import com.pvfusion.application.dto.plant.PlantSummaryResponse;
 import com.pvfusion.domain.common.ResourceStatus;
 import com.pvfusion.domain.plant.Plant;
 import com.pvfusion.domain.plant.PlantMember;
@@ -137,10 +138,14 @@ class PlantPersistenceAdapterTest {
         insertZone(plant.getId(), ownerUser.getId(), "Zone B");
         insertInspection(1L, ownerUser.getId(), "2026-06-05T12:00:00+09:00");
 
-        PageResponse<?> page = plantPersistenceAdapter.findAll(new PlantListQuery(null, "집계", ResourceStatus.ACTIVE, 0, 10));
+        PageResponse<PlantSummaryResponse> page = plantPersistenceAdapter.findAll(
+                new PlantListQuery(null, "집계", ResourceStatus.ACTIVE, 0, 10)
+        );
 
         assertThat(page.content().toString()).contains("집계 발전소");
         assertThat(page.content().toString()).contains("zoneCount=2");
+        assertThat(page.content().get(0).latestInspectionAt())
+                .isEqualTo(OffsetDateTime.parse("2026-06-05T12:00:00+09:00"));
     }
 
     @Test

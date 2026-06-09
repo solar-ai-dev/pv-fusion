@@ -1,5 +1,7 @@
 package com.pvfusion.adapter.out.persistence.plant;
 
+import com.pvfusion.adapter.out.persistence.inspection.InspectionJpaEntity;
+import com.pvfusion.adapter.out.persistence.zone.ZoneJpaEntity;
 import com.pvfusion.domain.common.ResourceStatus;
 import java.time.OffsetDateTime;
 import org.springframework.data.domain.Page;
@@ -50,14 +52,11 @@ public interface PlantJpaRepository extends JpaRepository<PlantJpaEntity, Long> 
     @Query(value = "select count(*) from zones where plant_id = :plantId", nativeQuery = true)
     long countZonesByPlantId(@Param("plantId") Long plantId);
 
-    @Query(
-            value = """
-                    select max(i.captured_at)
-                    from inspections i
-                    join zones z on z.id = i.zone_id
-                    where z.plant_id = :plantId
-                    """,
-            nativeQuery = true
-    )
+    @Query("""
+            select max(i.capturedAt)
+            from InspectionJpaEntity i, ZoneJpaEntity z
+            where z.id = i.zoneId
+              and z.plantId = :plantId
+            """)
     OffsetDateTime findLatestInspectionAtByPlantId(@Param("plantId") Long plantId);
 }
