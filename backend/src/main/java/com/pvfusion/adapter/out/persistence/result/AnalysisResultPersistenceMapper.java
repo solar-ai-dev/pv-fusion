@@ -70,8 +70,8 @@ public final class AnalysisResultPersistenceMapper {
                 entity.getMaskObjectKey(),
                 entity.getMaskFileUrl(),
                 entity.getAnalyzedAt(),
-                entity.getCreatedAt(),
-                entity.getUpdatedAt()
+                entity.getCreatedAtOffsetDateTime(),
+                entity.getUpdatedAtOffsetDateTime()
         );
     }
 }

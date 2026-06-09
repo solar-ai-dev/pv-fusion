@@ -30,8 +30,8 @@ public final class ImagePairPersistenceMapper {
                 entity.getThermalImageId(),
                 entity.getStatus(),
                 entity.getCreatedByUserId(),
-                entity.getCreatedAt(),
-                entity.getUpdatedAt()
+                entity.getCreatedAtOffsetDateTime(),
+                entity.getUpdatedAtOffsetDateTime()
         );
     }
 }

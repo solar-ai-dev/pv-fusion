@@ -221,6 +221,46 @@ class OperationLogPersistenceAdapterTest {
         assertThat(result.content().toString()).contains("11");
     }
 
+    @Test
+    void findsOperationLogsEvenWhenActorUserIsNull() {
+        operationLogPersistenceAdapter.save(operationLog(
+                null,
+                null,
+                OperationEventType.SYSTEM_ERROR,
+                "system",
+                null,
+                null,
+                null,
+                "Unhandled error.",
+                "traceId=test-trace",
+                now().minusMinutes(5)
+        ));
+
+        PageResponse<?> result = operationLogPersistenceAdapter.findAll(new OperationLogQuery(
+                null,
+                adminUser.getId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                10,
+                "createdAt,desc"
+        ));
+
+        assertThat(result.content()).hasSize(1);
+        assertThat(result.content().toString()).contains("SYSTEM_ERROR");
+        assertThat(result.content().toString()).contains("Unhandled error.");
+    }
+
     
 
     private OperationLog operationLog(

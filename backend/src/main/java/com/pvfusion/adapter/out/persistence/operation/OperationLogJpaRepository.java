@@ -4,7 +4,6 @@ import com.pvfusion.domain.operation.OperationEventCategory;
 import com.pvfusion.domain.operation.OperationEventType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,7 +12,6 @@ import java.time.OffsetDateTime;
 
 public interface OperationLogJpaRepository extends JpaRepository<OperationLogJpaEntity, Long> {
 
-    @EntityGraph(attributePaths = "actorUser")
     @Query(
             value = """
                     select o

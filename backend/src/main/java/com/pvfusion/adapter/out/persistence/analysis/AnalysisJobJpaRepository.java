@@ -1,5 +1,12 @@
 package com.pvfusion.adapter.out.persistence.analysis;
 
+import com.pvfusion.adapter.out.persistence.image.InspectionImageJpaEntity;
+import com.pvfusion.adapter.out.persistence.imagepair.ImagePairJpaEntity;
+import com.pvfusion.adapter.out.persistence.inspection.InspectionJpaEntity;
+import com.pvfusion.adapter.out.persistence.zone.ZoneJpaEntity;
+import com.pvfusion.domain.analysis.AnalysisInputType;
+import com.pvfusion.domain.analysis.AnalysisJobStatus;
+import com.pvfusion.domain.analysis.AnalysisModelType;
 import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -9,44 +16,43 @@ import org.springframework.data.repository.query.Param;
 
 public interface AnalysisJobJpaRepository extends JpaRepository<AnalysisJobJpaEntity, Long> {
 
-    @Query(
-            value = """
-                    SELECT aj.*
-                    FROM analysis_jobs aj
-                    LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                    LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                    LEFT JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
-                    LEFT JOIN zones z ON z.id = i.zone_id
-                    WHERE (:plantId IS NULL OR z.plant_id = :plantId)
-                      AND (:zoneId IS NULL OR i.zone_id = :zoneId)
-                      AND (:inspectionId IS NULL OR i.id = :inspectionId)
-                      AND (:jobStatus IS NULL OR aj.job_status = :jobStatus)
-                      AND (:inputType IS NULL OR aj.input_type = :inputType)
-                      AND (:modelType IS NULL OR aj.model_type = :modelType)
-                    """,
-            countQuery = """
-                    SELECT COUNT(*)
-                    FROM analysis_jobs aj
-                    LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                    LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                    LEFT JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
-                    LEFT JOIN zones z ON z.id = i.zone_id
-                    WHERE (:plantId IS NULL OR z.plant_id = :plantId)
-                      AND (:zoneId IS NULL OR i.zone_id = :zoneId)
-                      AND (:inspectionId IS NULL OR i.id = :inspectionId)
-                      AND (:jobStatus IS NULL OR aj.job_status = :jobStatus)
-                      AND (:inputType IS NULL OR aj.input_type = :inputType)
-                      AND (:modelType IS NULL OR aj.model_type = :modelType)
-                    """,
-            nativeQuery = true
-    )
+    @Query("""
+            select aj
+            from AnalysisJobJpaEntity aj
+            where (:jobStatus is null or aj.jobStatus = :jobStatus)
+              and (:inputType is null or aj.inputType = :inputType)
+              and (:modelType is null or aj.modelType = :modelType)
+              and (
+                  (:plantId is null and :zoneId is null and :inspectionId is null)
+                  or exists (
+                      select 1
+                      from InspectionImageJpaEntity ii, InspectionJpaEntity i, ZoneJpaEntity z
+                      where ii.id = aj.imageId
+                        and i.id = ii.inspectionId
+                        and z.id = i.zoneId
+                        and (:plantId is null or z.plantId = :plantId)
+                        and (:zoneId is null or i.zoneId = :zoneId)
+                        and (:inspectionId is null or i.id = :inspectionId)
+                  )
+                  or exists (
+                      select 1
+                      from ImagePairJpaEntity ip, InspectionJpaEntity i, ZoneJpaEntity z
+                      where ip.id = aj.imagePairId
+                        and i.id = ip.inspectionId
+                        and z.id = i.zoneId
+                        and (:plantId is null or z.plantId = :plantId)
+                        and (:zoneId is null or i.zoneId = :zoneId)
+                        and (:inspectionId is null or i.id = :inspectionId)
+                  )
+              )
+            """)
     Page<AnalysisJobJpaEntity> search(
             @Param("plantId") Long plantId,
             @Param("zoneId") Long zoneId,
             @Param("inspectionId") Long inspectionId,
-            @Param("jobStatus") String jobStatus,
-            @Param("inputType") String inputType,
-            @Param("modelType") String modelType,
+            @Param("jobStatus") AnalysisJobStatus jobStatus,
+            @Param("inputType") AnalysisInputType inputType,
+            @Param("modelType") AnalysisModelType modelType,
             Pageable pageable
     );
 

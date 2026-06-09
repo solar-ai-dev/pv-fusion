@@ -46,8 +46,8 @@ public final class DetectedDefectPersistenceMapper {
                 entity.getSeverityScore(),
                 entity.getSeverityLevel(),
                 entity.getActionCandidate(),
-                entity.getCreatedAt(),
-                entity.getUpdatedAt()
+                entity.getCreatedAtOffsetDateTime(),
+                entity.getUpdatedAtOffsetDateTime()
         );
     }
 }

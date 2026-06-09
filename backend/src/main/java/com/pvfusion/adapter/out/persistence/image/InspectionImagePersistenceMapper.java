@@ -44,8 +44,8 @@ public final class InspectionImagePersistenceMapper {
                 entity.getUploadStatus(),
                 entity.getStatus(),
                 entity.getUploadedByUserId(),
-                entity.getCreatedAt(),
-                entity.getUpdatedAt()
+                entity.getCreatedAtOffsetDateTime(),
+                entity.getUpdatedAtOffsetDateTime()
         );
     }
 }

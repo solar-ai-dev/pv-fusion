@@ -15,7 +15,7 @@ export const adminQueryKeys = {
   pendingUsers: (params: Pick<AdminUserListParams, 'page' | 'size'>) =>
     [...adminQueryKeys.all, 'pending-users', params] as const,
   users: (params: AdminUserListParams) => [...adminQueryKeys.all, 'users', params] as const,
-  user: (userId: number) => [...adminQueryKeys.all, 'user', userId] as const,
+  user: (userId: number | null) => [...adminQueryKeys.all, 'user', userId] as const,
   operationLogs: (params: OperationLogListParams) =>
     [...adminQueryKeys.all, 'operation-logs', params] as const,
 }
@@ -34,11 +34,11 @@ export function useAdminUsers(params: AdminUserListParams) {
   })
 }
 
-export function useAdminUser(userId: number) {
+export function useAdminUser(userId: number | null) {
   return useQuery({
     queryKey: adminQueryKeys.user(userId),
-    queryFn: () => adminApi.fetchUser(userId),
-    enabled: Number.isInteger(userId) && userId > 0,
+    queryFn: () => adminApi.fetchUser(userId as number),
+    enabled: Number.isInteger(userId) && (userId ?? 0) > 0,
   })
 }
 

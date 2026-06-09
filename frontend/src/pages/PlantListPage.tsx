@@ -63,7 +63,7 @@ export function PlantListPage() {
   }, [currentKeyword, currentSize, currentStatus])
 
   const queryParams: PlantListParams = {
-    page: currentPage,
+    page: currentPage - 1,
     size: currentSize,
     keyword: currentKeyword || undefined,
     status: currentStatus,
@@ -117,7 +117,7 @@ export function PlantListPage() {
 
     try {
       const response = await createPlantMutation.mutateAsync(payload)
-      toast.push(response.message || '발전소를 등록했습니다.')
+      toast.push(response.message || '발전소가 등록되었습니다.')
       reset()
       setIsCreateModalOpen(false)
     } catch (error) {
@@ -257,7 +257,7 @@ export function PlantListPage() {
             emptyDescription="검색 조건에 맞는 발전소가 없거나 backend 데이터가 아직 없습니다."
           />
           <Pagination
-            page={plantsQuery.data.data.page}
+            page={(plantsQuery.data.data.page ?? 0) + 1}
             totalPages={plantsQuery.data.data.totalPages}
             totalElements={plantsQuery.data.data.totalElements}
             onPageChange={handlePageChange}

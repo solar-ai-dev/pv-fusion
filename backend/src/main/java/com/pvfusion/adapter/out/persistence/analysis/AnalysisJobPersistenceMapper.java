@@ -44,8 +44,8 @@ public final class AnalysisJobPersistenceMapper {
                 entity.getTraceId(),
                 entity.getFailureCode(),
                 entity.getFailureMessage(),
-                entity.getCreatedAt(),
-                entity.getUpdatedAt()
+                entity.getCreatedAtOffsetDateTime(),
+                entity.getUpdatedAtOffsetDateTime()
         );
     }
 }
