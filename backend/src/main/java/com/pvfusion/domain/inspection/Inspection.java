@@ -1,5 +1,7 @@
 package com.pvfusion.domain.inspection;
 
+import com.pvfusion.global.error.BusinessException;
+import com.pvfusion.global.error.ErrorCode;
 import java.time.OffsetDateTime;
 import lombok.Getter;
 
@@ -42,5 +44,41 @@ public class Inspection {
         this.createdByUserId = createdByUserId;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+    }
+
+    public Inspection changeStatus(InspectionStatus nextStatus) {
+        if (nextStatus == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "inspectionStatus is required.");
+        }
+        if (!canTransitionTo(nextStatus)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT,
+                    "Inspection status transition is not allowed: " + inspectionStatus + " -> " + nextStatus
+            );
+        }
+
+        return new Inspection(
+                id,
+                zoneId,
+                name,
+                capturedAt,
+                captureMethod,
+                inspectorName,
+                memo,
+                nextStatus,
+                createdByUserId,
+                createdAt,
+                OffsetDateTime.now()
+        );
+    }
+
+    private boolean canTransitionTo(InspectionStatus nextStatus) {
+        return switch (inspectionStatus) {
+            case READY -> nextStatus == InspectionStatus.ANALYZING;
+            case ANALYZING -> nextStatus == InspectionStatus.COMPLETED
+                    || nextStatus == InspectionStatus.FAILED;
+            case FAILED -> nextStatus == InspectionStatus.ANALYZING;
+            case COMPLETED, UPLOADING -> false;
+        };
     }
 }
