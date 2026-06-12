@@ -3,6 +3,7 @@ package com.pvfusion.service.result;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -50,8 +51,10 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -227,12 +230,79 @@ class AnalysisResultServiceTest {
         assertThat(response.actionCandidate()).isEqualTo(ActionCandidate.RETAKE);
     }
 
+    @Test
+    @DisplayName("BE-UNIT-RESULT-003 save path preserves resultStatus mapping")
+    void saveAnalysisResultPreservesResultStatusValues() {
+        for (AnalysisResultStatus status : List.of(
+                AnalysisResultStatus.NORMAL,
+                AnalysisResultStatus.ANOMALY,
+                AnalysisResultStatus.LOW_CONFIDENCE
+        )) {
+            stubSaveAnalysisResultForCapturedValue();
+            when(loadAnalysisJobPort.loadAnalysisJob(10L)).thenReturn(Optional.of(analysisJob()));
+            when(accessChecker.checkAnalysisJobAccess(1L, 10L)).thenReturn(true);
+            when(loadAnalysisResultPort.loadAnalysisResultByAnalysisJobId(10L)).thenReturn(Optional.empty());
+            when(loadDetectedDefectPort.loadDetectedDefects(any())).thenReturn(List.of());
+            when(loadResultReviewHistoryPort.loadResultReviewHistories(any())).thenReturn(List.of());
+            when(loadImagePort.loadImage(20L)).thenReturn(Optional.of(image()));
+            when(loadInspectionPort.loadInspection(30L)).thenReturn(Optional.of(inspection()));
+
+            var response = analysisResultService.execute(new SaveAnalysisResultCommand(
+                    1L, 10L, "model-a", "1.0", "onnx", "cpu", 640, BigDecimal.valueOf(0.75),
+                    status, 1, BigDecimal.valueOf(0.92), BigDecimal.valueOf(0.11),
+                    BigDecimal.valueOf(0.88), SeverityLevel.HIGH, ActionCandidate.CLEANING, PriorityLevel.HIGH,
+                    "bucket", "bbox-key", null, null, null, null, null, null, null, OffsetDateTime.now(), List.of()
+            ));
+
+            ArgumentCaptor<AnalysisResult> captor = ArgumentCaptor.forClass(AnalysisResult.class);
+            verify(saveAnalysisResultPort, atLeastOnce()).saveAnalysisResult(captor.capture());
+            assertThat(captor.getValue().getResultStatus()).isEqualTo(status);
+            assertThat(response.resultStatus()).isEqualTo(status);
+        }
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-RESULT-004 save path preserves actionCandidate mapping")
+    void saveAnalysisResultPreservesActionCandidateValues() {
+        for (ActionCandidate actionCandidate : List.of(
+                ActionCandidate.CLEANING,
+                ActionCandidate.RETAKE,
+                ActionCandidate.FIELD_INSPECTION,
+                ActionCandidate.REPLACEMENT_REVIEW
+        )) {
+            stubSaveAnalysisResultForCapturedValue();
+            when(loadAnalysisJobPort.loadAnalysisJob(10L)).thenReturn(Optional.of(analysisJob()));
+            when(accessChecker.checkAnalysisJobAccess(1L, 10L)).thenReturn(true);
+            when(loadAnalysisResultPort.loadAnalysisResultByAnalysisJobId(10L)).thenReturn(Optional.empty());
+            when(loadDetectedDefectPort.loadDetectedDefects(any())).thenReturn(List.of());
+            when(loadResultReviewHistoryPort.loadResultReviewHistories(any())).thenReturn(List.of());
+            when(loadImagePort.loadImage(20L)).thenReturn(Optional.of(image()));
+            when(loadInspectionPort.loadInspection(30L)).thenReturn(Optional.of(inspection()));
+
+            var response = analysisResultService.execute(new SaveAnalysisResultCommand(
+                    1L, 10L, "model-a", "1.0", "onnx", "cpu", 640, BigDecimal.valueOf(0.75),
+                    AnalysisResultStatus.ANOMALY, 1, BigDecimal.valueOf(0.92), BigDecimal.valueOf(0.11),
+                    BigDecimal.valueOf(0.88), SeverityLevel.HIGH, actionCandidate, PriorityLevel.HIGH,
+                    "bucket", "bbox-key", null, null, null, null, null, null, null, OffsetDateTime.now(), List.of()
+            ));
+
+            ArgumentCaptor<AnalysisResult> captor = ArgumentCaptor.forClass(AnalysisResult.class);
+            verify(saveAnalysisResultPort, atLeastOnce()).saveAnalysisResult(captor.capture());
+            assertThat(captor.getValue().getActionCandidate()).isEqualTo(actionCandidate);
+            assertThat(response.actionCandidate()).isEqualTo(actionCandidate);
+        }
+    }
+
     private AnalysisJob analysisJob() {
         return new AnalysisJob(
                 10L, 20L, null, AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
                 AnalysisJobStatus.SUCCEEDED, 1L, OffsetDateTime.now(), null, null, 0, "trace", null, null,
                 OffsetDateTime.now(), OffsetDateTime.now()
         );
+    }
+
+    private void stubSaveAnalysisResultForCapturedValue() {
+        when(saveAnalysisResultPort.saveAnalysisResult(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     private AnalysisResult analysisResult(Long id, ReviewStatus reviewStatus, ActionCandidate actionCandidate) {

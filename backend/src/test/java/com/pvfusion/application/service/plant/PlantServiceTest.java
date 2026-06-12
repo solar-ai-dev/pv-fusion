@@ -69,7 +69,7 @@ class PlantServiceTest {
     @Test
     void createsPlantAndRegistersCreatorAsOwner() {
         User user = approvedUser(1L, UserRole.USER);
-        Plant savedPlant = plant(10L, "새 발전소", ResourceStatus.ACTIVE, 1L);
+        Plant savedPlant = plant(10L, "Plant-A", ResourceStatus.ACTIVE, 1L);
 
         stubCurrentUser(user);
         when(plantRepositoryPort.save(any(Plant.class))).thenReturn(savedPlant);
@@ -77,7 +77,7 @@ class PlantServiceTest {
         when(plantRepositoryPort.findLatestInspectionAtByPlantId(10L)).thenReturn(null);
         when(plantMemberRepositoryPort.save(any(PlantMember.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        var response = plantService.execute(new CreatePlantCommand(null, "새 발전소", "서울", "설명"));
+        var response = plantService.execute(new CreatePlantCommand(null, "Plant-A", "Seoul", "desc"));
 
         ArgumentCaptor<PlantMember> captor = ArgumentCaptor.forClass(PlantMember.class);
         verify(plantMemberRepositoryPort).save(captor.capture());
@@ -124,8 +124,8 @@ class PlantServiceTest {
     @Test
     void updatesPlantForManagerMember() {
         User user = approvedUser(2L, UserRole.USER);
-        Plant plant = plant(10L, "기존", ResourceStatus.ACTIVE, 1L);
-        Plant updatedPlant = plant.update("변경", "부산", "새 설명");
+        Plant plant = plant(10L, "Plant-A", ResourceStatus.ACTIVE, 1L);
+        Plant updatedPlant = plant.update("Plant-B", "Busan", "updated");
 
         stubCurrentUser(user);
         when(plantRepositoryPort.findById(10L)).thenReturn(Optional.of(plant));
@@ -135,14 +135,44 @@ class PlantServiceTest {
         when(plantRepositoryPort.countZonesByPlantId(10L)).thenReturn(1L);
         when(plantRepositoryPort.findLatestInspectionAtByPlantId(10L)).thenReturn(null);
 
-        var response = plantService.execute(new UpdatePlantCommand(null, 10L, "변경", "부산", "새 설명"));
+        var response = plantService.execute(new UpdatePlantCommand(null, 10L, "Plant-B", "Busan", "updated"));
 
-        assertThat(response.name()).isEqualTo("변경");
-        assertThat(response.location()).isEqualTo("부산");
+        assertThat(response.name()).isEqualTo("Plant-B");
+        assertThat(response.location()).isEqualTo("Busan");
     }
 
     @Test
-    @DisplayName("BE-UNIT-PLANT-005 발전소 비활성화는 상태를 INACTIVE로 변경한다")
+    @DisplayName("BE-UNIT-PLANT-004 updates only allowed plant fields")
+    void updatePlantChangesOnlyEditableFields() {
+        User user = approvedUser(2L, UserRole.USER);
+        Plant plant = plant(10L, "Plant-A", ResourceStatus.ACTIVE, 1L);
+        OffsetDateTime originalCreatedAt = plant.getCreatedAt();
+        OffsetDateTime originalUpdatedAt = plant.getUpdatedAt();
+
+        stubCurrentUser(user);
+        when(plantRepositoryPort.findById(10L)).thenReturn(Optional.of(plant));
+        when(plantMemberRepositoryPort.findByPlantIdAndUserId(10L, 2L))
+                .thenReturn(Optional.of(member(30L, 10L, 2L, PlantMemberRole.MANAGER, ResourceStatus.ACTIVE)));
+        when(plantRepositoryPort.save(any(Plant.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(plantRepositoryPort.countZonesByPlantId(10L)).thenReturn(1L);
+        when(plantRepositoryPort.findLatestInspectionAtByPlantId(10L)).thenReturn(null);
+
+        plantService.execute(new UpdatePlantCommand(null, 10L, "Plant-B", "Busan", "updated"));
+
+        ArgumentCaptor<Plant> captor = ArgumentCaptor.forClass(Plant.class);
+        verify(plantRepositoryPort).save(captor.capture());
+        Plant savedPlant = captor.getValue();
+        assertThat(savedPlant.getName()).isEqualTo("Plant-B");
+        assertThat(savedPlant.getLocation()).isEqualTo("Busan");
+        assertThat(savedPlant.getDescription()).isEqualTo("updated");
+        assertThat(savedPlant.getStatus()).isEqualTo(ResourceStatus.ACTIVE);
+        assertThat(savedPlant.getCreatedByUserId()).isEqualTo(1L);
+        assertThat(savedPlant.getCreatedAt()).isEqualTo(originalCreatedAt);
+        assertThat(savedPlant.getUpdatedAt()).isAfterOrEqualTo(originalUpdatedAt);
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-PLANT-005 deactivates plant by changing status to inactive")
     void deactivatesPlantForAdmin() {
         User admin = approvedUser(1L, UserRole.ADMIN);
         Plant activePlant = plant(10L, "A", ResourceStatus.ACTIVE, 1L);
@@ -194,7 +224,7 @@ class PlantServiceTest {
 
     private Plant plant(Long id, String name, ResourceStatus status, Long createdByUserId) {
         OffsetDateTime now = now();
-        return new Plant(id, name, "서울", "설명", status, createdByUserId, now.minusDays(5), now.minusDays(1));
+        return new Plant(id, name, "Seoul", "desc", status, createdByUserId, now.minusDays(5), now.minusDays(1));
     }
 
     private PlantMember member(Long id, Long plantId, Long userId, PlantMemberRole role, ResourceStatus status) {

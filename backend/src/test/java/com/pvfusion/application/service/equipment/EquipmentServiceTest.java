@@ -39,6 +39,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -352,6 +353,37 @@ class EquipmentServiceTest {
 
         assertThat(response.status()).isEqualTo(ResourceStatus.INACTIVE);
         verify(recordOperationLogUseCase).execute(any());
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-EQUIP-003 deactivation keeps equipment history")
+    void deactivateEquipmentKeepsHistoryAndMarksInactive() {
+        User user = approvedUser(2L, UserRole.USER);
+        Equipment panel = equipment(12L, 10L, 11L, EquipmentType.PANEL, "Panel-01", "A01-P01", ResourceStatus.ACTIVE);
+        Equipment module = equipment(13L, 10L, 12L, EquipmentType.MODULE, "Module-01", "A01-P01-M01", ResourceStatus.INACTIVE);
+        Zone zone = zone(10L, 20L, ResourceStatus.ACTIVE);
+        Plant plant = plant(20L, ResourceStatus.ACTIVE);
+        OffsetDateTime originalCreatedAt = panel.getCreatedAt();
+        Long originalCreatedBy = panel.getCreatedByUserId();
+
+        stubCurrentUser(user);
+        when(equipmentRepositoryPort.findById(12L)).thenReturn(Optional.of(panel));
+        when(zoneRepositoryPort.findById(10L)).thenReturn(Optional.of(zone));
+        when(plantRepositoryPort.findById(20L)).thenReturn(Optional.of(plant));
+        when(plantMemberRepositoryPort.findByPlantIdAndUserId(20L, 2L))
+                .thenReturn(Optional.of(member(30L, 20L, 2L, PlantMemberRole.MANAGER, ResourceStatus.ACTIVE)));
+        when(equipmentRepositoryPort.findByZoneId(10L)).thenReturn(List.of(module, panel));
+        when(equipmentRepositoryPort.save(any(Equipment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        equipmentService.execute(new DeactivateEquipmentCommand(null, 12L));
+
+        ArgumentCaptor<Equipment> captor = ArgumentCaptor.forClass(Equipment.class);
+        verify(equipmentRepositoryPort).save(captor.capture());
+        Equipment savedEquipment = captor.getValue();
+        assertThat(savedEquipment.getStatus()).isEqualTo(ResourceStatus.INACTIVE);
+        assertThat(savedEquipment.getCreatedByUserId()).isEqualTo(originalCreatedBy);
+        assertThat(savedEquipment.getCreatedAt()).isEqualTo(originalCreatedAt);
+        assertThat(savedEquipment.getEquipmentType()).isEqualTo(EquipmentType.PANEL);
     }
 
     @Test
