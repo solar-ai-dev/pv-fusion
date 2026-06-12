@@ -62,4 +62,4 @@ black==24.10.0
 ruff==0.7.3
 
 
-onnxruntime==1.23.2
+onnxruntime==1.19.2
