@@ -34,6 +34,7 @@ import com.pvfusion.global.error.ErrorCode;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -82,6 +83,47 @@ class ImageServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-IMAGE-002 Thermal 이미지 업로드 메타데이터를 저장한다")
+    void uploadThermalImageStoresMetadataUsingInspectionId() {
+        UploadImageCommand command = new UploadImageCommand(
+                1L,
+                10L,
+                null,
+                TargetType.ZONE,
+                ImageType.THERMAL,
+                "thermal.jpg",
+                "image/jpeg",
+                4L,
+                OffsetDateTime.parse("2026-06-05T09:10:00+09:00"),
+                null,
+                "thermal.jpg",
+                new byte[]{4, 3, 2, 1}
+        );
+        Inspection inspection = new Inspection(
+                10L, 20L, "Inspection", null, CaptureMethod.DRONE, null, null,
+                null, 1L, OffsetDateTime.now(), OffsetDateTime.now()
+        );
+        InspectionImage saved = new InspectionImage(
+                31L, 10L, null, TargetType.ZONE, ImageType.THERMAL, "thermal.jpg", "image/jpeg", 4L,
+                "bucket", "thermal-object-key", null, command.capturedAt(), UploadStatus.UPLOADED, ResourceStatus.ACTIVE,
+                1L, OffsetDateTime.now(), OffsetDateTime.now()
+        );
+
+        when(loadInspectionPort.loadInspection(10L)).thenReturn(Optional.of(inspection));
+        when(accessChecker.checkInspectionAccess(1L, 10L)).thenReturn(true);
+        when(loadImagePort.loadImage(10L, TargetType.ZONE, null, ImageType.THERMAL, ResourceStatus.ACTIVE))
+                .thenReturn(Optional.empty());
+        when(storeImageFilePort.store(any())).thenReturn(new ImageStorageResult("bucket", "thermal-object-key", null));
+        when(saveImagePort.saveImage(any())).thenReturn(saved);
+
+        var response = imageService.execute(command);
+
+        verify(storeImageFilePort).store(any());
+        assertThat(response.imageType()).isEqualTo(ImageType.THERMAL);
+        assertThat(response.inspectionId()).isEqualTo(10L);
+    }
+
+    @Test
     void uploadImageStoresMetadataUsingInspectionId() {
         UploadImageCommand command = new UploadImageCommand(
                 1L,
@@ -122,6 +164,30 @@ class ImageServiceTest {
         assertThat(captor.getValue().getInspectionId()).isEqualTo(10L);
         assertThat(response.inspectionId()).isEqualTo(10L);
         assertThat(response.zoneId()).isEqualTo(20L);
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-IMAGE-007 지원하지 않는 mimeType 업로드는 차단된다")
+    void uploadImageFailsWhenMimeTypeIsNotImage() {
+        UploadImageCommand command = new UploadImageCommand(
+                1L,
+                10L,
+                null,
+                TargetType.ZONE,
+                ImageType.RGB,
+                "notes.txt",
+                "text/plain",
+                3L,
+                OffsetDateTime.now(),
+                null,
+                "notes.txt",
+                new byte[]{1, 2, 3}
+        );
+
+        assertThatThrownBy(() -> imageService.execute(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_FILE_FORMAT);
     }
 
     @Test

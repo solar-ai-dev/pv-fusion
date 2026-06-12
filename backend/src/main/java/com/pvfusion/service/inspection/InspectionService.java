@@ -56,6 +56,7 @@ public class InspectionService implements
         Long currentUserId = requireCurrentUserId();
         validateZoneId(command.zoneId());
         validateInspectionName(command.name());
+        validateRequired(command.capturedAt(), "capturedAt");
         validateRequired(command.captureMethod(), "captureMethod");
 
         ensureAllowed(accessChecker.checkZoneAccess(currentUserId, command.zoneId()));

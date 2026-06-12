@@ -29,6 +29,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -64,6 +65,27 @@ class InspectionServiceTest {
                 currentUserPort
         );
         when(currentUserPort.getCurrentUserId()).thenReturn(Optional.of(1L));
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-INSP-002 capturedAt 누락 시 점검 생성은 실패한다")
+    void createInspectionFailsWhenCapturedAtIsMissing() {
+        CreateInspectionCommand command = new CreateInspectionCommand(
+                1L,
+                10L,
+                "Inspection A",
+                null,
+                CaptureMethod.DRONE,
+                "Kim",
+                "memo"
+        );
+
+        assertThatThrownBy(() -> inspectionService.execute(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(saveInspectionPort, never()).saveInspection(any());
     }
 
     @Test

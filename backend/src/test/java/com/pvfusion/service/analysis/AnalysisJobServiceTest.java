@@ -35,6 +35,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
@@ -83,12 +84,94 @@ class AnalysisJobServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-JOB-002 Thermal 단건 분석 요청은 QUEUED Job을 생성한다")
+    void requestThermalSingleCreatesQueuedJob() {
+        InspectionImage image = image(10L, ImageType.THERMAL, ResourceStatus.ACTIVE);
+        AnalysisJob saved = analysisJob(
+                1L,
+                10L,
+                null,
+                AnalysisInputType.THERMAL_SINGLE,
+                RequestedModelType.THERMAL_ONLY,
+                AnalysisModelType.THERMAL_ONLY,
+                AnalysisJobStatus.QUEUED,
+                0,
+                "trace"
+        );
+
+        when(loadImagePort.loadImage(10L)).thenReturn(Optional.of(image));
+        when(accessChecker.checkImageAccess(1L, 10L)).thenReturn(true);
+        when(loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(10L, List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING)))
+                .thenReturn(List.of());
+        when(saveAnalysisJobPort.saveAnalysisJob(any())).thenReturn(saved);
+
+        var response = analysisJobService.execute(new RequestAnalysisCommand(
+                1L, 10L, null, AnalysisInputType.THERMAL_SINGLE, RequestedModelType.THERMAL_ONLY, "trace"
+        ));
+
+        verify(publishAnalysisJobPort).publish(any());
+        assertThat(response.jobStatus()).isEqualTo(AnalysisJobStatus.QUEUED);
+        assertThat(response.imageId()).isEqualTo(10L);
+        assertThat(response.imagePairId()).isNull();
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-JOB-003 Pair 기반 Fusion 분석 요청은 QUEUED Job을 생성한다")
+    void requestPairCreatesQueuedJob() {
+        ImagePair pair = imagePair(ResourceStatus.ACTIVE);
+        InspectionImage rgb = image(10L, ImageType.RGB, ResourceStatus.ACTIVE);
+        InspectionImage thermal = image(11L, ImageType.THERMAL, ResourceStatus.ACTIVE);
+        AnalysisJob saved = analysisJob(
+                3L,
+                null,
+                30L,
+                AnalysisInputType.RGB_THERMAL_PAIR,
+                RequestedModelType.EARLY_FUSION,
+                AnalysisModelType.FUSION,
+                AnalysisJobStatus.QUEUED,
+                0,
+                "pair-trace"
+        );
+
+        when(loadImagePairPort.loadImagePair(30L)).thenReturn(Optional.of(pair));
+        when(accessChecker.checkImagePairAccess(1L, 30L)).thenReturn(true);
+        when(loadImagePort.loadImage(10L)).thenReturn(Optional.of(rgb));
+        when(loadImagePort.loadImage(11L)).thenReturn(Optional.of(thermal));
+        when(loadAnalysisJobPort.loadAnalysisJobsByImagePairIdAndStatuses(30L, List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING)))
+                .thenReturn(List.of());
+        when(saveAnalysisJobPort.saveAnalysisJob(any())).thenReturn(saved);
+
+        var response = analysisJobService.execute(new RequestAnalysisCommand(
+                1L, null, 30L, AnalysisInputType.RGB_THERMAL_PAIR, RequestedModelType.EARLY_FUSION, "pair-trace"
+        ));
+
+        verify(publishAnalysisJobPort).publish(any());
+        assertThat(response.jobStatus()).isEqualTo(AnalysisJobStatus.QUEUED);
+        assertThat(response.imageId()).isNull();
+        assertThat(response.imagePairId()).isEqualTo(30L);
+    }
+
+    @Test
     void requestRgbSingleRequiresImageIdAndNullPair() {
         assertThatThrownBy(() -> analysisJobService.execute(new RequestAnalysisCommand(
                 1L, null, null, AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, "trace"
         ))).isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-JOB-006 권한 없는 imageId 분석 요청은 차단된다")
+    void requestAnalysisFailsWhenImageAccessDenied() {
+        InspectionImage image = image(10L, ImageType.RGB, ResourceStatus.ACTIVE);
+        when(loadImagePort.loadImage(10L)).thenReturn(Optional.of(image));
+        when(accessChecker.checkImageAccess(1L, 10L)).thenReturn(false);
+
+        assertThatThrownBy(() -> analysisJobService.execute(new RequestAnalysisCommand(
+                1L, 10L, null, AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, "trace"
+        ))).isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
     }
 
     @Test

@@ -32,6 +32,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -138,6 +139,25 @@ class PlantServiceTest {
 
         assertThat(response.name()).isEqualTo("변경");
         assertThat(response.location()).isEqualTo("부산");
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-PLANT-005 발전소 비활성화는 상태를 INACTIVE로 변경한다")
+    void deactivatesPlantForAdmin() {
+        User admin = approvedUser(1L, UserRole.ADMIN);
+        Plant activePlant = plant(10L, "A", ResourceStatus.ACTIVE, 1L);
+        Plant deactivatedPlant = activePlant.deactivate();
+
+        stubCurrentUser(admin);
+        when(plantRepositoryPort.findById(10L)).thenReturn(Optional.of(activePlant));
+        when(plantRepositoryPort.save(any(Plant.class))).thenReturn(deactivatedPlant);
+        when(plantRepositoryPort.countZonesByPlantId(10L)).thenReturn(0L);
+        when(plantRepositoryPort.findLatestInspectionAtByPlantId(10L)).thenReturn(null);
+
+        var response = plantService.execute(new DeactivatePlantCommand(null, 10L));
+
+        assertThat(response.status()).isEqualTo(ResourceStatus.INACTIVE);
+        verify(recordOperationLogUseCase).execute(any());
     }
 
     @Test
