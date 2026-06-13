@@ -19,9 +19,11 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
@@ -64,6 +66,22 @@ class AnalysisResultPersistenceAdapterTest {
 
         verify(analysisResultJpaRepository).search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(PageRequest.class));
         assertThat(result).hasSize(1);
+    }
+
+    @Test
+    void loadAnalysisResultsUsesUnsortedPageRequestForNativeQuery() {
+        when(analysisResultJpaRepository.search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        adapter.loadAnalysisResults(new AnalysisResultListQuery(
+                1L, null, null, null, null, null, null, null, null, null, null, null, 0, 20
+        ));
+
+        ArgumentCaptor<PageRequest> pageableCaptor = ArgumentCaptor.forClass(PageRequest.class);
+        verify(analysisResultJpaRepository).search(
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), pageableCaptor.capture()
+        );
+        Assertions.assertTrue(pageableCaptor.getValue().getSort().isUnsorted());
     }
 
     private AnalysisResultJpaEntity entity() {

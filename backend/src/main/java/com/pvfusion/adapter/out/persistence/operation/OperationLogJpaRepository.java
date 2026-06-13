@@ -26,9 +26,9 @@ public interface OperationLogJpaRepository extends JpaRepository<OperationLogJpa
                       and (:imagePairId is null or o.imagePairId = :imagePairId)
                       and (:analysisJobId is null or o.analysisJobId = :analysisJobId)
                       and (:analysisResultId is null or o.analysisResultId = :analysisResultId)
-                      and (:from is null or o.createdAt >= :from)
-                      and (:to is null or o.createdAt <= :to)
-                      and (:keywordPattern is null
+                      and (:fromFilterEnabled = false or o.createdAt >= :from)
+                      and (:toFilterEnabled = false or o.createdAt <= :to)
+                      and (:keywordFilterEnabled = false
                           or lower(coalesce(o.message, '')) like :keywordPattern
                           or lower(coalesce(o.detail, '')) like :keywordPattern
                           or lower(coalesce(o.targetTable, '')) like :keywordPattern)
@@ -46,9 +46,9 @@ public interface OperationLogJpaRepository extends JpaRepository<OperationLogJpa
                       and (:imagePairId is null or o.imagePairId = :imagePairId)
                       and (:analysisJobId is null or o.analysisJobId = :analysisJobId)
                       and (:analysisResultId is null or o.analysisResultId = :analysisResultId)
-                      and (:from is null or o.createdAt >= :from)
-                      and (:to is null or o.createdAt <= :to)
-                      and (:keywordPattern is null
+                      and (:fromFilterEnabled = false or o.createdAt >= :from)
+                      and (:toFilterEnabled = false or o.createdAt <= :to)
+                      and (:keywordFilterEnabled = false
                           or lower(coalesce(o.message, '')) like :keywordPattern
                           or lower(coalesce(o.detail, '')) like :keywordPattern
                           or lower(coalesce(o.targetTable, '')) like :keywordPattern)
@@ -65,8 +65,11 @@ public interface OperationLogJpaRepository extends JpaRepository<OperationLogJpa
             @Param("imagePairId") Long imagePairId,
             @Param("analysisJobId") Long analysisJobId,
             @Param("analysisResultId") Long analysisResultId,
+            @Param("fromFilterEnabled") boolean fromFilterEnabled,
             @Param("from") OffsetDateTime from,
+            @Param("toFilterEnabled") boolean toFilterEnabled,
             @Param("to") OffsetDateTime to,
+            @Param("keywordFilterEnabled") boolean keywordFilterEnabled,
             @Param("keywordPattern") String keywordPattern,
             Pageable pageable
     );

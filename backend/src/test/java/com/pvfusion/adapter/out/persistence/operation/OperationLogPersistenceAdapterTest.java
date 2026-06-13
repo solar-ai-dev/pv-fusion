@@ -279,6 +279,44 @@ class OperationLogPersistenceAdapterTest {
     }
 
     @Test
+    void findsOperationLogsWhenKeywordIsNull() {
+        operationLogPersistenceAdapter.save(operationLog(
+                null,
+                adminUser.getId(),
+                OperationEventType.PLANT_UPDATED,
+                "plants",
+                13L,
+                13L,
+                null,
+                "Null keyword baseline.",
+                "target=Null",
+                now().minusMinutes(8)
+        ));
+
+        PageResponse<?> result = operationLogPersistenceAdapter.findAll(new OperationLogQuery(
+                null,
+                adminUser.getId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                10,
+                "createdAt,DESC"
+        ));
+
+        assertThat(result.totalElements()).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
     void findsOperationLogsEvenWhenActorUserIsNull() {
         operationLogPersistenceAdapter.save(operationLog(
                 null,
