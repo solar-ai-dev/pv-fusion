@@ -89,6 +89,7 @@ class InspectionServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-INSP-001 zoneId 기준으로 점검을 생성하면 READY 상태로 저장된다")
     void createInspectionSavesUsingZoneIdAndReadyStatus() {
         CreateInspectionCommand command = new CreateInspectionCommand(
                 1L,
@@ -126,6 +127,48 @@ class InspectionServiceTest {
         assertThat(captor.getValue().getZoneId()).isEqualTo(10L);
         assertThat(captor.getValue().getInspectionStatus()).isEqualTo(InspectionStatus.READY);
         assertThat(response.plantId()).isEqualTo(100L);
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-INSP-002 name이 비어 있으면 점검 생성이 실패한다")
+    void createInspectionFailsWhenNameIsBlank() {
+        CreateInspectionCommand command = new CreateInspectionCommand(
+                1L,
+                10L,
+                " ",
+                OffsetDateTime.parse("2026-06-04T09:00:00+09:00"),
+                CaptureMethod.DRONE,
+                "Kim",
+                "memo"
+        );
+
+        assertThatThrownBy(() -> inspectionService.execute(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(saveInspectionPort, never()).saveInspection(any());
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-INSP-002 captureMethod가 없으면 점검 생성이 실패한다")
+    void createInspectionFailsWhenCaptureMethodIsMissing() {
+        CreateInspectionCommand command = new CreateInspectionCommand(
+                1L,
+                10L,
+                "Inspection A",
+                OffsetDateTime.parse("2026-06-04T09:00:00+09:00"),
+                null,
+                "Kim",
+                "memo"
+        );
+
+        assertThatThrownBy(() -> inspectionService.execute(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(saveInspectionPort, never()).saveInspection(any());
     }
 
     @Test
@@ -213,6 +256,7 @@ class InspectionServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-INSP-003 권한 없는 사용자는 점검을 생성할 수 없다")
     void createInspectionFailsWhenZoneAccessDenied() {
         CreateInspectionCommand command = new CreateInspectionCommand(
                 1L,
