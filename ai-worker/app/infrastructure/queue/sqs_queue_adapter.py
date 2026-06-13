@@ -58,4 +58,11 @@ class SqsQueueAdapter(QueuePort):
         }
         if settings.sqsEndpointUrl:
             kwargs["endpoint_url"] = settings.sqsEndpointUrl
+
+        access_key = (settings.sqsAccessKey or "").strip()
+        secret_key = (settings.sqsSecretKey or "").strip()
+        if access_key and secret_key:
+            kwargs["aws_access_key_id"] = access_key
+            kwargs["aws_secret_access_key"] = secret_key
+
         return boto3.client(**kwargs)

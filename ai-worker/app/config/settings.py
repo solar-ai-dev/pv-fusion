@@ -24,14 +24,44 @@ class Settings(BaseSettings):
     databaseUrl: str = Field(default="", validation_alias=AliasChoices("databaseUrl", "DATABASE_URI", "DATABASE_URL"))
     awsRegion: str = Field(default="ap-northeast-2", validation_alias=AliasChoices("awsRegion", "AWS_REGION"))
     sqsQueueUrl: str = Field(default="", validation_alias=AliasChoices("sqsQueueUrl", "SQS_QUEUE_URL"))
-    sqsEndpointUrl: str | None = Field(default=None, validation_alias=AliasChoices("sqsEndpointUrl", "SQS_ENDPOINT_URL"))
+    sqsEndpointUrl: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("sqsEndpointUrl", "SQS_ENDPOINT_URL", "SQS_ENDPOINT"),
+    )
+    sqsAccessKey: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("sqsAccessKey", "SQS_ACCESS_KEY", "AWS_ACCESS_KEY_ID"),
+    )
+    sqsSecretKey: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("sqsSecretKey", "SQS_SECRET_KEY", "AWS_SECRET_ACCESS_KEY"),
+    )
     sqsWaitTimeSeconds: int = Field(default=DEFAULT_SQS_WAIT_TIME_SECONDS, validation_alias=AliasChoices("sqsWaitTimeSeconds", "SQS_WAIT_TIME_SECONDS"))
     sqsVisibilityTimeoutSeconds: int | None = Field(default=None, validation_alias=AliasChoices("sqsVisibilityTimeoutSeconds", "SQS_VISIBILITY_TIMEOUT_SECONDS"))
-    storageEndpointUrl: str | None = Field(default=None, validation_alias=AliasChoices("storageEndpointUrl", "STORAGE_ENDPOINT_URL"))
-    storageRegion: str | None = Field(default=None, validation_alias=AliasChoices("storageRegion", "STORAGE_REGION"))
-    storageAccessKey: str | None = Field(default=None, validation_alias=AliasChoices("storageAccessKey", "STORAGE_ACCESS_KEY"))
-    storageSecretKey: str | None = Field(default=None, validation_alias=AliasChoices("storageSecretKey", "STORAGE_SECRET_KEY"))
-    storageDefaultBucket: str | None = Field(default=None, validation_alias=AliasChoices("storageDefaultBucket", "STORAGE_DEFAULT_BUCKET"))
+    storageEndpointUrl: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("storageEndpointUrl", "STORAGE_ENDPOINT_URL", "STORAGE_ENDPOINT", "S3_ENDPOINT"),
+    )
+    storageRegion: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("storageRegion", "STORAGE_REGION", "S3_REGION"),
+    )
+    storageAccessKey: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("storageAccessKey", "STORAGE_ACCESS_KEY", "AWS_ACCESS_KEY_ID"),
+    )
+    storageSecretKey: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("storageSecretKey", "STORAGE_SECRET_KEY", "AWS_SECRET_ACCESS_KEY"),
+    )
+    storageDefaultBucket: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("storageDefaultBucket", "STORAGE_DEFAULT_BUCKET", "S3_BUCKET_NAME"),
+    )
+    storagePathStyleEnabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("storagePathStyleEnabled", "STORAGE_PATH_STYLE_ENABLED", "S3_PATH_STYLE_ACCESS_ENABLED"),
+    )
     rgbModelManifestPath: str = Field(
         default="models/rgb/model-manifest.dev.yaml",
         validation_alias=AliasChoices("rgbModelManifestPath", "RGB_MODEL_MANIFEST_PATH"),

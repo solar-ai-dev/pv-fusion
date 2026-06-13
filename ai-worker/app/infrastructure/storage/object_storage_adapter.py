@@ -4,6 +4,10 @@ try:
     import boto3
 except ModuleNotFoundError:  # pragma: no cover - environment dependent
     boto3 = None
+try:
+    from botocore.config import Config
+except ModuleNotFoundError:  # pragma: no cover - environment dependent
+    Config = None
 
 from app.application.ports import StoragePort
 from app.config.settings import Settings
@@ -48,6 +52,8 @@ class ObjectStorageAdapter(StoragePort):
     def _build_client(settings: Settings) -> Any:
         if boto3 is None:
             raise ModuleNotFoundError("boto3 is required to create the object storage client.")
+        if settings.storagePathStyleEnabled and Config is None:
+            raise ModuleNotFoundError("botocore is required to configure path-style S3 access.")
 
         kwargs: dict[str, Any] = {
             "service_name": "s3",
@@ -55,6 +61,8 @@ class ObjectStorageAdapter(StoragePort):
         }
         if settings.storageEndpointUrl:
             kwargs["endpoint_url"] = settings.storageEndpointUrl
+        if settings.storagePathStyleEnabled:
+            kwargs["config"] = Config(s3={"addressing_style": "path"})
 
         access_key = (settings.storageAccessKey or "").strip()
         secret_key = (settings.storageSecretKey or "").strip()

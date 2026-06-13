@@ -23,6 +23,8 @@ def build_settings(**overrides) -> Settings:
         "sqsVisibilityTimeoutSeconds": 30,
         "awsRegion": "ap-northeast-2",
         "sqsEndpointUrl": "http://localhost:4566",
+        "sqsAccessKey": None,
+        "sqsSecretKey": None,
     }
     payload.update(overrides)
     return Settings(**payload)
@@ -114,6 +116,28 @@ def test_build_client_includes_endpoint_override_when_present(monkeypatch):
     assert captured["endpoint_url"] == "http://localhost:4566"
 
 
+def test_build_client_includes_static_credentials_when_present(monkeypatch):
+    captured = {}
+
+    class FakeBoto3:
+        @staticmethod
+        def client(**kwargs):
+            captured.update(kwargs)
+            return object()
+
+    monkeypatch.setattr("app.infrastructure.queue.sqs_queue_adapter.boto3", FakeBoto3)
+
+    SqsQueueAdapter(
+        build_settings(
+            sqsAccessKey="test",
+            sqsSecretKey="secret",
+        )
+    )
+
+    assert captured["aws_access_key_id"] == "test"
+    assert captured["aws_secret_access_key"] == "secret"
+
+
 def test_build_client_omits_endpoint_override_when_absent(monkeypatch):
     captured = {}
 
@@ -130,3 +154,20 @@ def test_build_client_omits_endpoint_override_when_absent(monkeypatch):
     assert captured["service_name"] == "sqs"
     assert captured["region_name"] == "ap-northeast-2"
     assert "endpoint_url" not in captured
+
+
+def test_build_client_omits_static_credentials_when_missing(monkeypatch):
+    captured = {}
+
+    class FakeBoto3:
+        @staticmethod
+        def client(**kwargs):
+            captured.update(kwargs)
+            return object()
+
+    monkeypatch.setattr("app.infrastructure.queue.sqs_queue_adapter.boto3", FakeBoto3)
+
+    SqsQueueAdapter(build_settings(sqsAccessKey="test", sqsSecretKey=None))
+
+    assert "aws_access_key_id" not in captured
+    assert "aws_secret_access_key" not in captured

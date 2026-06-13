@@ -31,6 +31,7 @@ def build_settings(**overrides) -> Settings:
         "storageAccessKey": None,
         "storageSecretKey": None,
         "storageDefaultBucket": None,
+        "storagePathStyleEnabled": False,
     }
     payload.update(overrides)
     return Settings(**payload)
@@ -137,3 +138,41 @@ def test_build_client_omits_static_credentials_when_one_value_is_missing(monkeyp
         "region_name": "ap-northeast-2",
         "endpoint_url": "http://localhost:9000",
     }
+
+
+def test_build_client_enables_path_style_when_configured(monkeypatch):
+    captured = {}
+
+    class FakeBoto3:
+        @staticmethod
+        def client(**kwargs):
+            captured.update(kwargs)
+            return object()
+
+    monkeypatch.setattr("app.infrastructure.storage.object_storage_adapter.boto3", FakeBoto3)
+
+    ObjectStorageAdapter(
+        build_settings(
+            storageEndpointUrl="http://localhost:9000",
+            storagePathStyleEnabled=True,
+        )
+    )
+
+    assert captured["service_name"] == "s3"
+    assert captured["config"].s3["addressing_style"] == "path"
+
+
+def test_build_client_omits_path_style_when_not_configured(monkeypatch):
+    captured = {}
+
+    class FakeBoto3:
+        @staticmethod
+        def client(**kwargs):
+            captured.update(kwargs)
+            return object()
+
+    monkeypatch.setattr("app.infrastructure.storage.object_storage_adapter.boto3", FakeBoto3)
+
+    ObjectStorageAdapter(build_settings(storageEndpointUrl="http://localhost:9000"))
+
+    assert "config" not in captured
