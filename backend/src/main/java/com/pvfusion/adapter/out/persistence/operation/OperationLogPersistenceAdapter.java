@@ -9,6 +9,8 @@ import com.pvfusion.application.port.out.operation.OperationLogRepositoryPort;
 import com.pvfusion.application.port.out.operation.SaveOperationLogPort;
 import com.pvfusion.domain.operation.OperationLog;
 import com.pvfusion.global.response.PageResponse;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +30,8 @@ public class OperationLogPersistenceAdapter
         implements OperationLogRepositoryPort, LoadOperationLogPort, SaveOperationLogPort {
 
     private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final OffsetDateTime DEFAULT_FROM = OffsetDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+    private static final OffsetDateTime DEFAULT_TO = OffsetDateTime.of(9999, 12, 31, 23, 59, 59, 0, ZoneOffset.UTC);
 
     private final OperationLogJpaRepository operationLogJpaRepository;
     private final OperationLogPersistenceMapper operationLogPersistenceMapper;
@@ -46,8 +50,11 @@ public class OperationLogPersistenceAdapter
                         query.imagePairId(),
                         query.analysisJobId(),
                         query.analysisResultId(),
-                        query.from(),
-                        query.to(),
+                        hasFrom(query.from()),
+                        normalizeFrom(query.from()),
+                        hasTo(query.to()),
+                        normalizeTo(query.to()),
+                        hasKeyword(query.keyword()),
                         normalizeKeyword(query.keyword()),
                         PageRequest.of(
                                 Math.max(query.page(), 0),
@@ -94,9 +101,29 @@ public class OperationLogPersistenceAdapter
 
     private String normalizeKeyword(String keyword) {
         if (keyword == null || keyword.isBlank()) {
-            return null;
+            return "%";
         }
         return "%" + keyword.trim().toLowerCase() + "%";
+    }
+
+    private boolean hasKeyword(String keyword) {
+        return keyword != null && !keyword.isBlank();
+    }
+
+    private boolean hasFrom(OffsetDateTime from) {
+        return from != null;
+    }
+
+    private OffsetDateTime normalizeFrom(OffsetDateTime from) {
+        return from != null ? from : DEFAULT_FROM;
+    }
+
+    private boolean hasTo(OffsetDateTime to) {
+        return to != null;
+    }
+
+    private OffsetDateTime normalizeTo(OffsetDateTime to) {
+        return to != null ? to : DEFAULT_TO;
     }
 
     private Sort resolveSort(String sort) {

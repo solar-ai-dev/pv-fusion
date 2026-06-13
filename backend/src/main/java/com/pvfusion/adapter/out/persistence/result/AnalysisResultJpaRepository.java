@@ -33,6 +33,7 @@ public interface AnalysisResultJpaRepository extends JpaRepository<AnalysisResul
                       AND (:severityLevel IS NULL OR ar.severity_level = :severityLevel)
                       AND (:reviewStatus IS NULL OR ar.review_status = :reviewStatus)
                       AND (:analysisJobId IS NULL OR ar.analysis_job_id = :analysisJobId)
+                    ORDER BY COALESCE(ar.analyzed_at, ar.created_at) DESC, ar.id DESC
                     """,
             countQuery = """
                     SELECT COUNT(*)

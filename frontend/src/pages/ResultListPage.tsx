@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { useAuth } from '../features/auth/hooks/useAuth'
 import {
   getAnalysisInputTypeLabel,
   getAnalysisJobStatusLabel,
@@ -38,6 +39,7 @@ const PAGE_SIZE = 20
 
 export function ResultListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const role = useAuth((state) => state.user?.role)
   const [plantIdInput, setPlantIdInput] = useState(searchParams.get('plantId') ?? '')
   const [zoneIdInput, setZoneIdInput] = useState(searchParams.get('zoneId') ?? '')
   const [inspectionIdInput, setInspectionIdInput] = useState(
@@ -79,7 +81,8 @@ export function ResultListPage() {
   const hasScopedFilter = Boolean(
     params.plantId || params.zoneId || params.inspectionId || params.equipmentId,
   )
-  const resultsQuery = useResults(params, hasScopedFilter)
+  const canQuery = role === 'ADMIN' || hasScopedFilter
+  const resultsQuery = useResults(params, canQuery)
   const rows = resultsQuery.data?.data.content ?? []
 
   const handleSearch = (formData: FormData) => {
@@ -125,7 +128,8 @@ export function ResultListPage() {
         <div>
           <h2 className="panel-title">검색 필터</h2>
           <p className="panel-description">
-            일반 사용자는 발전소, 구역, 점검, 장비 중 하나 이상의 범위 필터가 필요합니다.
+            일반 사용자는 발전소, 구역, 점검, 장비 중 하나 이상의 범위 필터가 필요하며,
+            관리자는 전체 결과를 바로 조회할 수 있습니다.
           </p>
         </div>
         <form
@@ -289,25 +293,25 @@ export function ResultListPage() {
         </form>
       </section>
 
-      {!hasScopedFilter ? (
+      {!canQuery ? (
         <EmptyState
           title="먼저 범위 필터를 입력해 주세요."
           description="점검 ID, 구역 ID, 발전소 ID, 장비 ID 중 하나를 넣으면 결과 목록을 조회할 수 있습니다."
         />
       ) : null}
 
-      {hasScopedFilter && resultsQuery.isLoading && !resultsQuery.data ? (
+      {canQuery && resultsQuery.isLoading && !resultsQuery.data ? (
         <LoadingState message="결과 목록을 불러오는 중입니다." />
       ) : null}
 
-      {hasScopedFilter && resultsQuery.isError ? (
+      {canQuery && resultsQuery.isError ? (
         <ErrorState
           title="결과 목록을 불러오지 못했습니다."
           description={getApiErrorMessage(resultsQuery.error)}
         />
       ) : null}
 
-      {hasScopedFilter && resultsQuery.data ? (
+      {canQuery && resultsQuery.data ? (
         <section className="panel stack-md">
           <div>
             <h2 className="panel-title">결과 목록</h2>

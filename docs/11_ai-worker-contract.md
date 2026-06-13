@@ -241,9 +241,8 @@ DB에는 다음을 저장한다.
 | `NORMAL` | 이상 후보 없음 |
 | `ANOMALY` | 이상 후보 있음 |
 | `LOW_CONFIDENCE` | 저신뢰도 결과 |
-| `FAILED` | 결과 생성 실패 |
 
-[확인 필요] 실제 `resultStatus` enum은 Backend/DB 상태 정의와 맞춰야 한다.
+분석 실패는 `resultStatus`로 표현하지 않는다. 실패는 `jobStatus=FAILED`와 `failureCode`, `failureMessage`로 관리한다.
 
 ### 6.6 actionCandidate
 

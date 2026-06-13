@@ -427,7 +427,7 @@ http://localhost:8080/api/v1/plants
 | 점검    | `inspectionId`                                                   |
 | 입력 유형 | `RGB_SINGLE`, `THERMAL_SINGLE`, `RGB_THERMAL_PAIR`               |
 | 모델 유형 | `RGB_ONLY`, `THERMAL_ONLY`, `FUSION`                             |
-| 결과 상태 | `NORMAL`, `ANOMALY`, `LOW_CONFIDENCE`, `FAILED`                  |
+| 결과 상태 | `NORMAL`, `ANOMALY`, `LOW_CONFIDENCE`                  |
 | 조치 후보 | `CLEANING`, `RETAKE`, `FIELD_INSPECTION`, `REPLACEMENT_REVIEW`   |
 | 검토 상태 | `UNCHECKED`, `CONFIRMED`, `RECHECK_REQUIRED`, `ACTION_COMPLETED` |
 | 심각도   | 실제 Backend enum 기준 확인 필요                                         |
@@ -588,7 +588,7 @@ http://localhost:8080/api/v1/plants
 | 이미지 유형 | `RGB`, `THERMAL`                                                 |
 | 입력 유형  | `RGB_SINGLE`, `THERMAL_SINGLE`, `RGB_THERMAL_PAIR`               |
 | 분석 상태  | `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`                       |
-| 결과 상태  | `NORMAL`, `ANOMALY`, `LOW_CONFIDENCE`, `FAILED`                  |
+| 결과 상태  | `NORMAL`, `ANOMALY`, `LOW_CONFIDENCE`                  |
 | 조치 후보  | `CLEANING`, `RETAKE`, `FIELD_INSPECTION`, `REPLACEMENT_REVIEW`   |
 | 검토 상태  | `UNCHECKED`, `CONFIRMED`, `RECHECK_REQUIRED`, `ACTION_COMPLETED` |
 | 우선순위   | 실제 Backend enum 기준 확인 필요                                         |

@@ -35,6 +35,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -228,6 +229,33 @@ class ZoneServiceTest {
 
         assertThat(response.status()).isEqualTo(ResourceStatus.INACTIVE);
         verify(recordOperationLogUseCase).execute(any());
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-ZONE-004 deactivation preserves zone history fields")
+    void deactivateZonePreservesHistoryAndChangesOnlyStatus() {
+        User user = approvedUser(2L, UserRole.USER);
+        Zone zone = zone(100L, 10L, "Zone-A", ResourceStatus.ACTIVE, 1L);
+        Plant plant = plant(10L, ResourceStatus.ACTIVE);
+        OffsetDateTime originalCreatedAt = zone.getCreatedAt();
+        Long originalCreatedBy = zone.getCreatedByUserId();
+
+        stubCurrentUser(user);
+        when(zoneRepositoryPort.findById(100L)).thenReturn(Optional.of(zone));
+        when(plantRepositoryPort.findById(10L)).thenReturn(Optional.of(plant));
+        when(plantMemberRepositoryPort.findByPlantIdAndUserId(10L, 2L))
+                .thenReturn(Optional.of(member(30L, 10L, 2L, PlantMemberRole.MANAGER, ResourceStatus.ACTIVE)));
+        when(zoneRepositoryPort.save(any(Zone.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        zoneService.execute(new DeactivateZoneCommand(null, 100L));
+
+        ArgumentCaptor<Zone> captor = ArgumentCaptor.forClass(Zone.class);
+        verify(zoneRepositoryPort).save(captor.capture());
+        Zone savedZone = captor.getValue();
+        assertThat(savedZone.getStatus()).isEqualTo(ResourceStatus.INACTIVE);
+        assertThat(savedZone.getName()).isEqualTo("Zone-A");
+        assertThat(savedZone.getCreatedByUserId()).isEqualTo(originalCreatedBy);
+        assertThat(savedZone.getCreatedAt()).isEqualTo(originalCreatedAt);
     }
 
     @Test

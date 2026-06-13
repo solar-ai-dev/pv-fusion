@@ -72,11 +72,7 @@ public class AnalysisResultPersistenceAdapter implements LoadAnalysisResultPort,
                 query.severityLevel() != null ? query.severityLevel().name() : null,
                 query.reviewStatus() != null ? query.reviewStatus().name() : null,
                 null,
-                PageRequest.of(
-                        query.page(),
-                        query.size(),
-                        Sort.by(Sort.Order.desc("analyzedAt"), Sort.Order.desc("id"))
-                )
+                PageRequest.of(query.page(), query.size(), Sort.unsorted())
         );
     }
 }

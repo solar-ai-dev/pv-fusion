@@ -34,6 +34,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -91,6 +92,21 @@ class TrackingServiceTest {
 
         assertThat(response.items()).hasSize(1);
         assertThat(response.items().get(0).worsened()).isTrue();
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-TRACK-002 returns empty response when no tracking data exists")
+    void queryTrackingReturnsEmptyItemsWhenNoDataExists() {
+        when(accessChecker.isAdmin(1L)).thenReturn(false);
+        when(accessChecker.checkZoneAccess(1L, 10L)).thenReturn(true);
+        when(loadTrackingPort.loadTracking(any())).thenReturn(List.of());
+
+        var response = trackingService.execute(new TrackingQuery(
+                null, 10L, null, TargetType.ZONE, LocalDate.now().minusDays(7), LocalDate.now(),
+                AnalysisInputType.RGB_SINGLE, AnalysisModelType.RGB_ONLY, null, null, null
+        ));
+
+        assertThat(response.items()).isEmpty();
     }
 
     @Test

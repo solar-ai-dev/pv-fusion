@@ -1,6 +1,8 @@
 package com.pvfusion.adapter.in.web.image;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -20,8 +22,10 @@ import com.pvfusion.domain.common.ResourceStatus;
 import com.pvfusion.domain.common.TargetType;
 import com.pvfusion.domain.image.ImageType;
 import com.pvfusion.domain.image.UploadStatus;
+import com.pvfusion.global.error.GlobalExceptionHandler;
 import java.time.OffsetDateTime;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,7 +59,9 @@ class ImageControllerTest {
                 getImageUseCase,
                 getImagePreviewUseCase,
                 deactivateImageUseCase
-        )).build();
+        ))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
     }
 
     @Test
@@ -70,6 +76,23 @@ class ImageControllerTest {
                         .param("imageType", "RGB"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.imageId").value(1L));
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-IMAGE-003 잘못된 imageType 문자열은 업로드 단계에서 차단된다")
+    void uploadImageRejectsUnknownImageType() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "rgb.jpg", "image/jpeg", new byte[]{1, 2, 3});
+
+        mockMvc.perform(multipart("/api/v1/images")
+                        .file(file)
+                        .param("inspectionId", "10")
+                        .param("targetType", "ZONE")
+                        .param("imageType", "UNKNOWN"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+
+        verify(uploadImageUseCase, never()).execute(any());
     }
 
     @Test

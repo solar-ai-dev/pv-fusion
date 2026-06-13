@@ -176,6 +176,42 @@ class UserPersistenceAdapterTest {
     }
 
     @Test
+    void findsUsersWhenKeywordIsBlank() {
+        OffsetDateTime now = OffsetDateTime.parse("2026-06-05T11:30:00+09:00");
+        userPersistenceAdapter.save(new User(
+                null,
+                "blank-keyword@example.com",
+                "Blank Keyword",
+                "GOOGLE",
+                "google-blank-1",
+                UserRole.USER,
+                AccountStatus.APPROVED,
+                now,
+                now,
+                now
+        ));
+
+        PageResponse<?> nullKeywordPage = userPersistenceAdapter.findAll(new UserListQuery(
+                null,
+                null,
+                UserRole.USER,
+                AccountStatus.APPROVED,
+                0,
+                10
+        ));
+        PageResponse<?> blankKeywordPage = userPersistenceAdapter.findAll(new UserListQuery(
+                null,
+                "   ",
+                UserRole.USER,
+                AccountStatus.APPROVED,
+                0,
+                10
+        ));
+
+        assertThat(blankKeywordPage.totalElements()).isEqualTo(nullKeywordPage.totalElements());
+    }
+
+    @Test
     void findsUsersWithCaseInsensitiveKeyword() {
         OffsetDateTime now = OffsetDateTime.parse("2026-06-05T12:00:00+09:00");
         userPersistenceAdapter.save(new User(
