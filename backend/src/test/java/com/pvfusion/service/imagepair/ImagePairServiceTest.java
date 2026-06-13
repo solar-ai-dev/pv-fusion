@@ -33,6 +33,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -78,6 +79,7 @@ class ImagePairServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-PAIR-001 동일 점검/동일 대상의 RGB와 THERMAL 이미지로 Pair를 생성한다")
     void createImagePairSucceedsForSameInspectionAndTarget() {
         Inspection inspection = inspection();
         InspectionImage rgb = rgbImage(100L, 10L, 200L, TargetType.PANEL, ResourceStatus.ACTIVE);
@@ -107,6 +109,7 @@ class ImagePairServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-PAIR-003 서로 다른 inspectionId의 이미지는 Pair 생성이 차단된다")
     void createImagePairFailsWhenInspectionDiffers() {
         InspectionImage rgb = rgbImage(100L, 10L, null, TargetType.ZONE, ResourceStatus.ACTIVE);
         InspectionImage thermal = thermalImage(101L, 11L, null, TargetType.ZONE, ResourceStatus.ACTIVE);
@@ -121,6 +124,7 @@ class ImagePairServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-PAIR-004 서로 다른 targetType의 이미지는 Pair 생성이 차단된다")
     void createImagePairFailsWhenTargetTypeDiffers() {
         InspectionImage rgb = rgbImage(100L, 10L, null, TargetType.ZONE, ResourceStatus.ACTIVE);
         InspectionImage thermal = thermalImage(101L, 10L, null, TargetType.PANEL, ResourceStatus.ACTIVE);
@@ -135,6 +139,7 @@ class ImagePairServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-PAIR-005 서로 다른 equipmentId의 이미지는 Pair 생성이 차단된다")
     void createImagePairFailsWhenEquipmentDiffers() {
         InspectionImage rgb = rgbImage(100L, 10L, 200L, TargetType.PANEL, ResourceStatus.ACTIVE);
         InspectionImage thermal = thermalImage(101L, 10L, 201L, TargetType.PANEL, ResourceStatus.ACTIVE);
@@ -149,6 +154,7 @@ class ImagePairServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-PAIR-002 RGB+RGB 또는 THERMAL+THERMAL Pair 생성은 차단된다")
     void createImagePairFailsWhenImageTypeIsNotRgbAndThermal() {
         InspectionImage rgb = thermalImage(100L, 10L, null, TargetType.ZONE, ResourceStatus.ACTIVE);
         InspectionImage thermal = thermalImage(101L, 10L, null, TargetType.ZONE, ResourceStatus.ACTIVE);
@@ -235,6 +241,34 @@ class ImagePairServiceTest {
 
         assertThat(response.rgbCandidates()).extracting(ImageSummaryResponse::imageId).containsExactly(102L);
         assertThat(response.thermalCandidates()).extracting(ImageSummaryResponse::imageId).containsExactly(103L);
+    }
+
+    @Test
+    void candidateQueryAllowsZoneTargetWithoutEquipmentId() {
+        Inspection inspection = inspection();
+        InspectionImage rgb = rgbImage(100L, 10L, null, TargetType.ZONE, ResourceStatus.ACTIVE);
+        InspectionImage thermal = thermalImage(101L, 10L, null, TargetType.ZONE, ResourceStatus.ACTIVE);
+
+        when(loadInspectionPort.loadInspection(10L)).thenReturn(Optional.of(inspection));
+        when(accessChecker.checkInspectionAccess(1L, 10L)).thenReturn(true);
+        when(loadImagePort.loadImages(any()))
+                .thenReturn(List.of(rgb))
+                .thenReturn(List.of(thermal));
+        when(loadImagePairPort.loadImagePairsByStatus(10L, ResourceStatus.ACTIVE)).thenReturn(List.of());
+
+        var response = imagePairService.execute(new ImagePairCandidateQuery(1L, 10L, TargetType.ZONE, null));
+
+        assertThat(response.equipmentId()).isNull();
+        assertThat(response.rgbCandidates()).extracting(ImageSummaryResponse::imageId).containsExactly(100L);
+        assertThat(response.thermalCandidates()).extracting(ImageSummaryResponse::imageId).containsExactly(101L);
+    }
+
+    @Test
+    void candidateQueryRejectsEquipmentIdForZoneTarget() {
+        assertThatThrownBy(() -> imagePairService.execute(new ImagePairCandidateQuery(1L, 10L, TargetType.ZONE, 200L)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT);
     }
 
     private Inspection inspection() {
