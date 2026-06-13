@@ -162,3 +162,41 @@ def test_rgb_thermal_pair_message_is_passed_to_processor_and_deleted_when_skippe
     assert processor.messages[0].imageId is None
     assert processor.messages[0].imagePairId == 301
     assert queue.deleted_receipts == ["receipt-1"]
+
+
+def test_run_forever_stops_after_stop_is_requested():
+    queue = FakeQueuePort([])
+    processor = FakeProcessor(
+        ProcessingResult(status="processed", jobId=1000, message="ok")
+    )
+    runner = SqsWorkerRunner(queue, processor)
+
+    call_count = 0
+
+    def run_once(max_number: int = 1) -> int:
+        nonlocal call_count
+        call_count += 1
+        runner.request_stop()
+        return 0
+
+    runner.run_once = run_once
+
+    runner.run_forever()
+
+    assert call_count == 1
+
+
+def test_run_forever_prevents_duplicate_start():
+    queue = FakeQueuePort([])
+    processor = FakeProcessor(
+        ProcessingResult(status="processed", jobId=1000, message="ok")
+    )
+    runner = SqsWorkerRunner(queue, processor)
+    runner._is_running = True
+
+    try:
+        runner.run_forever()
+    except RuntimeError as error:
+        assert str(error) == "SQS worker loop is already running."
+    else:  # pragma: no cover - defensive
+        raise AssertionError("Expected RuntimeError for duplicate worker start.")
