@@ -21,6 +21,7 @@ import com.pvfusion.domain.user.UserRole;
 import com.pvfusion.domain.zone.Zone;
 import java.time.OffsetDateTime;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -102,6 +103,47 @@ class InspectionPersistenceAdapterJpaTest {
         assertThat(inspections).hasSize(1);
         assertThat(totalElements).isEqualTo(1);
         assertThat(inspections.get(0).getName()).isEqualTo("Inspection A");
+    }
+
+    @Test
+    @DisplayName("inspection 목록 조회는 created_at 내림차순 정렬을 사용한다")
+    void loadInspectionsOrdersByCreatedAtDescending() throws InterruptedException {
+        inspectionPersistenceAdapter.saveInspection(new Inspection(
+                null,
+                zone.getId(),
+                "Inspection Older",
+                now().minusDays(1),
+                CaptureMethod.DRONE,
+                "Kim",
+                "memo",
+                InspectionStatus.READY,
+                ownerUser.getId(),
+                now().minusDays(1),
+                now().minusDays(1)
+        ));
+
+        Thread.sleep(10);
+
+        inspectionPersistenceAdapter.saveInspection(new Inspection(
+                null,
+                zone.getId(),
+                "Inspection Newer",
+                now(),
+                CaptureMethod.DRONE,
+                "Kim",
+                "memo",
+                InspectionStatus.READY,
+                ownerUser.getId(),
+                now(),
+                now()
+        ));
+
+        List<Inspection> inspections = inspectionPersistenceAdapter.loadInspections(
+                new InspectionListQuery(null, null, null, null, null, 0, 20)
+        );
+
+        assertThat(inspections).extracting(Inspection::getName)
+                .containsExactly("Inspection Newer", "Inspection Older");
     }
 
     @Test
