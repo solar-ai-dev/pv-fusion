@@ -67,6 +67,7 @@ class PlantServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-PLANT-001 creates active plant and owner membership for creator")
     void createsPlantAndRegistersCreatorAsOwner() {
         User user = approvedUser(1L, UserRole.USER);
         Plant savedPlant = plant(10L, "Plant-A", ResourceStatus.ACTIVE, 1L);
@@ -83,12 +84,15 @@ class PlantServiceTest {
         verify(plantMemberRepositoryPort).save(captor.capture());
         assertThat(captor.getValue().getMemberRole()).isEqualTo(PlantMemberRole.OWNER);
         assertThat(captor.getValue().getUserId()).isEqualTo(1L);
+        assertThat(captor.getValue().getStatus()).isEqualTo(ResourceStatus.ACTIVE);
         assertThat(response.plantId()).isEqualTo(10L);
         assertThat(response.createdByUserId()).isEqualTo(1L);
+        assertThat(response.status()).isEqualTo(ResourceStatus.ACTIVE);
         verify(recordOperationLogUseCase).execute(any());
     }
 
     @Test
+    @DisplayName("BE-UNIT-PLANT-002 limits list query to current approved user scope")
     void queriesPlantsUsingCurrentUserIdForApprovedUser() {
         User user = approvedUser(2L, UserRole.USER);
         PageResponse<PlantSummaryResponse> page = PageResponse.of(
@@ -108,6 +112,24 @@ class PlantServiceTest {
         ArgumentCaptor<PlantListQuery> captor = ArgumentCaptor.forClass(PlantListQuery.class);
         verify(plantRepositoryPort).findAll(captor.capture());
         assertThat(captor.getValue().actorUserId()).isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("Admin queries all plants without actor restriction")
+    void adminQueriesPlantsWithoutActorRestriction() {
+        User admin = approvedUser(99L, UserRole.ADMIN);
+        PageResponse<PlantSummaryResponse> page = PageResponse.of(List.of(), 0, 20, 0, 0, false);
+
+        stubCurrentUser(admin);
+        when(plantRepositoryPort.findAll(any(PlantListQuery.class))).thenReturn(page);
+
+        plantService.execute(new PlantListQuery("Plant", ResourceStatus.ACTIVE, 0, 20));
+
+        ArgumentCaptor<PlantListQuery> captor = ArgumentCaptor.forClass(PlantListQuery.class);
+        verify(plantRepositoryPort).findAll(captor.capture());
+        assertThat(captor.getValue().actorUserId()).isNull();
+        assertThat(captor.getValue().keyword()).isEqualTo("Plant");
+        assertThat(captor.getValue().status()).isEqualTo(ResourceStatus.ACTIVE);
     }
 
     @Test
