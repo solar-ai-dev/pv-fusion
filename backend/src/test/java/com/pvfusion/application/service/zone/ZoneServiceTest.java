@@ -73,6 +73,7 @@ class ZoneServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-ZONE-001 creates zone under active plant")
     void createsZoneForAdmin() {
         User admin = approvedUser(1L, UserRole.ADMIN);
         Plant plant = plant(10L, ResourceStatus.ACTIVE);
@@ -115,6 +116,7 @@ class ZoneServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-ZONE-002 rejects zone creation without manage permission")
     void rejectsZoneCreationForViewerMember() {
         User user = approvedUser(2L, UserRole.USER);
         Plant plant = plant(10L, ResourceStatus.ACTIVE);
@@ -164,6 +166,7 @@ class ZoneServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-ZONE-003 returns zone detail by zoneId")
     void getsZoneDetailForAccessibleUser() {
         User user = approvedUser(2L, UserRole.USER);
         Zone zone = zone(100L, 10L, "Zone-A", ResourceStatus.INACTIVE, 1L);
