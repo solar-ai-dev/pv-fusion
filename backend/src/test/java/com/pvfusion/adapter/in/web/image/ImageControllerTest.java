@@ -25,6 +25,7 @@ import com.pvfusion.domain.image.UploadStatus;
 import com.pvfusion.global.error.GlobalExceptionHandler;
 import java.time.OffsetDateTime;
 import java.util.List;
+import org.hibernate.validator.HibernateValidator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 @ExtendWith(MockitoExtension.class)
 class ImageControllerTest {
@@ -50,9 +52,13 @@ class ImageControllerTest {
     private DeactivateImageUseCase deactivateImageUseCase;
 
     private MockMvc mockMvc;
+    private LocalValidatorFactoryBean validator;
 
     @BeforeEach
     void setUp() {
+        validator = new LocalValidatorFactoryBean();
+        validator.setProviderClass(HibernateValidator.class);
+        validator.afterPropertiesSet();
         mockMvc = MockMvcBuilders.standaloneSetup(new ImageController(
                 uploadImageUseCase,
                 queryImageUseCase,
@@ -61,21 +67,43 @@ class ImageControllerTest {
                 deactivateImageUseCase
         ))
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setValidator(validator)
                 .build();
     }
 
     @Test
+    @DisplayName("BE-UNIT-IMAGE-001 업로드 성공 응답은 공통 success wrapper를 반환한다")
     void uploadImageReturnsCreated() throws Exception {
         when(uploadImageUseCase.execute(any())).thenReturn(sampleResponse());
         MockMultipartFile file = new MockMultipartFile("file", "rgb.jpg", "image/jpeg", new byte[]{1, 2, 3});
 
-        mockMvc.perform(multipart("/api/v1/images")
+                mockMvc.perform(multipart("/api/v1/images")
                         .file(file)
                         .param("inspectionId", "10")
                         .param("targetType", "ZONE")
                         .param("imageType", "RGB"))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").isNotEmpty())
                 .andExpect(jsonPath("$.data.imageId").value(1L));
+    }
+
+    @Test
+    void uploadImageValidationReturnsBadRequestWithErrorWrapper() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "rgb.jpg", "image/jpeg", new byte[]{1, 2, 3});
+
+        mockMvc.perform(multipart("/api/v1/images")
+                        .file(file)
+                        .param("targetType", "ZONE")
+                        .param("imageType", "RGB"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.status").value(400))
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.error.path").value("/api/v1/images"))
+                .andExpect(jsonPath("$.error.traceId").isNotEmpty());
+
+        verify(uploadImageUseCase, never()).execute(any());
     }
 
     @Test
@@ -91,6 +119,21 @@ class ImageControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+
+        verify(uploadImageUseCase, never()).execute(any());
+    }
+
+    @Test
+    void uploadImageRequiresFilePart() throws Exception {
+        mockMvc.perform(multipart("/api/v1/images")
+                        .param("inspectionId", "10")
+                        .param("targetType", "ZONE")
+                        .param("imageType", "RGB"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.status").value(400))
+                .andExpect(jsonPath("$.error.path").value("/api/v1/images"))
+                .andExpect(jsonPath("$.error.traceId").isNotEmpty());
 
         verify(uploadImageUseCase, never()).execute(any());
     }

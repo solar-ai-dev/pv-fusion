@@ -124,6 +124,7 @@ class ImageServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-IMAGE-001 RGB 이미지 업로드 메타데이터가 정상 저장된다")
     void uploadImageStoresMetadataUsingInspectionId() {
         UploadImageCommand command = new UploadImageCommand(
                 1L,
@@ -159,9 +160,19 @@ class ImageServiceTest {
         var response = imageService.execute(command);
 
         ArgumentCaptor<InspectionImage> captor = ArgumentCaptor.forClass(InspectionImage.class);
-        verify(storeImageFilePort).store(any());
+        ArgumentCaptor<com.pvfusion.application.dto.image.ImageStorageRequest> storageCaptor =
+                ArgumentCaptor.forClass(com.pvfusion.application.dto.image.ImageStorageRequest.class);
+        verify(storeImageFilePort).store(storageCaptor.capture());
         verify(saveImagePort).saveImage(captor.capture());
+        assertThat(storageCaptor.getValue().inspectionId()).isEqualTo(10L);
+        assertThat(storageCaptor.getValue().imageType()).isEqualTo(ImageType.RGB);
+        assertThat(storageCaptor.getValue().targetType()).isEqualTo(TargetType.ZONE);
+        assertThat(storageCaptor.getValue().originalFilename()).isEqualTo("panel.jpg");
+        assertThat(storageCaptor.getValue().mimeType()).isEqualTo("image/jpeg");
+        assertThat(storageCaptor.getValue().fileContent()).containsExactly(1, 2, 3);
         assertThat(captor.getValue().getInspectionId()).isEqualTo(10L);
+        assertThat(captor.getValue().getBucketName()).isEqualTo("bucket");
+        assertThat(captor.getValue().getObjectKey()).isEqualTo("object-key");
         assertThat(response.inspectionId()).isEqualTo(10L);
         assertThat(response.zoneId()).isEqualTo(20L);
     }
@@ -191,6 +202,77 @@ class ImageServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-IMAGE-004 targetType이 ZONE이면 equipmentId 없이 업로드할 수 있다")
+    void uploadImageAllowsNullEquipmentIdForZoneTarget() {
+        UploadImageCommand command = new UploadImageCommand(
+                1L,
+                10L,
+                null,
+                TargetType.ZONE,
+                ImageType.RGB,
+                "zone-rgb.jpg",
+                "image/jpeg",
+                3L,
+                OffsetDateTime.parse("2026-06-05T09:00:00+09:00"),
+                null,
+                "zone-rgb.jpg",
+                new byte[]{1, 2, 3}
+        );
+        Inspection inspection = new Inspection(
+                10L, 20L, "Inspection", null, CaptureMethod.DRONE, null, null,
+                null, 1L, OffsetDateTime.now(), OffsetDateTime.now()
+        );
+        InspectionImage saved = new InspectionImage(
+                30L, 10L, null, TargetType.ZONE, ImageType.RGB, "zone-rgb.jpg", "image/jpeg", 3L,
+                "bucket", "zone-rgb-key", null, command.capturedAt(), UploadStatus.UPLOADED, ResourceStatus.ACTIVE,
+                1L, OffsetDateTime.now(), OffsetDateTime.now()
+        );
+
+        when(loadInspectionPort.loadInspection(10L)).thenReturn(Optional.of(inspection));
+        when(accessChecker.checkInspectionAccess(1L, 10L)).thenReturn(true);
+        when(loadImagePort.loadImage(10L, TargetType.ZONE, null, ImageType.RGB, ResourceStatus.ACTIVE))
+                .thenReturn(Optional.empty());
+        when(storeImageFilePort.store(any())).thenReturn(new ImageStorageResult("bucket", "zone-rgb-key", null));
+        when(saveImagePort.saveImage(any())).thenReturn(saved);
+
+        var response = imageService.execute(command);
+
+        assertThat(response.targetType()).isEqualTo(TargetType.ZONE);
+        assertThat(response.equipmentId()).isNull();
+    }
+
+    @Test
+    void uploadImageFailsWhenZoneTargetIncludesEquipmentId() {
+        UploadImageCommand command = new UploadImageCommand(
+                1L,
+                10L,
+                200L,
+                TargetType.ZONE,
+                ImageType.RGB,
+                "zone-rgb.jpg",
+                "image/jpeg",
+                3L,
+                OffsetDateTime.now(),
+                null,
+                "zone-rgb.jpg",
+                new byte[]{1, 2, 3}
+        );
+        Inspection inspection = new Inspection(
+                10L, 20L, "Inspection", null, CaptureMethod.DRONE, null, null,
+                null, 1L, OffsetDateTime.now(), OffsetDateTime.now()
+        );
+
+        when(loadInspectionPort.loadInspection(10L)).thenReturn(Optional.of(inspection));
+        when(accessChecker.checkInspectionAccess(1L, 10L)).thenReturn(true);
+
+        assertThatThrownBy(() -> imageService.execute(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-IMAGE-005 ARRAY/PANEL/MODULE 대상은 equipmentId가 필요하다")
     void uploadImageRequiresEquipmentIdForNonZoneTarget() {
         UploadImageCommand command = new UploadImageCommand(
                 1L,
@@ -213,6 +295,41 @@ class ImageServiceTest {
 
         when(loadInspectionPort.loadInspection(10L)).thenReturn(Optional.of(inspection));
         when(accessChecker.checkInspectionAccess(1L, 10L)).thenReturn(true);
+
+        assertThatThrownBy(() -> imageService.execute(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    void uploadImageFailsWhenEquipmentDoesNotBelongToInspectionZone() {
+        UploadImageCommand command = new UploadImageCommand(
+                1L,
+                10L,
+                200L,
+                TargetType.PANEL,
+                ImageType.RGB,
+                "panel.jpg",
+                "image/jpeg",
+                3L,
+                OffsetDateTime.now(),
+                null,
+                "panel.jpg",
+                new byte[]{1, 2, 3}
+        );
+        Inspection inspection = new Inspection(
+                10L, 20L, "Inspection", null, CaptureMethod.DRONE, null, null,
+                null, 1L, OffsetDateTime.now(), OffsetDateTime.now()
+        );
+        Equipment equipment = new Equipment(
+                200L, 21L, null, EquipmentType.PANEL, "Panel-1", null,
+                ResourceStatus.ACTIVE, 1L, OffsetDateTime.now(), OffsetDateTime.now()
+        );
+
+        when(loadInspectionPort.loadInspection(10L)).thenReturn(Optional.of(inspection));
+        when(accessChecker.checkInspectionAccess(1L, 10L)).thenReturn(true);
+        when(loadEquipmentPort.loadEquipment(200L)).thenReturn(Optional.of(equipment));
 
         assertThatThrownBy(() -> imageService.execute(command))
                 .isInstanceOf(BusinessException.class)
@@ -296,6 +413,7 @@ class ImageServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-IMAGE-006 동일 inspection/target/equipment/imageType 중복 업로드는 차단된다")
     void uploadImageFailsWhenDuplicateExists() {
         UploadImageCommand command = new UploadImageCommand(
                 1L,

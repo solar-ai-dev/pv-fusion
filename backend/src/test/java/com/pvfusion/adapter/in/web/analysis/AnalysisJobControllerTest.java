@@ -18,10 +18,13 @@ import com.pvfusion.domain.analysis.AnalysisInputType;
 import com.pvfusion.domain.analysis.AnalysisJobStatus;
 import com.pvfusion.domain.analysis.AnalysisModelType;
 import com.pvfusion.domain.analysis.RequestedModelType;
+import com.pvfusion.global.error.GlobalExceptionHandler;
 import com.pvfusion.global.response.PageResponse;
 import java.time.OffsetDateTime;
 import java.util.List;
+import org.hibernate.validator.HibernateValidator;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -29,6 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 @ExtendWith(MockitoExtension.class)
 class AnalysisJobControllerTest {
@@ -44,19 +48,27 @@ class AnalysisJobControllerTest {
 
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
+    private LocalValidatorFactoryBean validator;
 
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper().findAndRegisterModules();
+        validator = new LocalValidatorFactoryBean();
+        validator.setProviderClass(HibernateValidator.class);
+        validator.afterPropertiesSet();
         mockMvc = MockMvcBuilders.standaloneSetup(new AnalysisJobController(
                 requestAnalysisUseCase,
                 queryAnalysisJobUseCase,
                 getAnalysisJobUseCase,
                 retryAnalysisJobUseCase
-        )).build();
+        ))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .setValidator(validator)
+                .build();
     }
 
     @Test
+    @DisplayName("AnalysisJob 생성 성공 응답은 공통 success wrapper를 반환한다")
     void requestAnalysisReturnsCreated() throws Exception {
         when(requestAnalysisUseCase.execute(any())).thenReturn(sampleResponse());
 
@@ -66,7 +78,45 @@ class AnalysisJobControllerTest {
                                 10L, null, AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, "trace"
                         ))))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").isNotEmpty())
                 .andExpect(jsonPath("$.data.jobId").value(1L));
+    }
+
+    @Test
+    void requestAnalysisValidationReturnsBadRequestWithErrorWrapper() throws Exception {
+        mockMvc.perform(post("/api/v1/analysis-jobs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RequestAnalysisJobRequest(
+                                10L, null, null, null, "trace"
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.status").value(400))
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.error.path").value("/api/v1/analysis-jobs"))
+                .andExpect(jsonPath("$.error.traceId").isNotEmpty());
+    }
+
+    @Test
+    void requestAnalysisRejectsUnknownInputType() throws Exception {
+        mockMvc.perform(post("/api/v1/analysis-jobs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "imageId": 10,
+                                  "imagePairId": null,
+                                  "inputType": "UNKNOWN",
+                                  "requestedModelType": "RGB_ONLY",
+                                  "traceId": "trace"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.status").value(400))
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.error.path").value("/api/v1/analysis-jobs"))
+                .andExpect(jsonPath("$.error.traceId").isNotEmpty());
     }
 
     @Test

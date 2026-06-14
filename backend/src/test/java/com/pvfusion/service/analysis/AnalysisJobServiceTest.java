@@ -87,6 +87,38 @@ class AnalysisJobServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-JOB-001 RGB 단건 분석 요청은 QUEUED Job을 생성한다")
+    void requestRgbSingleCreatesQueuedJob() {
+        InspectionImage image = image(10L, ImageType.RGB, ResourceStatus.ACTIVE);
+        AnalysisJob saved = analysisJob(
+                1L,
+                10L,
+                null,
+                AnalysisInputType.RGB_SINGLE,
+                RequestedModelType.RGB_ONLY,
+                AnalysisModelType.RGB_ONLY,
+                AnalysisJobStatus.QUEUED,
+                0,
+                "rgb-trace"
+        );
+
+        when(loadImagePort.loadImage(10L)).thenReturn(Optional.of(image));
+        when(accessChecker.checkImageAccess(1L, 10L)).thenReturn(true);
+        when(loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(10L, List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING)))
+                .thenReturn(List.of());
+        when(saveAnalysisJobPort.saveAnalysisJob(any())).thenReturn(saved);
+
+        var response = analysisJobService.execute(new RequestAnalysisCommand(
+                1L, 10L, null, AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, "rgb-trace"
+        ));
+
+        verify(publishAnalysisJobPort).publish(any());
+        assertThat(response.jobStatus()).isEqualTo(AnalysisJobStatus.QUEUED);
+        assertThat(response.imageId()).isEqualTo(10L);
+        assertThat(response.imagePairId()).isNull();
+    }
+
+    @Test
     @DisplayName("BE-UNIT-JOB-002 Thermal 단건 분석 요청은 QUEUED Job을 생성한다")
     void requestThermalSingleCreatesQueuedJob() {
         InspectionImage image = image(10L, ImageType.THERMAL, ResourceStatus.ACTIVE);
@@ -356,6 +388,42 @@ class AnalysisJobServiceTest {
         inOrder.verify(publishAnalysisJobPort).publish(any());
         assertThat(response.jobStatus()).isEqualTo(AnalysisJobStatus.QUEUED);
         assertThat(response.traceId()).isEqualTo("trace");
+    }
+
+    @Test
+    void requestAnalysisPublishesMinimalQueueMessage() {
+        InspectionImage image = image(10L, ImageType.RGB, ResourceStatus.ACTIVE);
+        AnalysisJob saved = analysisJob(
+                1L,
+                10L,
+                null,
+                AnalysisInputType.RGB_SINGLE,
+                RequestedModelType.RGB_ONLY,
+                AnalysisModelType.RGB_ONLY,
+                AnalysisJobStatus.QUEUED,
+                0,
+                "trace-min"
+        );
+
+        when(loadImagePort.loadImage(10L)).thenReturn(Optional.of(image));
+        when(accessChecker.checkImageAccess(1L, 10L)).thenReturn(true);
+        when(loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(10L, List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING)))
+                .thenReturn(List.of());
+        when(saveAnalysisJobPort.saveAnalysisJob(any())).thenReturn(saved);
+
+        analysisJobService.execute(new RequestAnalysisCommand(
+                1L, 10L, null, AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, "trace-min"
+        ));
+
+        ArgumentCaptor<AnalysisJobMessage> messageCaptor = ArgumentCaptor.forClass(AnalysisJobMessage.class);
+        verify(publishAnalysisJobPort).publish(messageCaptor.capture());
+        assertThat(messageCaptor.getValue().jobId()).isEqualTo(1L);
+        assertThat(messageCaptor.getValue().inputType()).isEqualTo(AnalysisInputType.RGB_SINGLE);
+        assertThat(messageCaptor.getValue().imageId()).isEqualTo(10L);
+        assertThat(messageCaptor.getValue().imagePairId()).isNull();
+        assertThat(messageCaptor.getValue().requestedModelType()).isEqualTo(RequestedModelType.RGB_ONLY);
+        assertThat(messageCaptor.getValue().requestedByUserId()).isEqualTo(1L);
+        assertThat(messageCaptor.getValue().traceId()).isEqualTo("trace-min");
     }
 
     @Test
