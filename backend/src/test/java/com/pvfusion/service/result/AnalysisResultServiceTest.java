@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -43,6 +44,7 @@ import com.pvfusion.domain.result.AnalysisResult;
 import com.pvfusion.domain.result.AnalysisResultStatus;
 import com.pvfusion.domain.result.PriorityLevel;
 import com.pvfusion.domain.result.SeverityLevel;
+import com.pvfusion.domain.review.ResultReviewHistory;
 import com.pvfusion.domain.review.ReviewStatus;
 import com.pvfusion.global.error.BusinessException;
 import com.pvfusion.global.error.ErrorCode;
@@ -209,6 +211,50 @@ class AnalysisResultServiceTest {
 
         assertThat(response.type()).isEqualTo("bbox");
         assertThat(response.url()).isEqualTo("https://example.com/bbox");
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-RESULT-005 권한 없는 사용자는 결과 시각화 조회가 차단된다")
+    void getVisualizationRequiresResultAccess() {
+        AnalysisResult result = analysisResult(1L, ReviewStatus.UNCHECKED, ActionCandidate.CLEANING);
+        when(loadAnalysisResultPort.loadAnalysisResult(1L)).thenReturn(Optional.of(result));
+        when(accessChecker.checkResultAccess(1L, 1L)).thenReturn(false);
+
+        assertThatThrownBy(() -> analysisResultService.execute(new GetResultVisualizationQuery(1L, 1L, "bbox", null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(generateImageAccessUrlPort, never()).generate(any());
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-RESULT-006 검토 상태 변경은 review history에 이전/신규 상태를 저장한다")
+    void changeReviewStatusStoresDetailedHistory() {
+        AnalysisResult existing = analysisResult(1L, ReviewStatus.UNCHECKED, ActionCandidate.CLEANING);
+        AnalysisResult updated = analysisResult(1L, ReviewStatus.CONFIRMED, ActionCandidate.FIELD_INSPECTION);
+        when(loadAnalysisResultPort.loadAnalysisResult(1L)).thenReturn(Optional.of(existing));
+        when(accessChecker.checkResultAccess(1L, 1L)).thenReturn(true);
+        when(updateAnalysisResultPort.updateAnalysisResult(any())).thenReturn(updated);
+        when(loadDetectedDefectPort.loadDetectedDefects(any())).thenReturn(List.of());
+        when(loadResultReviewHistoryPort.loadResultReviewHistories(any())).thenReturn(List.of());
+        when(loadAnalysisJobPort.loadAnalysisJob(10L)).thenReturn(Optional.of(analysisJob()));
+        when(loadImagePort.loadImage(20L)).thenReturn(Optional.of(image()));
+        when(loadInspectionPort.loadInspection(30L)).thenReturn(Optional.of(inspection()));
+
+        analysisResultService.execute(new ChangeResultReviewStatusCommand(
+                1L, 1L, ReviewStatus.CONFIRMED, ActionCandidate.FIELD_INSPECTION, "  checked  "
+        ));
+
+        ArgumentCaptor<ResultReviewHistory> captor = ArgumentCaptor.forClass(ResultReviewHistory.class);
+        verify(saveResultReviewHistoryPort).saveResultReviewHistory(captor.capture());
+        assertThat(captor.getValue().getAnalysisResultId()).isEqualTo(1L);
+        assertThat(captor.getValue().getReviewerUserId()).isEqualTo(1L);
+        assertThat(captor.getValue().getPreviousReviewStatus()).isEqualTo(ReviewStatus.UNCHECKED);
+        assertThat(captor.getValue().getNewReviewStatus()).isEqualTo(ReviewStatus.CONFIRMED);
+        assertThat(captor.getValue().getPreviousActionCandidate()).isEqualTo(ActionCandidate.CLEANING);
+        assertThat(captor.getValue().getNewActionCandidate()).isEqualTo(ActionCandidate.FIELD_INSPECTION);
+        assertThat(captor.getValue().getMemo()).isEqualTo("checked");
     }
 
     @Test
