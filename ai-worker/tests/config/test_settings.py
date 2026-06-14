@@ -17,12 +17,14 @@ def test_settings_accepts_backend_style_endpoint_aliases():
 
 def test_settings_accepts_standard_aws_storage_aliases():
     settings = Settings(
+        APP_ENV="prod",
         AWS_ACCESS_KEY_ID="minio",
         AWS_SECRET_ACCESS_KEY="miniopass",
         S3_BUCKET_NAME="pv-insight-local",
         S3_PATH_STYLE_ACCESS_ENABLED=True,
     )
 
+    assert settings.environment == "prod"
     assert settings.storageAccessKey == "minio"
     assert settings.storageSecretKey == "miniopass"
     assert settings.storageDefaultBucket == "pv-insight-local"

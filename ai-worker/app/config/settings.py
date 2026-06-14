@@ -17,7 +17,10 @@ class Settings(BaseSettings):
     )
 
     appName: str = "ai-worker"
-    environment: str = "local"
+    environment: str = Field(
+        default="local",
+        validation_alias=AliasChoices("environment", "APP_ENV", "ENVIRONMENT"),
+    )
     workerEnabled: bool = True
     workerPollIntervalSeconds: int = DEFAULT_SQS_WAIT_TIME_SECONDS
     workerMaxMessages: int = 1

@@ -13,6 +13,7 @@ from app.infrastructure.model.onnx_model_runner import OnnxModelRunner
 from app.infrastructure.model.onnx_session import OnnxSessionProvider
 from app.infrastructure.queue.sqs_queue_adapter import SqsQueueAdapter
 from app.infrastructure.storage.object_storage_adapter import ObjectStorageAdapter
+from app.runtime_clients import create_sqs_client, create_storage_client
 from app.workers.sqs_worker import SqsWorkerRunner
 
 logger = logging.getLogger(__name__)
@@ -97,7 +98,10 @@ def create_worker_runtime(settings: Settings) -> WorkerRuntime:
     connection_factory = create_connection_factory(settings)
     job_repository = PostgresAnalysisJobRepository(connection_factory)
     image_metadata = PostgresImageMetadataRepository(connection_factory)
-    storage = ObjectStorageAdapter(settings)
+    storage = ObjectStorageAdapter(
+        s3_client=create_storage_client(settings),
+        default_bucket_name=settings.storageDefaultBucket,
+    )
     model_registry = ModelRegistry(settings)
     session_provider = OnnxSessionProvider()
     model_runner = OnnxModelRunner(model_registry, session_provider)
@@ -109,6 +113,11 @@ def create_worker_runtime(settings: Settings) -> WorkerRuntime:
         model_runner=model_runner,
         result_repository=result_repository,
     )
-    queue = SqsQueueAdapter(settings)
+    queue = SqsQueueAdapter(
+        sqs_client=create_sqs_client(settings),
+        queue_url=settings.sqsQueueUrl,
+        wait_time_seconds=settings.sqsWaitTimeSeconds,
+        visibility_timeout_seconds=settings.sqsVisibilityTimeoutSeconds,
+    )
     runner = SqsWorkerRunner(queue, processor)
     return WorkerRuntime(settings, runner)

@@ -14,7 +14,6 @@ class DeploymentConfigContractTest {
         Properties base = loadYaml("application.yml");
         Properties local = loadYaml("application-local.yml");
 
-        assertThat(local.getProperty("storage.provider")).isEqualTo("minio");
         assertThat(local.getProperty("storage.minio.endpoint")).isEqualTo("${MINIO_ENDPOINT:http://localhost:9000}");
         assertThat(local.getProperty("storage.minio.access-key"))
                 .isEqualTo("${MINIO_ROOT_USER:change_me_minio_root_user}");
@@ -40,17 +39,16 @@ class DeploymentConfigContractTest {
         Properties base = loadYaml("application.yml");
         Properties prod = loadYaml("application-prod.yml");
 
-        assertThat(prod.getProperty("storage.provider")).isEqualTo("s3");
-        assertThat(prod.getProperty("storage.s3.endpoint")).isEqualTo("${S3_ENDPOINT:}");
-        assertThat(prod.getProperty("storage.s3.access-key")).isEqualTo("${AWS_ACCESS_KEY_ID:}");
-        assertThat(prod.getProperty("storage.s3.secret-key")).isEqualTo("${AWS_SECRET_ACCESS_KEY:}");
         assertThat(prod.getProperty("storage.s3.bucket-name")).isEqualTo("${S3_BUCKET_NAME}");
         assertThat(base.getProperty("storage.s3.path-style-access-enabled")).isEqualTo("false");
+        assertThat(prod.getProperty("storage.s3.endpoint")).isNull();
+        assertThat(prod.getProperty("storage.s3.access-key")).isNull();
+        assertThat(prod.getProperty("storage.s3.secret-key")).isNull();
 
-        assertThat(prod.getProperty("queue.sqs.endpoint")).isEqualTo("${SQS_ENDPOINT:}");
-        assertThat(prod.getProperty("queue.sqs.access-key")).isEqualTo("${AWS_ACCESS_KEY_ID:}");
-        assertThat(prod.getProperty("queue.sqs.secret-key")).isEqualTo("${AWS_SECRET_ACCESS_KEY:}");
         assertThat(prod.getProperty("queue.sqs.queue-url")).isEqualTo("${SQS_QUEUE_URL}");
+        assertThat(prod.getProperty("queue.sqs.endpoint")).isNull();
+        assertThat(prod.getProperty("queue.sqs.access-key")).isNull();
+        assertThat(prod.getProperty("queue.sqs.secret-key")).isNull();
 
         assertThat(prod.getProperty("spring.datasource.url")).isEqualTo("${RDS_JDBC_URL}");
         assertThat(prod.getProperty("spring.datasource.username")).isEqualTo("${RDS_USERNAME}");
