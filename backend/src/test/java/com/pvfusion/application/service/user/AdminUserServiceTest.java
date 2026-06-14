@@ -3,6 +3,7 @@ package com.pvfusion.application.service.user;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,6 +30,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -113,6 +115,7 @@ class AdminUserServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-AUTH-004 관리자만 승인 대기 사용자를 승인할 수 있다")
     void approvesPendingUser() {
         User admin = adminUser(1L);
         User pendingUser = baseUser(2L, UserRole.USER, AccountStatus.PENDING);
@@ -148,6 +151,7 @@ class AdminUserServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-AUTH-005 관리자만 사용자 권한을 USER/ADMIN으로 변경할 수 있다")
     void changesUserRoleToAdmin() {
         stubAdmin();
         when(userRepositoryPort.findById(2L)).thenReturn(Optional.of(baseUser(2L, UserRole.USER, AccountStatus.APPROVED)));
@@ -168,6 +172,7 @@ class AdminUserServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-AUTH-006 사용자 비활성화는 실제 삭제가 아니라 accountStatus 변경이다")
     void deactivatesUser() {
         stubAdmin();
         when(userRepositoryPort.findById(2L)).thenReturn(Optional.of(baseUser(2L, UserRole.USER, AccountStatus.APPROVED)));
@@ -176,6 +181,7 @@ class AdminUserServiceTest {
         var response = adminUserService.execute(new DeactivateUserCommand(null, 2L));
 
         assertThat(response.accountStatus()).isEqualTo(AccountStatus.INACTIVE);
+        verify(userRepositoryPort, atLeastOnce()).save(any(User.class));
         verify(recordOperationLogUseCase).execute(any());
     }
 
