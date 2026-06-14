@@ -83,6 +83,28 @@ class TrackingPersistenceAdapterTest {
         assertThat(response.defectChange().persistentDefectTypes()).containsExactly(DefectType.SHADING);
     }
 
+    @Test
+    void loadInspectionComparisonReturnsNullSafeResponseWhenPreviousResultIsMissing() {
+        TrackingResultProjection current = row(100L, 30L, BigDecimal.valueOf(0.9), SeverityLevel.HIGH);
+
+        when(trackingJpaRepository.findTrackingResultByResultId(100L)).thenReturn(Optional.of(current));
+        when(trackingJpaRepository.findPreviousTrackingResult(10L, "ZONE", null, "RGB_SINGLE", current.getAnalyzedAt(), 100L))
+                .thenReturn(Optional.empty());
+        when(detectedDefectJpaRepository.findByAnalysisResultIdOrderByCreatedAtAscIdAsc(100L))
+                .thenReturn(List.of(defect(1L, 100L, DefectType.HOTSPOT, SeverityLevel.HIGH)));
+
+        var response = adapter.loadInspectionComparison(new InspectionCompareQuery(1L, 100L, null)).orElseThrow();
+
+        assertThat(response.previousResultId()).isNull();
+        assertThat(response.previousResult()).isNull();
+        assertThat(response.areaChange().previousAreaRatio()).isNull();
+        assertThat(response.areaChange().areaRatioDiff()).isNull();
+        assertThat(response.severityChange().previousSeverityScore()).isNull();
+        assertThat(response.severityChange().severityScoreDiff()).isNull();
+        assertThat(response.defectChange().previousDefectCount()).isZero();
+        assertThat(response.defectChange().persistentDefectTypes()).isEmpty();
+    }
+
     private TrackingResultProjection row(Long resultId, Long inspectionId, BigDecimal severityScore, SeverityLevel severityLevel) {
         return new TrackingResultProjection() {
             @Override
