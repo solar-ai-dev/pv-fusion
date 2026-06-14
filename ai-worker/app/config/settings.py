@@ -74,6 +74,14 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("thermalModelManifestPath", "THERMAL_MODEL_MANIFEST_PATH"),
     )
 
+    @field_validator("environment", mode="after")
+    @classmethod
+    def validate_environment(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"local", "prod"}:
+            raise ValueError("APP_ENV must be either 'local' or 'prod'.")
+        return normalized
+
     @field_validator("sqsWaitTimeSeconds", mode="before")
     @classmethod
     def default_wait_time(cls, value: object) -> object:
@@ -87,6 +95,33 @@ class Settings(BaseSettings):
         if value == "":
             return None
         return value
+
+    def validate_worker_runtime_contract(self) -> None:
+        missing = []
+
+        for field_name, env_name in (
+            ("databaseUrl", "DATABASE_URI"),
+            ("sqsQueueUrl", "SQS_QUEUE_URL"),
+            ("storageDefaultBucket", "STORAGE_DEFAULT_BUCKET"),
+        ):
+            if not str(getattr(self, field_name) or "").strip():
+                missing.append(env_name)
+
+        if self.environment == "local":
+            for field_name, env_name in (
+                ("sqsEndpointUrl", "SQS_ENDPOINT_URL"),
+                ("sqsAccessKey", "SQS_ACCESS_KEY"),
+                ("sqsSecretKey", "SQS_SECRET_KEY"),
+                ("storageEndpointUrl", "STORAGE_ENDPOINT_URL"),
+                ("storageAccessKey", "STORAGE_ACCESS_KEY"),
+                ("storageSecretKey", "STORAGE_SECRET_KEY"),
+            ):
+                if not str(getattr(self, field_name) or "").strip():
+                    missing.append(env_name)
+
+        if missing:
+            missing_values = ", ".join(sorted(set(missing)))
+            raise ValueError(f"Missing required AI Worker settings: {missing_values}")
 
 
 @lru_cache

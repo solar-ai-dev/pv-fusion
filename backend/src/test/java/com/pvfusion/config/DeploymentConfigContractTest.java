@@ -32,6 +32,10 @@ class DeploymentConfigContractTest {
         assertThat(local.getProperty("spring.datasource.username")).isEqualTo("${POSTGRES_USER:pvfusion}");
         assertThat(local.getProperty("spring.datasource.password"))
                 .isEqualTo("${POSTGRES_PASSWORD:change_me_postgres_password}");
+
+        assertThat(local.getProperty("app.frontend.base-url")).isEqualTo("${FRONTEND_BASE_URL:http://localhost:5173}");
+        assertThat(local.getProperty("app.cors.allowed-origins"))
+                .isEqualTo("${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:5175}");
     }
 
     @Test
@@ -53,6 +57,8 @@ class DeploymentConfigContractTest {
         assertThat(prod.getProperty("spring.datasource.url")).isEqualTo("${RDS_JDBC_URL}");
         assertThat(prod.getProperty("spring.datasource.username")).isEqualTo("${RDS_USERNAME}");
         assertThat(prod.getProperty("spring.datasource.password")).isEqualTo("${RDS_PASSWORD}");
+        assertThat(prod.getProperty("app.frontend.base-url")).isEqualTo("${FRONTEND_BASE_URL}");
+        assertThat(prod.getProperty("app.cors.allowed-origins")).isEqualTo("${CORS_ALLOWED_ORIGINS}");
     }
 
     private static Properties loadYaml(String path) {

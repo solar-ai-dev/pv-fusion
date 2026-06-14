@@ -1,3 +1,5 @@
+import pytest
+
 from app.config.settings import Settings
 
 
@@ -29,3 +31,40 @@ def test_settings_accepts_standard_aws_storage_aliases():
     assert settings.storageSecretKey == "miniopass"
     assert settings.storageDefaultBucket == "pv-insight-local"
     assert settings.storagePathStyleEnabled is True
+
+
+def test_settings_accepts_database_url_alias():
+    settings = Settings(
+        APP_ENV="prod",
+        DATABASE_URL="postgresql://user:pass@db.example.com:5432/pvfusion",
+    )
+
+    assert settings.databaseUrl == "postgresql://user:pass@db.example.com:5432/pvfusion"
+
+
+def test_settings_rejects_invalid_app_env():
+    with pytest.raises(ValueError, match="APP_ENV must be either 'local' or 'prod'"):
+        Settings(APP_ENV="stage")
+
+
+def test_local_runtime_contract_requires_local_endpoints_and_credentials():
+    settings = Settings(
+        APP_ENV="local",
+        DATABASE_URI="postgresql://pvfusion:pass@localhost:5432/pv_fusion_local",
+        SQS_QUEUE_URL="http://localhost:4566/000000000000/analysis-job-queue",
+        STORAGE_DEFAULT_BUCKET="pv-insight-local",
+    )
+
+    with pytest.raises(ValueError, match="SQS_ENDPOINT_URL"):
+        settings.validate_worker_runtime_contract()
+
+
+def test_prod_runtime_contract_does_not_require_endpoint_overrides_or_static_credentials():
+    settings = Settings(
+        APP_ENV="prod",
+        DATABASE_URI="postgresql://pvfusion:pass@db.example.com:5432/pv_fusion",
+        SQS_QUEUE_URL="https://sqs.ap-northeast-2.amazonaws.com/123456789012/analysis-job-queue",
+        S3_BUCKET_NAME="pvfusion-prod-bucket",
+    )
+
+    settings.validate_worker_runtime_contract()

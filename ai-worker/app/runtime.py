@@ -95,6 +95,8 @@ class WorkerRuntime:
 
 
 def create_worker_runtime(settings: Settings) -> WorkerRuntime:
+    settings.validate_worker_runtime_contract()
+
     connection_factory = create_connection_factory(settings)
     job_repository = PostgresAnalysisJobRepository(connection_factory)
     image_metadata = PostgresImageMetadataRepository(connection_factory)
