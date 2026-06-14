@@ -1,18 +1,16 @@
 package com.pvfusion.adapter.out.persistence.analysis;
 
-import com.pvfusion.adapter.out.persistence.image.InspectionImageJpaEntity;
-import com.pvfusion.adapter.out.persistence.imagepair.ImagePairJpaEntity;
-import com.pvfusion.adapter.out.persistence.inspection.InspectionJpaEntity;
-import com.pvfusion.adapter.out.persistence.zone.ZoneJpaEntity;
-import com.pvfusion.domain.analysis.AnalysisInputType;
-import com.pvfusion.domain.analysis.AnalysisJobStatus;
-import com.pvfusion.domain.analysis.AnalysisModelType;
 import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import com.pvfusion.domain.analysis.AnalysisInputType;
+import com.pvfusion.domain.analysis.AnalysisJobStatus;
+import com.pvfusion.domain.analysis.AnalysisModelType;
 
 public interface AnalysisJobJpaRepository extends JpaRepository<AnalysisJobJpaEntity, Long> {
 

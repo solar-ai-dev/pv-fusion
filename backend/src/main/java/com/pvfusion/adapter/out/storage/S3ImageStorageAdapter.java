@@ -1,5 +1,13 @@
 package com.pvfusion.adapter.out.storage;
 
+import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Component;
+
 import com.pvfusion.application.dto.image.ImageAccessUrlRequest;
 import com.pvfusion.application.dto.image.ImageAccessUrlResult;
 import com.pvfusion.application.dto.image.ImageStorageRequest;
@@ -8,13 +16,7 @@ import com.pvfusion.application.port.out.image.GenerateImageAccessUrlPort;
 import com.pvfusion.application.port.out.image.StoreImageFilePort;
 import com.pvfusion.global.error.BusinessException;
 import com.pvfusion.global.error.ErrorCode;
-import java.time.Duration;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.util.UUID;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
+
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -32,7 +34,6 @@ public class S3ImageStorageAdapter implements StoreImageFilePort, GenerateImageA
     private final String bucketName;
     private final Duration presignDuration;
 
-    @Autowired
     public S3ImageStorageAdapter(
             S3Client s3Client,
             S3Presigner s3Presigner,
