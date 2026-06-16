@@ -80,6 +80,7 @@ class EquipmentServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-EQUIP-001 creates top-level array equipment")
     void createsTopLevelArrayForAdmin() {
         User admin = approvedUser(1L, UserRole.ADMIN);
         Zone zone = zone(10L, 20L, ResourceStatus.ACTIVE);
@@ -153,6 +154,7 @@ class EquipmentServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-EQUIP-002 rejects equipment creation for missing parentEquipmentId")
     void rejectsCreateWhenParentIsMissing() {
         User admin = approvedUser(1L, UserRole.ADMIN);
         Zone zone = zone(10L, 20L, ResourceStatus.ACTIVE);
@@ -166,6 +168,31 @@ class EquipmentServiceTest {
         assertThatThrownBy(() -> equipmentService.execute(
                 new CreateEquipmentCommand(null, 10L, 999L, EquipmentType.PANEL, "Panel-01", "A01-P01")
         )).isInstanceOf(com.pvfusion.global.error.NotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("BE-UNIT-EQUIP-001 creates module under panel with valid hierarchy")
+    void createsModuleUnderPanelWhenHierarchyIsValid() {
+        User admin = approvedUser(1L, UserRole.ADMIN);
+        Zone zone = zone(10L, 20L, ResourceStatus.ACTIVE);
+        Plant plant = plant(20L, ResourceStatus.ACTIVE);
+        Equipment array = equipment(11L, 10L, null, EquipmentType.ARRAY, "Array-01", "A01", ResourceStatus.ACTIVE);
+        Equipment panel = equipment(12L, 10L, 11L, EquipmentType.PANEL, "Panel-01", "A01-P01", ResourceStatus.ACTIVE);
+        Equipment saved = equipment(101L, 10L, 12L, EquipmentType.MODULE, "Module-01", "A01-P01-M01", ResourceStatus.ACTIVE);
+
+        stubCurrentUser(admin);
+        when(zoneRepositoryPort.findById(10L)).thenReturn(Optional.of(zone));
+        when(plantRepositoryPort.findById(20L)).thenReturn(Optional.of(plant));
+        when(equipmentRepositoryPort.findByZoneId(10L)).thenReturn(List.of(panel, array));
+        when(equipmentRepositoryPort.save(any(Equipment.class))).thenReturn(saved);
+
+        var response = equipmentService.execute(
+                new CreateEquipmentCommand(null, 10L, 12L, EquipmentType.MODULE, "Module-01", "A01-P01-M01")
+        );
+
+        assertThat(response.parentEquipmentId()).isEqualTo(12L);
+        assertThat(response.equipmentType()).isEqualTo(EquipmentType.MODULE);
+        assertThat(response.name()).isEqualTo("Module-01");
     }
 
     @Test

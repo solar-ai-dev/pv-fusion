@@ -17,9 +17,12 @@ import com.pvfusion.application.port.in.zone.GetZoneUseCase;
 import com.pvfusion.application.port.in.zone.QueryZoneUseCase;
 import com.pvfusion.application.port.in.zone.UpdateZoneUseCase;
 import com.pvfusion.domain.common.ResourceStatus;
+import com.pvfusion.global.error.GlobalExceptionHandler;
 import java.time.OffsetDateTime;
 import java.util.List;
+import org.hibernate.validator.HibernateValidator;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -27,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 @ExtendWith(MockitoExtension.class)
 class ZoneControllerTest {
@@ -39,17 +43,24 @@ class ZoneControllerTest {
 
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
+    private LocalValidatorFactoryBean validator;
 
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper().findAndRegisterModules();
+        validator = new LocalValidatorFactoryBean();
+        validator.setProviderClass(HibernateValidator.class);
+        validator.afterPropertiesSet();
         mockMvc = MockMvcBuilders.standaloneSetup(new ZoneController(
                 createZoneUseCase,
                 queryZoneUseCase,
                 getZoneUseCase,
                 updateZoneUseCase,
                 deactivateZoneUseCase
-        )).build();
+        ))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .setValidator(validator)
+                .build();
     }
 
     @Test
@@ -71,7 +82,22 @@ class ZoneControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new CreateZoneRequest("Zone-A", "North", "desc"))))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.zoneId").value(1L));
+    }
+
+    @Test
+    @DisplayName("Zone create validation errors follow common error wrapper")
+    void createZoneValidationReturnsBadRequestWithErrorWrapper() throws Exception {
+        mockMvc.perform(post("/api/v1/plants/1/zones")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CreateZoneRequest("", "North", "desc"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.status").value(400))
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.error.path").value("/api/v1/plants/1/zones"))
+                .andExpect(jsonPath("$.error.traceId").isNotEmpty());
     }
 
     @Test
@@ -91,7 +117,22 @@ class ZoneControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new UpdateZoneRequest("Zone-A", "North", "desc"))))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.zoneId").value(1L));
+    }
+
+    @Test
+    @DisplayName("Zone update validation errors follow common error wrapper")
+    void updateZoneValidationReturnsBadRequestWithErrorWrapper() throws Exception {
+        mockMvc.perform(patch("/api/v1/zones/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UpdateZoneRequest(" ", "North", "desc"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.status").value(400))
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.error.path").value("/api/v1/zones/1"))
+                .andExpect(jsonPath("$.error.traceId").isNotEmpty());
     }
 
     @Test

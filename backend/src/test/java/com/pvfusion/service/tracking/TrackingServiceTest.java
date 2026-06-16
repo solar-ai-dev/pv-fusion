@@ -3,6 +3,8 @@ package com.pvfusion.service.tracking;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.pvfusion.application.dto.tracking.AreaChangeResponse;
@@ -80,6 +82,7 @@ class TrackingServiceTest {
     }
 
     @Test
+    @DisplayName("BE-UNIT-TRACK-001 scoped tracking query returns change summary items")
     void queryTrackingReturnsItems() {
         when(accessChecker.isAdmin(1L)).thenReturn(false);
         when(accessChecker.checkZoneAccess(1L, 10L)).thenReturn(true);
@@ -131,6 +134,19 @@ class TrackingServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    void compareTrackingRejectsUserWithoutCurrentResultAccess() {
+        when(loadAnalysisResultPort.loadAnalysisResult(100L)).thenReturn(Optional.of(result(100L)));
+        when(accessChecker.checkResultAccess(1L, 100L)).thenReturn(false);
+
+        assertThatThrownBy(() -> trackingService.execute(new InspectionCompareQuery(100L, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(loadInspectionComparisonPort, never()).loadInspectionComparison(any());
     }
 
     private InspectionCompareResponse compareResponse() {
