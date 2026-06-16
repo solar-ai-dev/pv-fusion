@@ -85,6 +85,121 @@ services:
       retries: 10
       start_period: 15s
 
+  localstack-init:
+    image: localstack/localstack:3.5.0
+    container_name: pv-fusion-localstack-init
+    depends_on:
+      localstack:
+        condition: service_healthy
+    environment:
+      AWS_DEFAULT_REGION: ${SQS_REGION:-ap-northeast-2}
+      AWS_ACCESS_KEY_ID: ${SQS_ACCESS_KEY:-test}
+      AWS_SECRET_ACCESS_KEY: ${SQS_SECRET_KEY:-test}
+      LOCALSTACK_ENDPOINT: http://localstack:4566
+      SQS_QUEUE_NAME: ${SQS_QUEUE_NAME:-analysis-job-queue}
+    volumes:
+      - ./docker/localstack/init-sqs.sh:/init/init-sqs.sh:ro
+    entrypoint:
+      - /bin/sh
+      - /init/init-sqs.sh
+
+  frontend:
+    profiles:
+      - app
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api/v1}
+    container_name: pv-fusion-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+
+  backend:
+    profiles:
+      - app
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pv-fusion-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      localstack:
+        condition: service_healthy
+      localstack-init:
+        condition: service_completed_successfully
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SERVER_PORT: "8080"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:?MINIO_BUCKET_NAME is required}
+      MINIO_REGION: ${MINIO_REGION:?MINIO_REGION is required}
+      SQS_ENDPOINT: http://localstack:4566
+      SQS_ACCESS_KEY: ${SQS_ACCESS_KEY:?SQS_ACCESS_KEY is required}
+      SQS_SECRET_KEY: ${SQS_SECRET_KEY:?SQS_SECRET_KEY is required}
+      SQS_REGION: ${SQS_REGION:?SQS_REGION is required}
+      SQS_QUEUE_URL: http://localstack:4566/000000000000/${SQS_QUEUE_NAME:-analysis-job-queue}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?GOOGLE_CLIENT_SECRET is required}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:?FRONTEND_BASE_URL is required}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS is required}
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+
+  ai-worker:
+    profiles:
+      - app
+    build:
+      context: ./ai-worker
+      dockerfile: Dockerfile
+    container_name: pv-fusion-ai-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      localstack:
+        condition: service_healthy
+      localstack-init:
+        condition: service_completed_successfully
+    environment:
+      APP_ENV: local
+      DATABASE_URI: ${AI_WORKER_DATABASE_URI:?AI_WORKER_DATABASE_URI is required}
+      AWS_REGION: ${SQS_REGION:?SQS_REGION is required}
+      SQS_QUEUE_URL: http://localstack:4566/000000000000/${SQS_QUEUE_NAME:-analysis-job-queue}
+      SQS_ENDPOINT_URL: http://localstack:4566
+      SQS_ACCESS_KEY: ${SQS_ACCESS_KEY:?SQS_ACCESS_KEY is required}
+      SQS_SECRET_KEY: ${SQS_SECRET_KEY:?SQS_SECRET_KEY is required}
+      STORAGE_DEFAULT_BUCKET: ${MINIO_BUCKET_NAME:?MINIO_BUCKET_NAME is required}
+      STORAGE_ENDPOINT_URL: http://minio:9000
+      STORAGE_REGION: ${MINIO_REGION:?MINIO_REGION is required}
+      STORAGE_ACCESS_KEY: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      STORAGE_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      STORAGE_PATH_STYLE_ENABLED: "true"
+      RGB_MODEL_MANIFEST_PATH: /app/models/rgb/model-manifest.dev.yaml
+      THERMAL_MODEL_MANIFEST_PATH: /app/models/thermal/model-manifest.dev.yaml
+    ports:
+      - "127.0.0.1:${AI_WORKER_PORT:-8000}:8000"
+    volumes:
+      - ${AI_WORKER_MODEL_DIR:-./ai-worker/models}:/app/models:ro
+
 volumes:
   postgres_data:
   minio_data:
