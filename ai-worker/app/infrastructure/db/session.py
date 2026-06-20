@@ -12,9 +12,10 @@ def create_connection_factory(settings: Settings) -> Callable[[], Any]:
 
         try:
             import psycopg
+            from psycopg.rows import dict_row
         except ModuleNotFoundError as exc:  # pragma: no cover - environment dependent
             raise ModuleNotFoundError("psycopg is required to create a PostgreSQL connection.") from exc
 
-        return psycopg.connect(database_url)
+        return psycopg.connect(database_url, row_factory=dict_row)
 
     return factory

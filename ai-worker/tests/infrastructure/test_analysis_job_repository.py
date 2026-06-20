@@ -1,3 +1,6 @@
+import sys
+import types
+
 from app.config.settings import Settings
 from app.application.errors import JobStateTransitionError
 from app.infrastructure.db.analysis_job_repository import PostgresAnalysisJobRepository
@@ -186,3 +189,26 @@ def test_create_connection_factory_requires_database_url():
         assert str(exc) == "Database URL is not configured."
     else:
         raise AssertionError("Expected ValueError when database URL is missing.")
+
+
+def test_create_connection_factory_uses_dict_row_factory(monkeypatch):
+    captured = {}
+
+    def fake_connect(database_url, row_factory):
+        captured["database_url"] = database_url
+        captured["row_factory"] = row_factory
+        return object()
+
+    fake_dict_row = object()
+    fake_psycopg = types.SimpleNamespace(connect=fake_connect)
+    fake_rows_module = types.SimpleNamespace(dict_row=fake_dict_row)
+
+    monkeypatch.setitem(sys.modules, "psycopg", fake_psycopg)
+    monkeypatch.setitem(sys.modules, "psycopg.rows", fake_rows_module)
+
+    settings = Settings(databaseUrl="postgresql://worker:worker@localhost:5432/pv_fusion")
+    factory = create_connection_factory(settings)
+    factory()
+
+    assert captured["database_url"] == "postgresql://worker:worker@localhost:5432/pv_fusion"
+    assert captured["row_factory"] is fake_dict_row
