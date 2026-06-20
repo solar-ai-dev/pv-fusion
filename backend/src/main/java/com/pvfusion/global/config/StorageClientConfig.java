@@ -57,7 +57,7 @@ public class StorageClientConfig {
     @Bean
     @Profile("local")
     S3Presigner localS3Presigner(
-            @Value("${storage.minio.endpoint}") String endpoint,
+            @Value("${storage.minio.public-endpoint:${storage.minio.endpoint}}") String endpoint,
             @Value("${storage.minio.access-key}") String accessKey,
             @Value("${storage.minio.secret-key}") String secretKey,
             @Value("${storage.minio.region}") String region,
