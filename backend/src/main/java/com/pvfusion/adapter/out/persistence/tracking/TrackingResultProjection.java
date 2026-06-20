@@ -1,7 +1,7 @@
 package com.pvfusion.adapter.out.persistence.tracking;
 
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
+import java.time.Instant;
 
 public interface TrackingResultProjection {
 
@@ -37,5 +37,5 @@ public interface TrackingResultProjection {
 
     String getReviewStatus();
 
-    OffsetDateTime getAnalyzedAt();
+    Instant getAnalyzedAt();
 }

@@ -2,7 +2,7 @@ package com.pvfusion.adapter.out.persistence.tracking;
 
 import com.pvfusion.adapter.out.persistence.result.AnalysisResultJpaEntity;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.Query;
@@ -120,6 +120,7 @@ public interface TrackingJpaRepository extends Repository<AnalysisResultJpaEntit
                     LEFT JOIN inspection_images ii ON ii.id = aj.image_id
                     LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
                     LEFT JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                    LEFT JOIN zones z ON z.id = i.zone_id
                     WHERE i.zone_id = :zoneId
                       AND COALESCE(ii.target_type, ip.target_type) = :targetType
                       AND ((:equipmentId IS NULL AND COALESCE(ii.equipment_id, ip.equipment_id) IS NULL)
@@ -139,7 +140,7 @@ public interface TrackingJpaRepository extends Repository<AnalysisResultJpaEntit
             @Param("targetType") String targetType,
             @Param("equipmentId") Long equipmentId,
             @Param("inputType") String inputType,
-            @Param("analyzedAt") OffsetDateTime analyzedAt,
+            @Param("analyzedAt") Instant analyzedAt,
             @Param("currentResultId") Long currentResultId
     );
 }

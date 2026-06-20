@@ -8,7 +8,7 @@ import com.pvfusion.application.dto.dashboard.DashboardQuery;
 import com.pvfusion.application.dto.dashboard.DashboardTrendQuery;
 import com.pvfusion.application.dto.dashboard.SeverityStatsQuery;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -105,7 +105,7 @@ class DashboardPersistenceAdapterTest {
             public String getActionCandidate() { return "CLEANING"; }
             public String getSeverityLevel() { return "HIGH"; }
             public String getPriorityLevel() { return "HIGH"; }
-            public OffsetDateTime getAnalyzedAt() { return OffsetDateTime.now(); }
+            public Instant getAnalyzedAt() { return Instant.parse("2026-06-06T01:00:00Z"); }
         };
     }
 

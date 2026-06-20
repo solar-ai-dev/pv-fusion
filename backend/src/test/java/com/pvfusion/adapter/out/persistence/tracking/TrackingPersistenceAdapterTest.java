@@ -5,7 +5,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -188,8 +188,8 @@ class TrackingPersistenceAdapterTest {
             }
 
             @Override
-            public OffsetDateTime getAnalyzedAt() {
-                return OffsetDateTime.parse("2026-06-06T10:00:00+09:00");
+            public Instant getAnalyzedAt() {
+                return Instant.parse("2026-06-06T01:00:00Z");
             }
         };
     }

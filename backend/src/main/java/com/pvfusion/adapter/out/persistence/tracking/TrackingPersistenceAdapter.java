@@ -22,7 +22,9 @@ import com.pvfusion.domain.result.PriorityLevel;
 import com.pvfusion.domain.result.SeverityLevel;
 import com.pvfusion.domain.review.ReviewStatus;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -246,8 +248,12 @@ public class TrackingPersistenceAdapter implements LoadTrackingPort, LoadInspect
                 enumValue(PriorityLevel.class, projection.getPriorityLevel()),
                 enumValue(SeverityLevel.class, projection.getSeverityLevel()),
                 enumValue(ReviewStatus.class, projection.getReviewStatus()),
-                projection.getAnalyzedAt()
+                toOffsetDateTime(projection.getAnalyzedAt())
         );
+    }
+
+    private OffsetDateTime toOffsetDateTime(Instant value) {
+        return value != null ? OffsetDateTime.ofInstant(value, ZoneOffset.UTC) : null;
     }
 
     private boolean isHighSeverity(SeverityLevel severityLevel) {
