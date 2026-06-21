@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pv-insight-frontend
+  namespace: pv-insight
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: pv-insight
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+      app.kubernetes.io/part-of: pv-insight
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: frontend
+        app.kubernetes.io/part-of: pv-insight
+    spec:
+      containers:
+        - name: frontend
+          image: example.invalid/pv-insight-frontend:replace-me-git-sha
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pv-insight-frontend
+  namespace: pv-insight
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: pv-insight
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: pv-insight
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
