@@ -66,6 +66,16 @@ ai-worker/tmp/*
 k8s/**/*secret*.yaml
 k8s/**/*secret*.yml
 !k8s/_examples/**
+k8s/secrets/
+k8s/secret.yaml
+kubeconfig
+
+# AWS and infrastructure local secrets
+.aws/credentials
+.aws/config
+**/*.pem
+**/*.key
+scripts/aws/output/
 
 # Keep tracking placeholders and examples
 !**/.gitkeep
