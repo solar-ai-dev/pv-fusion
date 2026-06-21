@@ -41,6 +41,7 @@
 | `RDS_USERNAME` | Backend | prod | Y | 없음 | `pvfusion` | N | ConfigMap | `application-prod.yml` | 운영 분리 기준상 일반 값 |
 | `RDS_PASSWORD` | Backend | prod | Y | 없음 | `<set-in-secret>` | Y | Secret | `application-prod.yml` | 운영 DB 비밀번호 |
 | `MINIO_ENDPOINT` | Backend | local | N | `http://localhost:9000` | `http://localhost:9000` | N | ConfigMap | `application-local.yml` | local 전용 |
+| `MINIO_PUBLIC_ENDPOINT` | Backend | local | N | `${MINIO_ENDPOINT}` | `http://127.0.0.1:9000` | N | ConfigMap | `application-local.yml`, `docker-compose.yml` | 브라우저용 Presigned URL hostname |
 | `MINIO_ROOT_USER` | Backend | local | N | `change_me_minio_root_user` | `change_me_minio_root_user` | Y | Secret | `application-local.yml` | local Secret 취급 |
 | `MINIO_ROOT_PASSWORD` | Backend | local | N | `change_me_minio_root_password` | `<set-in-secret>` | Y | Secret | `application-local.yml` | local Secret 취급 |
 | `MINIO_BUCKET_NAME` | Backend | local | N | `pv-insight-local` | `pv-insight-local` | N | ConfigMap | `application-local.yml` | local bucket |

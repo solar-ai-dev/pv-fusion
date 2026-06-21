@@ -1,4 +1,5 @@
 import json
+import logging
 from json import JSONDecodeError
 from threading import Event
 
@@ -7,6 +8,8 @@ from pydantic import ValidationError
 from app.application.analysis_job_processor import AnalysisJobProcessor, ProcessingResult
 from app.application.ports import QueueMessage, QueuePort
 from app.domain.worker_message import WorkerMessage
+
+logger = logging.getLogger(__name__)
 
 
 class SqsWorkerRunner:
@@ -43,6 +46,10 @@ class SqsWorkerRunner:
     def handle_message(self, queue_message: QueueMessage) -> ProcessingResult:
         message = self._parse_message(queue_message.body)
         if message is None:
+            logger.warning(
+                "Received invalid analysis job message. messageId=%s",
+                queue_message.messageId,
+            )
             return ProcessingResult(
                 status="failed",
                 jobId=0,
@@ -51,9 +58,30 @@ class SqsWorkerRunner:
                 failureMessage="Invalid worker message.",
             )
 
+        logger.info(
+            "Received analysis job message. messageId=%s jobId=%s traceId=%s inputType=%s",
+            queue_message.messageId,
+            message.jobId,
+            message.traceId,
+            message.inputType.value,
+        )
         result = self._processor.process(message)
         if result.status in {"processed", "skipped"}:
             self._queue_port.delete_message(queue_message.receiptHandle)
+            logger.info(
+                "Deleted analysis job message. messageId=%s jobId=%s status=%s",
+                queue_message.messageId,
+                result.jobId,
+                result.status,
+            )
+        elif result.failureCode is not None:
+            logger.warning(
+                "Analysis job message processing failed. messageId=%s jobId=%s traceId=%s errorCode=%s",
+                queue_message.messageId,
+                message.jobId,
+                message.traceId,
+                result.failureCode,
+            )
         return result
 
     def _parse_message(self, body: str) -> WorkerMessage | None:

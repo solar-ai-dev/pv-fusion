@@ -1,4 +1,6 @@
 from decimal import Decimal
+import logging
+import time
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -19,6 +21,8 @@ from app.domain.model import ModelInfo
 from app.domain.worker_message import WorkerMessage
 from app.infrastructure.model.output_parser import ParsedDetection
 from app.infrastructure.visualization.overlay import draw_bbox_overlay, draw_mask_overlay
+
+logger = logging.getLogger(__name__)
 
 
 class ProcessingResult(BaseModel):
@@ -47,8 +51,14 @@ class AnalysisJobProcessor:
         self._result_repository = result_repository
 
     def process(self, message: WorkerMessage) -> ProcessingResult:
+        started_at = time.perf_counter()
         job = self._job_repository.get_by_id(message.jobId)
         if job is None:
+            logger.warning(
+                "Analysis job was not found. jobId=%s traceId=%s",
+                message.jobId,
+                message.traceId,
+            )
             return ProcessingResult(
                 status="failed",
                 jobId=message.jobId,
@@ -58,21 +68,36 @@ class AnalysisJobProcessor:
             )
 
         if job.jobStatus is JobStatus.SUCCEEDED:
+            logger.info("Skipping analysis job. jobId=%s traceId=%s jobStatus=%s", message.jobId, message.traceId, job.jobStatus.value)
             return ProcessingResult(status="skipped", jobId=message.jobId, message="Job already succeeded.")
         if job.jobStatus is JobStatus.RUNNING:
+            logger.info("Skipping analysis job. jobId=%s traceId=%s jobStatus=%s", message.jobId, message.traceId, job.jobStatus.value)
             return ProcessingResult(status="skipped", jobId=message.jobId, message="Job is already running.")
         if job.jobStatus is JobStatus.FAILED:
+            logger.info("Skipping analysis job. jobId=%s traceId=%s jobStatus=%s", message.jobId, message.traceId, job.jobStatus.value)
             return ProcessingResult(status="skipped", jobId=message.jobId, message="Job is already failed.")
 
         try:
             self._job_repository.mark_running(message.jobId)
         except JobStateTransitionError:
+            logger.warning(
+                "Analysis job state transition to RUNNING was not applied. jobId=%s traceId=%s",
+                message.jobId,
+                message.traceId,
+            )
             return ProcessingResult(
                 status="skipped",
                 jobId=message.jobId,
                 message="Job state transition to RUNNING was not applied.",
             )
 
+        logger.info(
+            "Started analysis job. jobId=%s traceId=%s inputType=%s requestedModelType=%s",
+            message.jobId,
+            message.traceId,
+            message.inputType.value,
+            message.requestedModelType.value,
+        )
         try:
             image_input = self._load_image_input(message)
             inference_result, overlay_input = self._run_inference(message, image_input)
@@ -100,10 +125,33 @@ class AnalysisJobProcessor:
             analysis_result_id = self._result_repository.save_result(result_draft)
             self._result_repository.save_defects(analysis_result_id, inference_result.defects)
             self._job_repository.mark_succeeded(message.jobId)
+            logger.info(
+                "Completed analysis job. jobId=%s traceId=%s modelType=%s anomalyCount=%s durationMs=%s",
+                message.jobId,
+                message.traceId,
+                inference_result.modelInfo.modelType.value,
+                inference_result.anomalyCount,
+                self._duration_ms(started_at),
+            )
             return ProcessingResult(status="processed", jobId=message.jobId, message="Job processed successfully.")
         except ProcessingError as error:
+            logger.warning(
+                "Analysis job failed. jobId=%s traceId=%s inputType=%s errorCode=%s durationMs=%s",
+                message.jobId,
+                message.traceId,
+                message.inputType.value,
+                error.code,
+                self._duration_ms(started_at),
+            )
             return self._fail_job(message.jobId, error.code, error.message)
         except Exception:
+            logger.exception(
+                "Analysis job failed with unexpected error. jobId=%s traceId=%s inputType=%s durationMs=%s",
+                message.jobId,
+                message.traceId,
+                message.inputType.value,
+                self._duration_ms(started_at),
+            )
             return self._fail_job(message.jobId, "UNKNOWN_WORKER_ERROR", "Unexpected worker processing error.")
 
     def _load_image_input(self, message: WorkerMessage):
@@ -405,6 +453,9 @@ class AnalysisJobProcessor:
                 )
             )
         return detections
+
+    def _duration_ms(self, started_at: float) -> int:
+        return int((time.perf_counter() - started_at) * 1000)
 
 
 class ProcessingError(Exception):

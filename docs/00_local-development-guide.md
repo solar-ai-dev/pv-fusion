@@ -66,6 +66,7 @@ Host URL:
 
 - Frontend: `http://localhost:5173`
 - Backend: `http://localhost:8080`
+- MinIO Public: `http://127.0.0.1:9000`
 - AI Worker: `http://127.0.0.1:8000`
 
 Health 확인:
@@ -76,6 +77,23 @@ Invoke-WebRequest http://localhost:8080/actuator/health
 Invoke-WebRequest http://127.0.0.1:8000/health
 Invoke-WebRequest http://127.0.0.1:8000/internal/health
 ```
+
+로컬 주소 계약:
+
+- 브라우저 접근 URL은 `localhost`를 사용한다.
+- Frontend API Base URL은 `http://localhost:8080/api/v1`를 사용한다.
+- OAuth callback은 `http://localhost:8080/api/v1/auth/oauth2/callback/google`를 사용한다.
+- MinIO Presigned URL의 public hostname은 `http://127.0.0.1:9000`를 사용한다.
+- Docker 컨테이너 내부 통신은 Compose 서비스명(`minio`, `postgres`, `localstack`)을 사용한다.
+- 컨테이너 내부 health check와 host 포트 바인딩은 `127.0.0.1`을 사용할 수 있으며, 브라우저 URL 계약과 별개다.
+
+주소를 바꿀 때는 먼저 호출 주체를 구분한다.
+
+- 브라우저 접근: `localhost`
+- 컨테이너 간 통신: Compose 서비스명
+- 컨테이너 자기 자신 health check: `127.0.0.1`
+
+한 영역의 hostname을 바꿨다는 이유만으로 다른 영역 endpoint까지 함께 바꾸지 않는다.
 
 ## 3. 서비스 단독 실행
 

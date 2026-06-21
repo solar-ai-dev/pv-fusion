@@ -23,6 +23,7 @@ public class SecurityConfig {
 
     private static final String AUTH_BASE_PATH = "/api/v1/auth";
     private static final String OAUTH2_CALLBACK_BASE_URI = AUTH_BASE_PATH + "/oauth2/callback/*";
+    private static final String TRACE_HEADER_NAME = "X-Trace-Id";
 
     @Bean
     SecurityFilterChain securityFilterChain(
@@ -35,7 +36,7 @@ public class SecurityConfig {
         http.csrf(AbstractHttpConfigurer::disable);
         http.cors(Customizer.withDefaults());
         http.authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/actuator/health", "/error").permitAll()
+                .requestMatchers("/actuator/health", "/actuator/health/**", "/error").permitAll()
                 .requestMatchers(
                         AUTH_BASE_PATH + "/google",
                         AUTH_BASE_PATH + "/oauth2/callback/**",
@@ -84,8 +85,8 @@ public class SecurityConfig {
         );
         configuration.setAllowCredentials(true);
         configuration.setAllowedMethods(List.of("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-Requested-With", "Accept"));
-        configuration.setExposedHeaders(List.of("Location"));
+        configuration.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-Requested-With", "Accept", TRACE_HEADER_NAME));
+        configuration.setExposedHeaders(List.of("Location", TRACE_HEADER_NAME));
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

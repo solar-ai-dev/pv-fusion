@@ -15,6 +15,8 @@ class DeploymentConfigContractTest {
         Properties local = loadYaml("application-local.yml");
 
         assertThat(local.getProperty("storage.minio.endpoint")).isEqualTo("${MINIO_ENDPOINT:http://localhost:9000}");
+        assertThat(local.getProperty("storage.minio.public-endpoint"))
+                .isEqualTo("${MINIO_PUBLIC_ENDPOINT:${MINIO_ENDPOINT:http://localhost:9000}}");
         assertThat(local.getProperty("storage.minio.access-key"))
                 .isEqualTo("${MINIO_ROOT_USER:change_me_minio_root_user}");
         assertThat(local.getProperty("storage.minio.secret-key"))
