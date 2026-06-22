@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Legacy reference only.
+# The approved execution baseline is migrating to CloudFormation Change Sets.
+# Keep this script for reference only.
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1417,24 +1421,12 @@ EOF
 }
 
 main() {
-  require_cmd aws
-  require_cmd mktemp
-  require_cmd sleep
-
-  validate_action
-  require_env S3_BUCKET_NAME
-  print_config_summary
-
-  case "${ACTION}" in
-    plan)
-      run_plan
-      ;;
-    apply)
-      [[ "${AWS_CONFIRM_PHASE2_CREATE:-}" == "yes" ]] || fail "AWS_CONFIRM_PHASE2_CREATE=yes is required for apply"
-      confirm_exact_approval
-      run_apply
-      ;;
-  esac
+  cat <<'EOF' >&2
+[ERROR] scripts/aws/11-create-infrastructure.sh is legacy reference only.
+[ERROR] Direct AWS resource creation from this script is no longer an approved execution path.
+[ERROR] Use infrastructure/cloudformation/pv-insight-mvp.yaml and the official CloudFormation flow in infrastructure/cloudformation/README.md.
+EOF
+  exit 1
 }
 
 main "$@"

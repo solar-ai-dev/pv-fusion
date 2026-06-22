@@ -136,6 +136,9 @@
 
 ## 9. AWS Plan 검증 지침
 
+이 섹션의 Legacy Bash 예시는 과거 기록용이다.
+현재 공식 실행 기준은 `infrastructure/cloudformation/README.md`의 CloudFormation Change Set 흐름이다.
+
 Read-only inventory:
 
 ```bash
@@ -147,7 +150,7 @@ bash scripts/aws/11-readonly-inventory.sh
 - 계정 전체 열람이 아니라 `pv-insight` prefix 기준의 최소 범위 조회만 수행한다.
 - `S3_BUCKET_NAME`을 주지 않으면 버킷 조회는 건너뛰고 다른 read-only 조회만 수행한다.
 
-Plan:
+Legacy plan example:
 
 ```bash
 ACTION=plan \
@@ -167,13 +170,16 @@ bash scripts/aws/11-create-infrastructure.sh
 
 ## 10. AWS Apply 실행 지침
 
+이 섹션의 Legacy Bash apply 예시는 실행 금지 기록용이다.
+현재 `scripts/aws/11-create-infrastructure.sh` 는 즉시 종료되며, 실제 실행은 CloudFormation Change Set으로만 수행한다.
+
 사전 조건:
 
 - 사용자 승인 확보
 - `AWS_CONFIRM_PHASE2_CREATE=yes`
 - 정확한 승인 문자열 입력 필요
 
-실행:
+Legacy apply example:
 
 ```bash
 ACTION=apply \
@@ -601,4 +607,82 @@ DB schema 변경이 이미 적용된 뒤에는 이미지 롤백만으로 충분�
   - `iam:TagRole`
   - `iam:TagInstanceProfile`
   - `sqs:TagQueue`
-  - 이유: 현재 AWS Service Authorization Reference의 해당 생성 액션 종속 권한 표에는 별도 의존 권한으로 기재되지 않았다.
+- 이유: 현재 AWS Service Authorization Reference의 해당 생성 액션 종속 권한 표에는 별도 의존 권한으로 기재되지 않았다.
+
+## CloudFormation 실행 기준
+
+- B 담당의 AWS Infrastructure 실행 기준은 이제 Bash 직접 생성이 아니라 CloudFormation Change Set이다.
+- 유지되는 구조:
+  - AWS Infrastructure 위에 EC2 1대 생성
+  - EC2 내부 K3s single node 유지
+  - K3s 내부 Frontend / Backend / AI Worker Pod 유지
+  - Traefik, ConfigMap, Secret, Service, Ingress, Jenkins build/push, Flyway migration 흐름 유지
+- 변경되는 부분:
+  - B는 EC2, RDS, S3, SQS, ECR, IAM 생성 API를 직접 호출하지 않는다.
+  - B는 CloudFormation Stack과 실행 Role을 통해 Infrastructure만 배포한다.
+- 공식 실행 문서는 [infrastructure/cloudformation/README.md](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/README.md) 이다.
+
+## B 담당 실제 실행 순서
+
+1. B 개인 로그인 + MFA 확인
+2. `pv-insight-b-deployer-role` 또는 동등한 배포 Role assume
+3. `bash scripts/aws/11-readonly-inventory.sh`
+4. `aws cloudformation validate-template`
+5. `aws cloudformation create-change-set`
+6. `aws cloudformation describe-change-set`
+7. 변경 내역 승인
+8. `aws cloudformation execute-change-set`
+9. `aws cloudformation describe-stacks`
+10. `aws cloudformation describe-stack-events`
+11. `aws cloudformation describe-stacks --query 'Stacks[0].Outputs'`
+12. 이후 기존 K3s / Jenkins / smoke test 흐름을 그대로 이어서 수행
+
+- `scripts/aws/11-cfn-infrastructure.sh` 는 선택형 helper이며, 위 공식 CLI 순서를 대체하지 않는다.
+
+## A / B 책임 분리
+
+- A 담당
+  - CloudFormation 템플릿 준비
+  - CloudFormation 실행 Role trust/policy 초안 준비
+  - B 배포 Role용 CloudFormation 권한 초안 준비
+  - legacy Bash 스크립트는 reference 전용으로만 보존
+- B 담당
+  - Change Set 생성
+  - Change Set 검토
+  - 승인 후 Change Set 실행
+  - Stack 상태 / Outputs 확인
+  - 이후 기존 K3s 배포 절차 수행
+
+## CloudFormation 관련 파일
+
+- 템플릿:
+  - [infrastructure/cloudformation/pv-insight-mvp.yaml](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/pv-insight-mvp.yaml)
+- 파라미터 예시:
+  - [infrastructure/cloudformation/parameters/pv-insight-mvp.example.env](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/parameters/pv-insight-mvp.example.env)
+- 실행 Role 초안:
+  - [infrastructure/cloudformation/iam/pv-insight-cloudformation-execution-role-trust-policy.json](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/iam/pv-insight-cloudformation-execution-role-trust-policy.json)
+  - [infrastructure/cloudformation/iam/pv-insight-cloudformation-execution-role-policy.json](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/iam/pv-insight-cloudformation-execution-role-policy.json)
+- B Role 초안:
+  - [infrastructure/cloudformation/iam/pv-insight-b-deployer-cloudformation-policy.json](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/iam/pv-insight-b-deployer-cloudformation-policy.json)
+- 실행 보조:
+  - [scripts/aws/11-cfn-infrastructure.sh](/C:/solar-ai-dev/pv-fusion/scripts/aws/11-cfn-infrastructure.sh)
+
+## Legacy Bash 상태
+
+- [scripts/aws/11-create-infrastructure.sh](/C:/solar-ai-dev/pv-fusion/scripts/aws/11-create-infrastructure.sh) 는 즉시 제거하지 않는다.
+- 다만 실제 실행 기준은 CloudFormation으로 전환하며, 해당 스크립트는 legacy/reference 용도로만 보존한다.
+- 현재는 실행 즉시 CloudFormation 사용 안내를 출력하고 종료한다.
+
+## 정책 제안
+
+### 문제
+- RDS와 S3는 변경 영향이 크고, IaC 전환 직후에는 실수로 인한 교체/삭제를 더 보수적으로 다룰 필요가 있다.
+
+### 이유
+- 이번 턴에서는 실제 Stack 생성이나 실행 검증을 하지 않았기 때문에, 곧바로 강제 stack policy를 운영 기준으로 확정하기에는 근거가 부족하다.
+
+### 수정 제안
+- [infrastructure/cloudformation/policies/pv-insight-mvp-stack-policy.proposal.json](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/policies/pv-insight-mvp-stack-policy.proposal.json) 을 제안안으로만 검토한다.
+
+### 영향 범위
+- 실제 적용 전까지는 문서 제안 범위이며, 현재 Stack 실행 동작에는 자동으로 연결되지 않는다.
