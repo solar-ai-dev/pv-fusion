@@ -139,8 +139,13 @@
 Read-only inventory:
 
 ```bash
+S3_BUCKET_NAME=<unique-bucket-name> \
 bash scripts/aws/11-readonly-inventory.sh
 ```
+
+- CloudShell에서 B 개인 로그인 후 배포 Role을 assume한 세션으로 실행한다.
+- 계정 전체 열람이 아니라 `pv-insight` prefix 기준의 최소 범위 조회만 수행한다.
+- `S3_BUCKET_NAME`을 주지 않으면 버킷 조회는 건너뛰고 다른 read-only 조회만 수행한다.
 
 Plan:
 
@@ -505,4 +510,95 @@ DB schema 변경이 이미 적용된 뒤에는 이미지 롤백만으로 충분�
   - [k8s/README.md](/C:/solar-ai-dev/pv-fusion/k8s/README.md) 기준: S3 download/init flow 미구현
   - [docs/12_cloud-deployment-operations-design.md](/C:/solar-ai-dev/pv-fusion/docs/12_cloud-deployment-operations-design.md) 일부 설명: 운영 bootstrap을 전제
   - 최신 저장소 구현 기준으로는 `k8s/README.md`와 실제 코드 기준을 우선하는 편이 안전하다.
+## IAM Action 보정 메모
 
+- Inventory
+  - 직접 호출:
+    - `sts:GetCallerIdentity`
+    - `ec2:DescribeVpcs`
+    - `ec2:DescribeSubnets`
+    - `ec2:DescribeRouteTables`
+    - `ec2:DescribeInternetGateways`
+    - `ec2:DescribeSecurityGroups`
+    - `iam:GetRole`
+    - `iam:GetInstanceProfile`
+    - `ecr:DescribeRepositories`
+    - `s3:GetBucketLocation`
+    - `sqs:GetQueueUrl`
+    - `rds:DescribeDBInstances`
+    - `logs:DescribeLogGroups`
+  - 리소스 범위:
+    - `sts:GetCallerIdentity`는 `Resource="*"`가 필요하다.
+    - `ec2:Describe*`, `logs:DescribeLogGroups`는 조회 API 특성상 `Resource="*"`로 두는 편이 안전하다.
+    - `iam:GetRole`은 `arn:aws:iam::<ACCOUNT_ID>:role/pv-insight-ec2-runtime-role`
+    - `iam:GetInstanceProfile`은 `arn:aws:iam::<ACCOUNT_ID>:instance-profile/pv-insight-ec2-instance-profile`
+    - `ecr:DescribeRepositories`는 `arn:aws:ecr:ap-northeast-2:<ACCOUNT_ID>:repository/pv-insight-frontend`, `arn:aws:ecr:ap-northeast-2:<ACCOUNT_ID>:repository/pv-insight-backend`, `arn:aws:ecr:ap-northeast-2:<ACCOUNT_ID>:repository/pv-insight-ai-worker`
+    - `s3:GetBucketLocation`은 `arn:aws:s3:::<S3_BUCKET_NAME>`
+    - `sqs:GetQueueUrl`은 `arn:aws:sqs:ap-northeast-2:<ACCOUNT_ID>:pv-insight-analysis-jobs`, `arn:aws:sqs:ap-northeast-2:<ACCOUNT_ID>:pv-insight-analysis-jobs-dlq`
+    - `rds:DescribeDBInstances`는 `arn:aws:rds:ap-northeast-2:<ACCOUNT_ID>:db:pv-insight-postgres`
+
+- Plan
+  - 직접 호출:
+    - Inventory 권한 전부
+    - `ec2:DescribeInstances`
+    - `ec2:DescribeAddresses`
+    - `ec2:DescribeAvailabilityZones`
+    - `ec2:DescribeInstanceTypeOfferings`
+    - `ssm:GetParameter`
+    - `rds:DescribeDBSubnetGroups`
+    - `rds:DescribeOrderableDBInstanceOptions`
+  - 리소스 범위:
+    - `ssm:GetParameter`는 `arn:aws:ssm:ap-northeast-2::parameter/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64` 1개로 제한한다.
+    - `rds:DescribeDBSubnetGroups`는 `arn:aws:rds:ap-northeast-2:<ACCOUNT_ID>:subgrp:pv-insight-db-subnet-group`
+    - `DescribeAvailabilityZones`, `DescribeInstanceTypeOfferings`, `DescribeAddresses`, 일부 `DescribeInstances`는 조회 API 특성상 `Resource="*"`가 필요할 수 있다.
+
+- Apply
+  - 직접 호출:
+    - Plan 권한 전부
+    - `ec2:CreateVpc`, `ec2:CreateTags`, `ec2:CreateInternetGateway`, `ec2:AttachInternetGateway`
+    - `ec2:CreateSubnet`, `ec2:ModifySubnetAttribute`
+    - `ec2:CreateRouteTable`, `ec2:CreateRoute`, `ec2:AssociateRouteTable`
+    - `ec2:CreateSecurityGroup`, `ec2:AuthorizeSecurityGroupIngress`
+    - `iam:CreateRole`, `iam:PutRolePolicy`, `iam:ListAttachedRolePolicies`, `iam:AttachRolePolicy`
+    - `iam:CreateInstanceProfile`, `iam:AddRoleToInstanceProfile`
+    - `iam:PassRole`
+    - `ecr:CreateRepository`, `ecr:DescribeRepositories`
+    - `s3:CreateBucket`, `s3:PutBucketPublicAccessBlock`, `s3:PutEncryptionConfiguration`, `s3:PutBucketVersioning`
+    - `sqs:CreateQueue`, `sqs:GetQueueAttributes`, `sqs:SetQueueAttributes`
+    - `logs:CreateLogGroup`, `logs:PutRetentionPolicy`
+    - `rds:CreateDBSubnetGroup`, `rds:CreateDBInstance`, `rds:DescribeDBSubnetGroups`, `rds:DescribeDBInstances`, `rds:DescribeOrderableDBInstanceOptions`
+    - `ec2:RunInstances`, `ec2:AllocateAddress`, `ec2:AssociateAddress`
+  - 종속 권한:
+    - ECR: `ecr:CreateRepository` + `ecr:TagResource`
+    - RDS DB Subnet Group: `rds:CreateDBSubnetGroup` + `rds:AddTagsToResource`
+    - RDS DB Instance:
+      - 현재 스크립트에서 직접 확인되는 태그 종속 권한은 `rds:AddTagsToResource`
+      - AWS 공식 표에는 추가로 `iam:PassRole`, `kms:CreateGrant`, `kms:Decrypt`, `kms:DescribeKey`, `kms:GenerateDataKey`, `rds:CreateTenantDatabase`, `secretsmanager:CreateSecret`, `secretsmanager:TagResource`도 표시된다.
+      - 다만 현재 스크립트는 별도 KMS Key, Secrets Manager 관리형 Master Password, Enhanced Monitoring Role, Tenant Database를 사용하지 않으므로, 이 옵션 의존 권한들은 최종 B 정책에서 제외한다.
+    - EC2용 `iam:PassRole`: `ec2:RunInstances`에서 `--iam-instance-profile`을 통해 `pv-insight-ec2-runtime-role`을 EC2에 전달하기 위해 필요하다.
+  - 리소스 범위:
+    - `ecr:CreateRepository`, `ecr:DescribeRepositories`는 위 3개 저장소 ARN으로 제한 가능하다.
+    - `iam:CreateRole`, `iam:PutRolePolicy`, `iam:AttachRolePolicy`, `iam:GetRole`은 `arn:aws:iam::<ACCOUNT_ID>:role/pv-insight-ec2-runtime-role`
+    - `iam:CreateInstanceProfile`, `iam:GetInstanceProfile`, `iam:AddRoleToInstanceProfile`은 `arn:aws:iam::<ACCOUNT_ID>:instance-profile/pv-insight-ec2-instance-profile`
+    - `rds:CreateDBSubnetGroup`, `rds:DescribeDBSubnetGroups`는 `arn:aws:rds:ap-northeast-2:<ACCOUNT_ID>:subgrp:pv-insight-db-subnet-group`
+    - `rds:CreateDBInstance`, `rds:DescribeDBInstances`는 `arn:aws:rds:ap-northeast-2:<ACCOUNT_ID>:db:pv-insight-postgres`
+    - `ssm:GetParameter`는 위 Amazon Linux 2023 공개 Parameter ARN 1개
+    - `ec2:RunInstances`, `ec2:CreateVpc`, `ec2:CreateSubnet`, `ec2:CreateRoute`, `ec2:AllocateAddress` 등은 AWS 리소스 생성/조회 API 특성상 `Resource="*"`가 남는다.
+
+- 스크립트의 태그 사용 근거
+  - `create-role --tags`
+  - `create-instance-profile --tags`
+  - `create-repository --tags`
+  - `create-db-subnet-group --tags`
+  - `create-db-instance --tags`
+  - `create-queue --tags`
+
+- 유지할 제한
+  - `iam:PassRole` 대상은 `arn:aws:iam::<ACCOUNT_ID>:role/pv-insight-ec2-runtime-role`
+  - Condition은 `iam:PassedToService = ec2.amazonaws.com`
+
+- 이번 범위에서 추가하지 않는 권한
+  - `iam:TagRole`
+  - `iam:TagInstanceProfile`
+  - `sqs:TagQueue`
+  - 이유: 현재 AWS Service Authorization Reference의 해당 생성 액션 종속 권한 표에는 별도 의존 권한으로 기재되지 않았다.

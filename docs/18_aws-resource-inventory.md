@@ -110,16 +110,45 @@
 ## Plan에서 허용한 AWS 명령 범위
 
 - `sts get-caller-identity`
-- `ec2 describe-*`
+- `ec2 describe-vpcs`
+- `ec2 describe-internet-gateways`
+- `ec2 describe-subnets`
+- `ec2 describe-route-tables`
+- `ec2 describe-security-groups`
+- `ec2 describe-instances`
+- `ec2 describe-addresses`
+- `ec2 describe-availability-zones`
+- `ec2 describe-instance-type-offerings`
 - `ssm get-parameter`
-- `iam get-*`
-- `iam list-*`
-- `ecr describe-*`
-- `s3api head-bucket`
-- `s3api list-buckets`
+- `iam get-role`
+- `iam get-instance-profile`
+- `ecr describe-repositories`
+- `s3api get-bucket-location`
 - `sqs get-queue-url`
-- `rds describe-*`
-- `logs describe-*`
+- `rds describe-db-instances`
+- `rds describe-db-subnet-groups`
+- `rds describe-orderable-db-instance-options`
+- `logs describe-log-groups`
+
+## IAM 권한 보정 메모
+
+- `plan`과 `inventory`는 읽기 전용 조회만 사용하지만, `apply`는 태그 포함 생성 호출을 사용한다.
+- ECR:
+  - `create-repository --tags`를 사용하므로 `ecr:CreateRepository`와 함께 `ecr:TagResource`가 필요하다.
+  - 리소스는 `arn:aws:ecr:ap-northeast-2:<ACCOUNT_ID>:repository/pv-insight-*` 패턴으로 제한할 수 있다.
+- RDS:
+  - `create-db-subnet-group --tags`와 `create-db-instance --tags`를 사용하므로 `rds:AddTagsToResource`가 필요하다.
+  - 리소스는 `arn:aws:rds:ap-northeast-2:<ACCOUNT_ID>:subgrp:pv-insight-db-subnet-group` 및 `arn:aws:rds:ap-northeast-2:<ACCOUNT_ID>:db:pv-insight-postgres`로 제한할 수 있다.
+  - AWS 공식 표에는 `CreateDBInstance`의 옵션 의존 권한으로 `kms:*`, `secretsmanager:*`, `rds:CreateTenantDatabase`, RDS 기능용 `iam:PassRole`도 표시되지만, 현재 스크립트는 별도 KMS Key, Secrets Manager 관리형 Master Password, Enhanced Monitoring Role, Tenant Database를 사용하지 않으므로 최종 B 정책에서는 제외한다.
+- IAM:
+  - `create-role --tags`, `create-instance-profile --tags`를 사용하지만 AWS Service Authorization Reference의 종속 권한 표에는 `iam:TagRole`, `iam:TagInstanceProfile`이 별도로 나오지 않는다.
+  - 따라서 현재 스크립트 기준으로는 `iam:CreateRole`, `iam:CreateInstanceProfile`만 기록하고, 태그 관련 제약은 `aws:RequestTag/${TagKey}`, `aws:TagKeys` 조건으로 관리한다.
+- SSM:
+  - `ssm:GetParameter`는 `parameter` 리소스 타입을 지원하므로 `*`로 둘 필요가 없다.
+  - 현재 AMI 조회는 `/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64` 1개 경로로 제한한다.
+- SQS:
+  - `create-queue --tags`를 사용하지만 SQS 권한 표의 종속 권한 컬럼에는 `sqs:TagQueue`가 따로 없다.
+  - 따라서 이번 범위에서는 `sqs:TagQueue`를 추가하지 않는다.
 
 ## Apply 전용 변경 함수 보호
 
