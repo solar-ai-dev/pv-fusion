@@ -35,13 +35,18 @@
       "Sid": "OptionalDriftChecks",
       "Effect": "Allow",
       "Action": [
-        "cloudformation:DescribeStackDriftDetectionStatus",
         "cloudformation:DescribeStackResourceDrifts",
         "cloudformation:DetectStackDrift"
       ],
       "Resource": [
         "arn:aws:cloudformation:${AWS_REGION}:${ACCOUNT_ID}:stack/pv-insight-mvp/*"
       ]
+    },
+    {
+      "Sid": "DescribeStackDriftDetectionStatusAnyResource",
+      "Effect": "Allow",
+      "Action": "cloudformation:DescribeStackDriftDetectionStatus",
+      "Resource": "*"
     },
     {
       "Sid": "PassOnlyCloudFormationExecutionRole",
