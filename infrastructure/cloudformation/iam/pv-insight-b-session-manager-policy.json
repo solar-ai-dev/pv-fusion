@@ -1,0 +1,50 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "StartSessionOnTaggedProjectInstance",
+      "Effect": "Allow",
+      "Action": "ssm:StartSession",
+      "Resource": "arn:aws:ec2:${AWS_REGION}:${ACCOUNT_ID}:instance/*",
+      "Condition": {
+        "StringEquals": {
+          "ssm:resourceTag/Project": "pv-insight",
+          "ssm:resourceTag/Environment": "mvp",
+          "ssm:resourceTag/Purpose": "ec2-k3s-node"
+        }
+      }
+    },
+    {
+      "Sid": "StartSessionWithDefaultShellDocument",
+      "Effect": "Allow",
+      "Action": "ssm:StartSession",
+      "Resource": "arn:aws:ssm:${AWS_REGION}:${ACCOUNT_ID}:document/SSM-SessionManagerRunShell"
+    },
+    {
+      "Sid": "OpenDataChannelForOwnSessions",
+      "Effect": "Allow",
+      "Action": "ssmmessages:OpenDataChannel",
+      "Resource": "arn:aws:ssm:*:*:session/${aws:userid}-*"
+    },
+    {
+      "Sid": "ReadSessionAndInstanceStatus",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:DescribeSessions",
+        "ssm:DescribeInstanceInformation",
+        "ssm:GetConnectionStatus",
+        "ec2:DescribeInstances"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ResumeAndTerminateOwnSessions",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:ResumeSession",
+        "ssm:TerminateSession"
+      ],
+      "Resource": "arn:aws:ssm:*:*:session/${aws:userid}-*"
+    }
+  ]
+}

@@ -645,6 +645,7 @@ DB schema 변경이 이미 적용된 뒤에는 이미지 롤백만으로 충분�
   - CloudFormation 템플릿 준비
   - CloudFormation 실행 Role trust/policy 초안 준비
   - B 배포 Role용 CloudFormation 권한 초안 준비
+  - B Session Manager 접속 정책 초안 준비
   - legacy Bash 스크립트는 reference 전용으로만 보존
 - B 담당
   - Change Set 생성
@@ -664,6 +665,8 @@ DB schema 변경이 이미 적용된 뒤에는 이미지 롤백만으로 충분�
   - [infrastructure/cloudformation/iam/pv-insight-cloudformation-execution-role-policy.json](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/iam/pv-insight-cloudformation-execution-role-policy.json)
 - B Role 초안:
   - [infrastructure/cloudformation/iam/pv-insight-b-deployer-cloudformation-policy.json](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/iam/pv-insight-b-deployer-cloudformation-policy.json)
+- B Session Manager 정책 초안:
+  - [infrastructure/cloudformation/iam/pv-insight-b-session-manager-policy.json](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/iam/pv-insight-b-session-manager-policy.json)
 - 실행 보조:
   - [scripts/aws/11-cfn-infrastructure.sh](/C:/solar-ai-dev/pv-fusion/scripts/aws/11-cfn-infrastructure.sh)
 
