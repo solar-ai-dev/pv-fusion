@@ -17,6 +17,7 @@
 # Packages, virtualenvs, caches
 **/node_modules/
 **/.venv/
+**/.venv-experiments/
 **/venv/
 **/__pycache__/
 **/.pytest_cache/
