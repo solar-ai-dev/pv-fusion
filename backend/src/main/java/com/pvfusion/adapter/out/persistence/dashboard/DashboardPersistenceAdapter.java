@@ -20,7 +20,10 @@ import com.pvfusion.application.port.out.dashboard.LoadDashboardStatsPort;
 import com.pvfusion.domain.result.ActionCandidate;
 import com.pvfusion.domain.result.PriorityLevel;
 import com.pvfusion.domain.result.SeverityLevel;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -210,8 +213,12 @@ public class DashboardPersistenceAdapter implements LoadDashboardPort, LoadDashb
                 ActionCandidate.valueOf(projection.getActionCandidate()),
                 SeverityLevel.valueOf(projection.getSeverityLevel()),
                 PriorityLevel.valueOf(projection.getPriorityLevel()),
-                projection.getAnalyzedAt()
+                toOffsetDateTime(projection.getAnalyzedAt())
         );
+    }
+
+    private OffsetDateTime toOffsetDateTime(Instant value) {
+        return value != null ? OffsetDateTime.ofInstant(value, ZoneOffset.UTC) : null;
     }
 
     private LocalDate normalizeDate(LocalDate date, String interval) {

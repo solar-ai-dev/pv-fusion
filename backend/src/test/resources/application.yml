@@ -14,15 +14,16 @@ app:
       failure-redirect-url: /login?error=oauth
 
 storage:
-  provider: s3
   presign-duration-seconds: 900
   minio:
     region: ap-northeast-2
     path-style-access-enabled: true
   s3:
+    bucket-name: test-bucket
     region: ap-northeast-2
     path-style-access-enabled: false
 
 queue:
   sqs:
     region: ap-northeast-2
+    queue-url: http://localhost:4566/000000000000/test-analysis-job-queue

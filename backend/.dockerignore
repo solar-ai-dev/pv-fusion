@@ -1,0 +1,14 @@
+.git
+.gitignore
+.gradle
+build
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+*.tmp
+coverage
+out
+.idea
+.vscode

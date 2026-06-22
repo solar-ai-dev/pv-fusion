@@ -1,14 +1,14 @@
 package com.pvfusion.adapter.out.persistence.plant;
 
-import com.pvfusion.adapter.out.persistence.inspection.InspectionJpaEntity;
-import com.pvfusion.adapter.out.persistence.zone.ZoneJpaEntity;
-import com.pvfusion.domain.common.ResourceStatus;
 import java.time.OffsetDateTime;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import com.pvfusion.domain.common.ResourceStatus;
 
 public interface PlantJpaRepository extends JpaRepository<PlantJpaEntity, Long> {
 

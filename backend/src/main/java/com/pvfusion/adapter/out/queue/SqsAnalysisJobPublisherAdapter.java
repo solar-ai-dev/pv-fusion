@@ -1,9 +1,7 @@
 package com.pvfusion.adapter.out.queue;
 
-import java.net.URI;
-
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -12,16 +10,16 @@ import com.pvfusion.application.dto.analysis.AnalysisJobMessage;
 import com.pvfusion.application.port.out.analysis.PublishAnalysisJobPort;
 import com.pvfusion.global.error.BusinessException;
 import com.pvfusion.global.error.ErrorCode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
 @Component
 public class SqsAnalysisJobPublisherAdapter implements PublishAnalysisJobPort {
+
+    private static final Logger log = LoggerFactory.getLogger(SqsAnalysisJobPublisherAdapter.class);
 
     private final SqsClient sqsClient;
     private final ObjectMapper objectMapper;
@@ -30,14 +28,11 @@ public class SqsAnalysisJobPublisherAdapter implements PublishAnalysisJobPort {
     @Autowired
     public SqsAnalysisJobPublisherAdapter(
             ObjectMapper objectMapper,
-            @Value("${queue.sqs.endpoint:}") String endpoint,
-            @Value("${queue.sqs.access-key:}") String accessKey,
-            @Value("${queue.sqs.secret-key:}") String secretKey,
-            @Value("${queue.sqs.region}") String region,
-            @Value("${queue.sqs.queue-url:}") String queueUrl
+            SqsClient sqsClient,
+            @Qualifier("analysisJobQueueUrl") String queueUrl
     ) {
         this.objectMapper = objectMapper;
-        this.sqsClient = buildSqsClient(endpoint, accessKey, secretKey, region);
+        this.sqsClient = sqsClient;
         this.queueUrl = queueUrl;
     }
 
@@ -50,6 +45,7 @@ public class SqsAnalysisJobPublisherAdapter implements PublishAnalysisJobPort {
     @Override
     public void publish(AnalysisJobMessage message) {
         if (queueUrl == null || queueUrl.isBlank()) {
+            log.warn("Analysis job queue URL is not configured. jobId={}, traceId={}", message.jobId(), message.traceId());
             throw new BusinessException(ErrorCode.QUEUE_UNAVAILABLE, "Queue URL is not configured.");
         }
         try {
@@ -59,24 +55,21 @@ public class SqsAnalysisJobPublisherAdapter implements PublishAnalysisJobPort {
                     .messageBody(body)
                     .build());
         } catch (JsonProcessingException exception) {
+            log.error(
+                    "Failed to serialize analysis job message. jobId={}, traceId={}",
+                    message.jobId(),
+                    message.traceId(),
+                    exception
+            );
             throw new BusinessException(ErrorCode.QUEUE_UNAVAILABLE, "Failed to serialize analysis job message.");
         } catch (Exception exception) {
+            log.error(
+                    "Failed to publish analysis job message. jobId={}, traceId={}",
+                    message.jobId(),
+                    message.traceId(),
+                    exception
+            );
             throw new BusinessException(ErrorCode.QUEUE_UNAVAILABLE, "Failed to publish analysis job message.");
         }
-    }
-
-    private static SqsClient buildSqsClient(String endpoint, String accessKey, String secretKey, String region) {
-        var builder = SqsClient.builder().region(Region.of(region));
-        if (endpoint != null && !endpoint.isBlank()) {
-            builder.endpointOverride(URI.create(endpoint));
-        }
-        if (accessKey != null && !accessKey.isBlank() && secretKey != null && !secretKey.isBlank()) {
-            builder.credentialsProvider(StaticCredentialsProvider.create(
-                    AwsBasicCredentials.create(accessKey, secretKey)
-            ));
-        } else {
-            builder.credentialsProvider(DefaultCredentialsProvider.create());
-        }
-        return builder.build();
     }
 }

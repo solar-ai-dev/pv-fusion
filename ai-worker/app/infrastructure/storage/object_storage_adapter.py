@@ -1,18 +1,12 @@
 from typing import Any
 
-try:
-    import boto3
-except ModuleNotFoundError:  # pragma: no cover - environment dependent
-    boto3 = None
-
 from app.application.ports import StoragePort
-from app.config.settings import Settings
 
 
 class ObjectStorageAdapter(StoragePort):
-    def __init__(self, settings: Settings, s3_client: Any | None = None) -> None:
-        self._settings = settings
-        self._s3_client = s3_client or self._build_client(settings)
+    def __init__(self, s3_client: Any, default_bucket_name: str | None = None) -> None:
+        self._s3_client = s3_client
+        self._default_bucket_name = default_bucket_name
 
     def read_object(self, bucket_name: str, object_key: str) -> bytes:
         response = self._s3_client.get_object(
@@ -39,27 +33,7 @@ class ObjectStorageAdapter(StoragePort):
     def _resolve_bucket_name(self, bucket_name: str) -> str:
         resolved_bucket_name = bucket_name.strip() if bucket_name else ""
         if not resolved_bucket_name:
-            resolved_bucket_name = (self._settings.storageDefaultBucket or "").strip()
+            resolved_bucket_name = (self._default_bucket_name or "").strip()
         if not resolved_bucket_name:
             raise ValueError("Storage bucket name is not configured.")
         return resolved_bucket_name
-
-    @staticmethod
-    def _build_client(settings: Settings) -> Any:
-        if boto3 is None:
-            raise ModuleNotFoundError("boto3 is required to create the object storage client.")
-
-        kwargs: dict[str, Any] = {
-            "service_name": "s3",
-            "region_name": settings.storageRegion or settings.awsRegion,
-        }
-        if settings.storageEndpointUrl:
-            kwargs["endpoint_url"] = settings.storageEndpointUrl
-
-        access_key = (settings.storageAccessKey or "").strip()
-        secret_key = (settings.storageSecretKey or "").strip()
-        if access_key and secret_key:
-            kwargs["aws_access_key_id"] = access_key
-            kwargs["aws_secret_access_key"] = secret_key
-
-        return boto3.client(**kwargs)

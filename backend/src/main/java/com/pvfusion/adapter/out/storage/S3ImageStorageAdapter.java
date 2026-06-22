@@ -1,5 +1,13 @@
 package com.pvfusion.adapter.out.storage;
 
+import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Component;
+
 import com.pvfusion.application.dto.image.ImageAccessUrlRequest;
 import com.pvfusion.application.dto.image.ImageAccessUrlResult;
 import com.pvfusion.application.dto.image.ImageStorageRequest;
@@ -8,21 +16,9 @@ import com.pvfusion.application.port.out.image.GenerateImageAccessUrlPort;
 import com.pvfusion.application.port.out.image.StoreImageFilePort;
 import com.pvfusion.global.error.BusinessException;
 import com.pvfusion.global.error.ErrorCode;
-import java.net.URI;
-import java.time.Duration;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.util.UUID;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+
 import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -38,50 +34,17 @@ public class S3ImageStorageAdapter implements StoreImageFilePort, GenerateImageA
     private final String bucketName;
     private final Duration presignDuration;
 
-    @Autowired
     public S3ImageStorageAdapter(
-            @Value("${storage.provider}") String provider,
-            @Value("${storage.minio.endpoint:}") String minioEndpoint,
-            @Value("${storage.minio.access-key:}") String minioAccessKey,
-            @Value("${storage.minio.secret-key:}") String minioSecretKey,
-            @Value("${storage.minio.bucket-name:}") String minioBucketName,
-            @Value("${storage.minio.region}") String minioRegion,
-            @Value("${storage.minio.path-style-access-enabled}") boolean minioPathStyleAccessEnabled,
-            @Value("${storage.s3.endpoint:}") String s3Endpoint,
-            @Value("${storage.s3.access-key:}") String s3AccessKey,
-            @Value("${storage.s3.secret-key:}") String s3SecretKey,
-            @Value("${storage.s3.bucket-name:}") String s3BucketName,
-            @Value("${storage.s3.region}") String s3Region,
-            @Value("${storage.s3.path-style-access-enabled}") boolean s3PathStyleAccessEnabled,
-            @Value("${storage.presign-duration-seconds}") long presignDurationSeconds
-    ) {
-        boolean minio = "minio".equalsIgnoreCase(provider);
-        String endpoint = minio ? minioEndpoint : s3Endpoint;
-        String accessKey = minio ? minioAccessKey : s3AccessKey;
-        String secretKey = minio ? minioSecretKey : s3SecretKey;
-        String region = minio ? minioRegion : s3Region;
-        boolean pathStyleAccessEnabled = minio ? minioPathStyleAccessEnabled : s3PathStyleAccessEnabled;
-
-        this.s3Client = buildS3Client(endpoint, accessKey, secretKey, region, pathStyleAccessEnabled);
-        this.s3Presigner = buildS3Presigner(endpoint, accessKey, secretKey, region, pathStyleAccessEnabled);
-        this.bucketName = minio ? minioBucketName : s3BucketName;
-        this.presignDuration = presignDurationSeconds > 0
-                ? Duration.ofSeconds(presignDurationSeconds)
-                : DEFAULT_PRESIGN_DURATION;
-    }
-
-    S3ImageStorageAdapter(
             S3Client s3Client,
             S3Presigner s3Presigner,
-            String bucketName,
-            Duration presignDuration
+            @Qualifier("storageBucketName") String bucketName,
+            @Qualifier("storagePresignDuration") Duration presignDuration
     ) {
         this.s3Client = s3Client;
         this.s3Presigner = s3Presigner;
         this.bucketName = bucketName;
-        this.presignDuration = presignDuration;
+        this.presignDuration = presignDuration != null ? presignDuration : DEFAULT_PRESIGN_DURATION;
     }
-
     @Override
     public ImageStorageResult store(ImageStorageRequest request) {
         validateBucketName();
@@ -150,61 +113,5 @@ public class S3ImageStorageAdapter implements StoreImageFilePort, GenerateImageA
         }
         int index = filename.lastIndexOf('.');
         return index >= 0 ? filename.substring(index) : "";
-    }
-
-    private static S3Client buildS3Client(
-            String endpoint,
-            String accessKey,
-            String secretKey,
-            String region,
-            boolean pathStyleAccessEnabled
-    ) {
-        var builder = S3Client.builder()
-                .region(Region.of(region))
-                .serviceConfiguration(S3Configuration.builder()
-                        .pathStyleAccessEnabled(pathStyleAccessEnabled)
-                        .build());
-
-        if (endpoint != null && !endpoint.isBlank()) {
-            builder.endpointOverride(URI.create(endpoint));
-        }
-
-        if (accessKey != null && !accessKey.isBlank() && secretKey != null && !secretKey.isBlank()) {
-            builder.credentialsProvider(StaticCredentialsProvider.create(
-                    AwsBasicCredentials.create(accessKey, secretKey)
-            ));
-        } else {
-            builder.credentialsProvider(DefaultCredentialsProvider.create());
-        }
-
-        return builder.build();
-    }
-
-    private static S3Presigner buildS3Presigner(
-            String endpoint,
-            String accessKey,
-            String secretKey,
-            String region,
-            boolean pathStyleAccessEnabled
-    ) {
-        var builder = S3Presigner.builder()
-                .region(Region.of(region))
-                .serviceConfiguration(S3Configuration.builder()
-                        .pathStyleAccessEnabled(pathStyleAccessEnabled)
-                        .build());
-
-        if (endpoint != null && !endpoint.isBlank()) {
-            builder.endpointOverride(URI.create(endpoint));
-        }
-
-        if (accessKey != null && !accessKey.isBlank() && secretKey != null && !secretKey.isBlank()) {
-            builder.credentialsProvider(StaticCredentialsProvider.create(
-                    AwsBasicCredentials.create(accessKey, secretKey)
-            ));
-        } else {
-            builder.credentialsProvider(DefaultCredentialsProvider.create());
-        }
-
-        return builder.build();
     }
 }

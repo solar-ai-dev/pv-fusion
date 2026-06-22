@@ -1,6 +1,6 @@
 package com.pvfusion.adapter.out.persistence.dashboard;
 
-import java.time.OffsetDateTime;
+import java.time.Instant;
 
 public interface RecentResultProjection {
 
@@ -26,5 +26,5 @@ public interface RecentResultProjection {
 
     String getPriorityLevel();
 
-    OffsetDateTime getAnalyzedAt();
+    Instant getAnalyzedAt();
 }

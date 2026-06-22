@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pv-insight
+  labels:
+    app.kubernetes.io/name: pv-insight
+    app.kubernetes.io/part-of: pv-insight

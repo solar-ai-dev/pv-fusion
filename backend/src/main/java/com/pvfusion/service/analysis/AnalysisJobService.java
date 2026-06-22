@@ -41,10 +41,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AnalysisJobService implements
@@ -102,8 +104,26 @@ public class AnalysisJobService implements
 
         try {
             publishAnalysisJobPort.publish(toMessage(queued));
+            log.info(
+                    "Analysis job queued and published. jobId={}, traceId={}, inputType={}, imageId={}, imagePairId={}, requestedModelType={}",
+                    queued.getId(),
+                    queued.getTraceId(),
+                    queued.getInputType(),
+                    queued.getImageId(),
+                    queued.getImagePairId(),
+                    queued.getRequestedModelType()
+            );
             return toResponse(queued);
         } catch (BusinessException exception) {
+            log.warn(
+                    "Analysis job queue publish failed. jobId={}, traceId={}, inputType={}, imageId={}, imagePairId={}, errorCode={}",
+                    queued.getId(),
+                    queued.getTraceId(),
+                    queued.getInputType(),
+                    queued.getImageId(),
+                    queued.getImagePairId(),
+                    ErrorCode.QUEUE_UNAVAILABLE.getCode()
+            );
             AnalysisJob failed = updateAnalysisJobPort.updateAnalysisJob(new AnalysisJob(
                     queued.getId(),
                     queued.getImageId(),
@@ -198,8 +218,27 @@ public class AnalysisJobService implements
 
         try {
             publishAnalysisJobPort.publish(toMessage(retried));
+            log.info(
+                    "Analysis job retried and published. jobId={}, traceId={}, inputType={}, imageId={}, imagePairId={}, retryCount={}",
+                    retried.getId(),
+                    retried.getTraceId(),
+                    retried.getInputType(),
+                    retried.getImageId(),
+                    retried.getImagePairId(),
+                    retried.getRetryCount()
+            );
             return toResponse(retried);
         } catch (BusinessException exception) {
+            log.warn(
+                    "Analysis job retry publish failed. jobId={}, traceId={}, inputType={}, imageId={}, imagePairId={}, retryCount={}, errorCode={}",
+                    retried.getId(),
+                    retried.getTraceId(),
+                    retried.getInputType(),
+                    retried.getImageId(),
+                    retried.getImagePairId(),
+                    retried.getRetryCount(),
+                    ErrorCode.QUEUE_UNAVAILABLE.getCode()
+            );
             AnalysisJob failed = updateAnalysisJobPort.updateAnalysisJob(new AnalysisJob(
                     retried.getId(),
                     retried.getImageId(),

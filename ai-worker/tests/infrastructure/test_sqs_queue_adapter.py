@@ -1,4 +1,3 @@
-from app.config.settings import Settings
 from app.infrastructure.queue.sqs_queue_adapter import SqsQueueAdapter
 
 
@@ -16,18 +15,6 @@ class FakeSqsClient:
         self.delete_calls.append(kwargs)
 
 
-def build_settings(**overrides) -> Settings:
-    payload = {
-        "sqsQueueUrl": "http://localhost:4566/000000000000/analysis-job-queue",
-        "sqsWaitTimeSeconds": 10,
-        "sqsVisibilityTimeoutSeconds": 30,
-        "awsRegion": "ap-northeast-2",
-        "sqsEndpointUrl": "http://localhost:4566",
-    }
-    payload.update(overrides)
-    return Settings(**payload)
-
-
 def test_receive_messages_converts_response_to_queue_messages():
     client = FakeSqsClient(
         {
@@ -40,7 +27,12 @@ def test_receive_messages_converts_response_to_queue_messages():
             ]
         }
     )
-    adapter = SqsQueueAdapter(build_settings(), sqs_client=client)
+    adapter = SqsQueueAdapter(
+        sqs_client=client,
+        queue_url="http://localhost:4566/000000000000/analysis-job-queue",
+        wait_time_seconds=10,
+        visibility_timeout_seconds=30,
+    )
 
     messages = adapter.receive_messages(max_number=1)
 
@@ -52,7 +44,12 @@ def test_receive_messages_converts_response_to_queue_messages():
 
 def test_receive_messages_returns_empty_list_when_no_messages():
     client = FakeSqsClient({})
-    adapter = SqsQueueAdapter(build_settings(), sqs_client=client)
+    adapter = SqsQueueAdapter(
+        sqs_client=client,
+        queue_url="http://localhost:4566/000000000000/analysis-job-queue",
+        wait_time_seconds=10,
+        visibility_timeout_seconds=30,
+    )
 
     messages = adapter.receive_messages(max_number=2)
 
@@ -61,7 +58,12 @@ def test_receive_messages_returns_empty_list_when_no_messages():
 
 def test_delete_message_passes_queue_url_and_receipt_handle():
     client = FakeSqsClient({})
-    adapter = SqsQueueAdapter(build_settings(), sqs_client=client)
+    adapter = SqsQueueAdapter(
+        sqs_client=client,
+        queue_url="http://localhost:4566/000000000000/analysis-job-queue",
+        wait_time_seconds=10,
+        visibility_timeout_seconds=30,
+    )
 
     adapter.delete_message("receipt-1")
 
@@ -75,7 +77,12 @@ def test_delete_message_passes_queue_url_and_receipt_handle():
 
 def test_receive_messages_uses_visibility_timeout_when_present():
     client = FakeSqsClient({})
-    adapter = SqsQueueAdapter(build_settings(), sqs_client=client)
+    adapter = SqsQueueAdapter(
+        sqs_client=client,
+        queue_url="http://localhost:4566/000000000000/analysis-job-queue",
+        wait_time_seconds=10,
+        visibility_timeout_seconds=30,
+    )
 
     adapter.receive_messages(max_number=3)
 
@@ -87,8 +94,10 @@ def test_receive_messages_uses_visibility_timeout_when_present():
 def test_receive_messages_omits_visibility_timeout_when_not_set():
     client = FakeSqsClient({})
     adapter = SqsQueueAdapter(
-        build_settings(sqsVisibilityTimeoutSeconds=None),
         sqs_client=client,
+        queue_url="http://localhost:4566/000000000000/analysis-job-queue",
+        wait_time_seconds=10,
+        visibility_timeout_seconds=None,
     )
 
     adapter.receive_messages()
@@ -96,37 +105,3 @@ def test_receive_messages_omits_visibility_timeout_when_not_set():
     assert "VisibilityTimeout" not in client.receive_calls[0]
 
 
-def test_build_client_includes_endpoint_override_when_present(monkeypatch):
-    captured = {}
-
-    class FakeBoto3:
-        @staticmethod
-        def client(**kwargs):
-            captured.update(kwargs)
-            return object()
-
-    monkeypatch.setattr("app.infrastructure.queue.sqs_queue_adapter.boto3", FakeBoto3)
-
-    SqsQueueAdapter(build_settings())
-
-    assert captured["service_name"] == "sqs"
-    assert captured["region_name"] == "ap-northeast-2"
-    assert captured["endpoint_url"] == "http://localhost:4566"
-
-
-def test_build_client_omits_endpoint_override_when_absent(monkeypatch):
-    captured = {}
-
-    class FakeBoto3:
-        @staticmethod
-        def client(**kwargs):
-            captured.update(kwargs)
-            return object()
-
-    monkeypatch.setattr("app.infrastructure.queue.sqs_queue_adapter.boto3", FakeBoto3)
-
-    SqsQueueAdapter(build_settings(sqsEndpointUrl=None))
-
-    assert captured["service_name"] == "sqs"
-    assert captured["region_name"] == "ap-northeast-2"
-    assert "endpoint_url" not in captured

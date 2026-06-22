@@ -28,19 +28,12 @@ app:
       failure-redirect-url: ${OAUTH2_FAILURE_REDIRECT_URL:${app.frontend.base-url}/login?error=oauth}
 
 storage:
-  provider: s3
   s3:
-    endpoint: ${S3_ENDPOINT:}
-    access-key: ${AWS_ACCESS_KEY_ID:}
-    secret-key: ${AWS_SECRET_ACCESS_KEY:}
     bucket-name: ${S3_BUCKET_NAME}
     region: ${AWS_REGION}
     path-style-access-enabled: ${S3_PATH_STYLE_ACCESS_ENABLED:false}
 
 queue:
   sqs:
-    endpoint: ${SQS_ENDPOINT:}
-    access-key: ${AWS_ACCESS_KEY_ID:}
-    secret-key: ${AWS_SECRET_ACCESS_KEY:}
     region: ${AWS_REGION}
     queue-url: ${SQS_QUEUE_URL}
