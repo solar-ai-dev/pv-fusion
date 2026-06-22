@@ -33,7 +33,7 @@ CloudFormation이 관리하지 않는 범위:
 - `parameters/pv-insight-mvp.example.env`
   - 비밀값 없는 예시 파라미터 값
 - `iam/`
-  - CloudFormation 실행 Role과 B 배포 Role 정책 초안
+  - CloudFormation 실행 Role, B 배포 Role, B Session Manager 정책 초안
 - `policies/pv-insight-mvp-stack-policy.proposal.json`
   - 확정 전 검토용 Stack Policy 제안안
 
@@ -44,6 +44,7 @@ CloudFormation이 관리하지 않는 범위:
 - B 개인 로그인 및 MFA 완료
 - `pv-insight-b-deployer-role` 또는 동등 권한 Role assume 완료
 - `pv-insight-cloudformation-execution-role` 준비 완료
+- `pv-insight-b-session-manager-policy.json` 검토 및 생성/연결 준비 완료
 - 실제 비밀값은 Git, 문서, 명령 히스토리에 기록하지 않음
 
 ## 단일 기준 파일
@@ -202,6 +203,19 @@ aws cloudformation describe-stack-drift-detection-status \
 - `scripts/aws/11-readonly-inventory.sh`
   - 읽기 전용 조사 도구다.
   - Stack 생성이나 변경을 수행하지 않는다.
+
+## B Session Manager 접근
+
+- CloudFormation 템플릿의 EC2 runtime role은 `AmazonSSMManagedInstanceCore`를 포함한다.
+- B 담당의 Session Manager 접속 권한은 별도 정책으로 분리한다.
+- 정책 초안 파일:
+  - `infrastructure/cloudformation/iam/pv-insight-b-session-manager-policy.json`
+- 이 정책은 다음 범위만 허용한다.
+  - `pv-insight` / `mvp` / `ec2-k3s-node` 태그의 EC2 인스턴스에 대한 `ssm:StartSession`
+  - 기본 세션 문서 `SSM-SessionManagerRunShell`
+  - 본인이 시작한 세션에 대한 `ssmmessages:OpenDataChannel`
+  - 본인 세션에 대한 `ssm:ResumeSession`, `ssm:TerminateSession`
+  - 세션 및 인스턴스 상태 확인용 `ssm:DescribeSessions`, `ssm:DescribeInstanceInformation`, `ssm:GetConnectionStatus`, `ec2:DescribeInstances`
 
 ## Legacy Bash
 
