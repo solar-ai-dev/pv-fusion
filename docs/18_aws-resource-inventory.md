@@ -299,3 +299,47 @@ bash scripts/aws/11-create-infrastructure.sh
 ## 실제 AWS 생성 결과
 
 - `미생성 - CloudShell 재검증 대기`
+
+## CloudFormation 전환 메모
+
+- 현재 승인된 MVP 배포 아키텍처는 유지한다.
+- 변경 대상은 AWS Infrastructure 생성 방식뿐이다.
+  - 기존: `scripts/aws/11-create-infrastructure.sh` 직접 호출
+  - 전환: CloudFormation 템플릿 + Stack + Change Set + 실행 Role
+- 실제 실행 기준의 단일 문서는 [infrastructure/cloudformation/README.md](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/README.md) 이다.
+- 실제 AWS Infrastructure 정의의 단일 기준 파일은 [infrastructure/cloudformation/pv-insight-mvp.yaml](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/pv-insight-mvp.yaml) 이다.
+- 기존 `ACTION=apply` 예시와 Legacy Bash 생성 경로는 더 이상 공식 실행 경로가 아니다.
+
+## 공식 Change Set 흐름
+
+1. `aws cloudformation validate-template`
+2. `aws cloudformation create-change-set`
+3. `aws cloudformation describe-change-set`
+4. 승인 후 `aws cloudformation execute-change-set`
+5. `aws cloudformation describe-stacks`
+6. `aws cloudformation describe-stack-events`
+7. 필요 시 `aws cloudformation detect-stack-drift`
+
+Wrapper는 선택형 helper일 뿐이며 공식 AWS CLI 흐름을 대체하지 않는다.
+
+## CloudFormation 파일 목록
+
+- 템플릿:
+  - [infrastructure/cloudformation/pv-insight-mvp.yaml](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/pv-insight-mvp.yaml)
+- 실행 가이드:
+  - [infrastructure/cloudformation/README.md](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/README.md)
+- 파라미터 예시:
+  - [infrastructure/cloudformation/parameters/pv-insight-mvp.example.env](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/parameters/pv-insight-mvp.example.env)
+- IAM 초안:
+  - [infrastructure/cloudformation/iam/pv-insight-cloudformation-execution-role-trust-policy.json](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/iam/pv-insight-cloudformation-execution-role-trust-policy.json)
+  - [infrastructure/cloudformation/iam/pv-insight-cloudformation-execution-role-policy.json](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/iam/pv-insight-cloudformation-execution-role-policy.json)
+  - [infrastructure/cloudformation/iam/pv-insight-b-deployer-cloudformation-policy.json](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/iam/pv-insight-b-deployer-cloudformation-policy.json)
+- Optional helper:
+  - [scripts/aws/11-cfn-infrastructure.sh](/C:/solar-ai-dev/pv-fusion/scripts/aws/11-cfn-infrastructure.sh)
+- 정책 제안:
+  - [infrastructure/cloudformation/policies/pv-insight-mvp-stack-policy.proposal.json](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/policies/pv-insight-mvp-stack-policy.proposal.json)
+
+## Legacy Bash 상태
+
+- [scripts/aws/11-create-infrastructure.sh](/C:/solar-ai-dev/pv-fusion/scripts/aws/11-create-infrastructure.sh) 는 reference 전용이다.
+- 현재는 실행 즉시 CloudFormation 경로를 안내하고 종료한다.

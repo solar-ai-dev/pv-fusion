@@ -1,0 +1,58 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "TemplateValidation",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:ValidateTemplate",
+        "cloudformation:GetTemplateSummary"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "StackAndChangeSetOperations",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateChangeSet",
+        "cloudformation:DeleteChangeSet",
+        "cloudformation:DescribeChangeSet",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResource",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:DescribeStacks",
+        "cloudformation:ExecuteChangeSet",
+        "cloudformation:GetTemplate",
+        "cloudformation:ListChangeSets",
+        "cloudformation:ListStackResources"
+      ],
+      "Resource": [
+        "arn:aws:cloudformation:${AWS_REGION}:${ACCOUNT_ID}:stack/pv-insight-mvp/*",
+        "arn:aws:cloudformation:${AWS_REGION}:${ACCOUNT_ID}:changeSet/*/*"
+      ]
+    },
+    {
+      "Sid": "OptionalDriftChecks",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:DescribeStackDriftDetectionStatus",
+        "cloudformation:DescribeStackResourceDrifts",
+        "cloudformation:DetectStackDrift"
+      ],
+      "Resource": [
+        "arn:aws:cloudformation:${AWS_REGION}:${ACCOUNT_ID}:stack/pv-insight-mvp/*"
+      ]
+    },
+    {
+      "Sid": "PassOnlyCloudFormationExecutionRole",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::${ACCOUNT_ID}:role/pv-insight-cloudformation-execution-role",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "cloudformation.amazonaws.com"
+        }
+      }
+    }
+  ]
+}

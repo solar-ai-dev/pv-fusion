@@ -1,0 +1,162 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "StackDescribe",
+      "Effect": "Allow",
+      "Action": [
+        "sts:GetCallerIdentity",
+        "ec2:Describe*",
+        "ecr:DescribeRepositories",
+        "iam:GetRole",
+        "iam:GetInstanceProfile",
+        "logs:DescribeLogGroups",
+        "rds:DescribeDBInstances",
+        "rds:DescribeDBSubnetGroups",
+        "rds:DescribeOrderableDBInstanceOptions",
+        "s3:GetBucketLocation",
+        "sqs:GetQueueAttributes",
+        "sqs:GetQueueUrl",
+        "ssm:GetParameter"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "VpcAndSubnetLifecycle",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateVpc",
+        "ec2:CreateSubnet",
+        "ec2:CreateInternetGateway",
+        "ec2:AttachInternetGateway",
+        "ec2:CreateRouteTable",
+        "ec2:CreateRoute",
+        "ec2:AssociateRouteTable",
+        "ec2:ModifySubnetAttribute",
+        "ec2:CreateTags"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SecurityGroupLifecycle",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateSecurityGroup",
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:CreateTags"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "RuntimeRoleLifecycle",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:PutRolePolicy",
+        "iam:AttachRolePolicy"
+      ],
+      "Resource": "arn:aws:iam::${ACCOUNT_ID}:role/pv-insight-ec2-runtime-role"
+    },
+    {
+      "Sid": "RuntimeInstanceProfileLifecycle",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateInstanceProfile",
+        "iam:AddRoleToInstanceProfile"
+      ],
+      "Resource": "arn:aws:iam::${ACCOUNT_ID}:instance-profile/pv-insight-ec2-instance-profile"
+    },
+    {
+      "Sid": "RuntimePassRoleForEc2",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::${ACCOUNT_ID}:role/pv-insight-ec2-runtime-role",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "ec2.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "EcrLifecycle",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:CreateRepository",
+        "ecr:DescribeRepositories",
+        "ecr:TagResource"
+      ],
+      "Resource": [
+        "arn:aws:ecr:${AWS_REGION}:${ACCOUNT_ID}:repository/pv-insight-frontend",
+        "arn:aws:ecr:${AWS_REGION}:${ACCOUNT_ID}:repository/pv-insight-backend",
+        "arn:aws:ecr:${AWS_REGION}:${ACCOUNT_ID}:repository/pv-insight-ai-worker"
+      ]
+    },
+    {
+      "Sid": "S3Lifecycle",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:GetBucketLocation",
+        "s3:PutBucketPublicAccessBlock",
+        "s3:PutEncryptionConfiguration",
+        "s3:PutBucketVersioning"
+      ],
+      "Resource": [
+        "arn:aws:s3:::${S3_BUCKET_NAME}"
+      ]
+    },
+    {
+      "Sid": "SqsLifecycle",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:CreateQueue",
+        "sqs:GetQueueAttributes",
+        "sqs:GetQueueUrl",
+        "sqs:SetQueueAttributes"
+      ],
+      "Resource": [
+        "arn:aws:sqs:${AWS_REGION}:${ACCOUNT_ID}:pv-insight-analysis-jobs",
+        "arn:aws:sqs:${AWS_REGION}:${ACCOUNT_ID}:pv-insight-analysis-jobs-dlq"
+      ]
+    },
+    {
+      "Sid": "LogGroupLifecycle",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:PutRetentionPolicy",
+        "logs:DescribeLogGroups"
+      ],
+      "Resource": [
+        "arn:aws:logs:${AWS_REGION}:${ACCOUNT_ID}:log-group:/pv-insight/backend:*",
+        "arn:aws:logs:${AWS_REGION}:${ACCOUNT_ID}:log-group:/pv-insight/ai-worker:*"
+      ]
+    },
+    {
+      "Sid": "RdsLifecycle",
+      "Effect": "Allow",
+      "Action": [
+        "rds:CreateDBSubnetGroup",
+        "rds:CreateDBInstance",
+        "rds:AddTagsToResource",
+        "rds:DescribeDBSubnetGroups",
+        "rds:DescribeDBInstances",
+        "rds:DescribeOrderableDBInstanceOptions"
+      ],
+      "Resource": [
+        "arn:aws:rds:${AWS_REGION}:${ACCOUNT_ID}:subgrp:pv-insight-db-subnet-group",
+        "arn:aws:rds:${AWS_REGION}:${ACCOUNT_ID}:db:pv-insight-postgres"
+      ]
+    },
+    {
+      "Sid": "Ec2InstanceLifecycle",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:RunInstances",
+        "ec2:AllocateAddress",
+        "ec2:AssociateAddress"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

@@ -1,0 +1,657 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: pv-insight MVP AWS infrastructure stack for EC2 + K3s deployment.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: mvp
+    AllowedValues:
+      - mvp
+  ProjectPrefix:
+    Type: String
+    Default: pv-insight
+  VpcCidr:
+    Type: String
+    Default: 10.40.0.0/16
+  PublicSubnetCidr:
+    Type: String
+    Default: 10.40.0.0/24
+  PrivateDbSubnetACidr:
+    Type: String
+    Default: 10.40.10.0/24
+  PrivateDbSubnetBCidr:
+    Type: String
+    Default: 10.40.11.0/24
+  AvailabilityZoneA:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: ap-northeast-2a
+  AvailabilityZoneB:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: ap-northeast-2c
+  Ec2InstanceType:
+    Type: String
+    Default: t3.large
+  Ec2EbsSizeGb:
+    Type: Number
+    Default: 100
+    MinValue: 8
+  RdsInstanceClass:
+    Type: String
+    Default: db.t4g.micro
+  RdsAllocatedStorage:
+    Type: Number
+    Default: 20
+    MinValue: 20
+  RdsMasterUsername:
+    Type: String
+    Default: pvfusion
+    AllowedPattern: '^[a-zA-Z][a-zA-Z0-9_]*$'
+  RdsMasterPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 128
+    AllowedPattern: '^[^ "@/]+$'
+  S3BucketName:
+    Type: String
+    AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$'
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64
+
+Resources:
+  PvInsightVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-vpc'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: vpc
+
+  PvInsightInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-igw'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: internet-gateway
+
+  PvInsightVpcGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref PvInsightVpc
+      InternetGatewayId: !Ref PvInsightInternetGateway
+
+  PvInsightPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref PvInsightVpc
+      AvailabilityZone: !Ref AvailabilityZoneA
+      CidrBlock: !Ref PublicSubnetCidr
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-public-subnet'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: public-subnet
+
+  PvInsightPrivateDbSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref PvInsightVpc
+      AvailabilityZone: !Ref AvailabilityZoneA
+      CidrBlock: !Ref PrivateDbSubnetACidr
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-private-db-subnet-a'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: private-db-subnet
+
+  PvInsightPrivateDbSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref PvInsightVpc
+      AvailabilityZone: !Ref AvailabilityZoneB
+      CidrBlock: !Ref PrivateDbSubnetBCidr
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-private-db-subnet-b'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: private-db-subnet
+
+  PvInsightPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref PvInsightVpc
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-public-rt'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: public-route-table
+
+  PvInsightPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: PvInsightVpcGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PvInsightPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref PvInsightInternetGateway
+
+  PvInsightPublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PvInsightPublicRouteTable
+      SubnetId: !Ref PvInsightPublicSubnet
+
+  PvInsightEc2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${ProjectPrefix}-ec2-sg'
+      GroupDescription: !Sub '${ProjectPrefix} EC2 security group'
+      VpcId: !Ref PvInsightVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-ec2-sg'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: ec2-security-group
+
+  PvInsightRdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${ProjectPrefix}-rds-sg'
+      GroupDescription: !Sub '${ProjectPrefix} RDS security group'
+      VpcId: !Ref PvInsightVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref PvInsightEc2SecurityGroup
+          Description: PostgreSQL from EC2 SG
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-rds-sg'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: rds-security-group
+
+  PvInsightRuntimeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectPrefix}-ec2-runtime-role'
+      Description: !Sub '${ProjectPrefix} EC2 runtime role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: !Sub '${ProjectPrefix}-ec2-inline-policy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: EcrAuth
+                Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Sid: EcrPushPull
+                Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:CompleteLayerUpload
+                  - ecr:DescribeImages
+                  - ecr:DescribeRepositories
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:InitiateLayerUpload
+                  - ecr:ListImages
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource:
+                  - !GetAtt PvInsightFrontendRepository.Arn
+                  - !GetAtt PvInsightBackendRepository.Arn
+                  - !GetAtt PvInsightAiWorkerRepository.Arn
+              - Sid: S3BucketList
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !GetAtt PvInsightBucket.Arn
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - originals/*
+                      - results/*
+                      - models/*
+              - Sid: S3PrefixReadWrite
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  - !Sub '${PvInsightBucket.Arn}/originals/*'
+                  - !Sub '${PvInsightBucket.Arn}/results/*'
+                  - !Sub '${PvInsightBucket.Arn}/models/*'
+              - Sid: SqsAccess
+                Effect: Allow
+                Action:
+                  - sqs:ChangeMessageVisibility
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:GetQueueUrl
+                  - sqs:ReceiveMessage
+                  - sqs:SendMessage
+                Resource:
+                  - !GetAtt PvInsightMainQueue.Arn
+                  - !GetAtt PvInsightDlqQueue.Arn
+              - Sid: CloudWatchLogsWrite
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${PvInsightBackendLogGroup}:*'
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${PvInsightAiWorkerLogGroup}:*'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-ec2-runtime-role'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: ec2-runtime-role
+
+  PvInsightInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub '${ProjectPrefix}-ec2-instance-profile'
+      Roles:
+        - !Ref PvInsightRuntimeRole
+
+  PvInsightFrontendRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub '${ProjectPrefix}-frontend'
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-frontend'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: ecr-repository
+
+  PvInsightBackendRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub '${ProjectPrefix}-backend'
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-backend'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: ecr-repository
+
+  PvInsightAiWorkerRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub '${ProjectPrefix}-ai-worker'
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-ai-worker'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: ecr-repository
+
+  PvInsightBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Suspended
+      Tags:
+        - Key: Name
+          Value: !Ref S3BucketName
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: s3-bucket
+
+  PvInsightDlqQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${ProjectPrefix}-analysis-jobs-dlq'
+      VisibilityTimeout: 900
+      ReceiveMessageWaitTimeSeconds: 20
+      MessageRetentionPeriod: 1209600
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-analysis-jobs-dlq'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: sqs-dlq
+
+  PvInsightMainQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${ProjectPrefix}-analysis-jobs'
+      VisibilityTimeout: 900
+      ReceiveMessageWaitTimeSeconds: 20
+      MessageRetentionPeriod: 345600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt PvInsightDlqQueue.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-analysis-jobs'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: sqs-main-queue
+
+  PvInsightBackendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/${ProjectPrefix}/backend'
+      RetentionInDays: 14
+      Tags:
+        - Key: Name
+          Value: !Sub '/${ProjectPrefix}/backend'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: cloudwatch-log-group
+
+  PvInsightAiWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/${ProjectPrefix}/ai-worker'
+      RetentionInDays: 14
+      Tags:
+        - Key: Name
+          Value: !Sub '/${ProjectPrefix}/ai-worker'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: cloudwatch-log-group
+
+  PvInsightDbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: !Sub '${ProjectPrefix}-db-subnet-group'
+      DBSubnetGroupDescription: !Sub '${ProjectPrefix} DB subnet group'
+      SubnetIds:
+        - !Ref PvInsightPrivateDbSubnetA
+        - !Ref PvInsightPrivateDbSubnetB
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-db-subnet-group'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: db-subnet-group
+
+  PvInsightDatabase:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub '${ProjectPrefix}-postgres'
+      Engine: postgres
+      EngineVersion: '16.13'
+      DBInstanceClass: !Ref RdsInstanceClass
+      AllocatedStorage: !Ref RdsAllocatedStorage
+      StorageType: gp3
+      StorageEncrypted: true
+      PubliclyAccessible: false
+      MultiAZ: false
+      AutoMinorVersionUpgrade: true
+      BackupRetentionPeriod: 7
+      DeletionProtection: true
+      CopyTagsToSnapshot: true
+      DBSubnetGroupName: !Ref PvInsightDbSubnetGroup
+      VPCSecurityGroups:
+        - !Ref PvInsightRdsSecurityGroup
+      MasterUsername: !Ref RdsMasterUsername
+      MasterUserPassword: !Ref RdsMasterPassword
+      DBName: pv_fusion
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-postgres'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: rds-postgres
+
+  PvInsightEc2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - PvInsightPublicSubnetRouteTableAssociation
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: !Ref Ec2InstanceType
+      SubnetId: !Ref PvInsightPublicSubnet
+      SecurityGroupIds:
+        - !Ref PvInsightEc2SecurityGroup
+      IamInstanceProfile: !Ref PvInsightInstanceProfile
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp3
+            VolumeSize: !Ref Ec2EbsSizeGb
+            DeleteOnTermination: true
+            Encrypted: true
+      MetadataOptions:
+        HttpTokens: required
+        HttpEndpoint: enabled
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-k3s-node'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: ec2-k3s-node
+
+  PvInsightElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectPrefix}-eip'
+        - Key: Project
+          Value: !Ref ProjectPrefix
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Purpose
+          Value: elastic-ip
+
+  PvInsightElasticIpAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt PvInsightElasticIp.AllocationId
+      InstanceId: !Ref PvInsightEc2Instance
+
+Outputs:
+  VpcId:
+    Value: !Ref PvInsightVpc
+  PublicSubnetId:
+    Value: !Ref PvInsightPublicSubnet
+  PrivateDbSubnetAId:
+    Value: !Ref PvInsightPrivateDbSubnetA
+  PrivateDbSubnetBId:
+    Value: !Ref PvInsightPrivateDbSubnetB
+  Ec2SecurityGroupId:
+    Value: !Ref PvInsightEc2SecurityGroup
+  RdsSecurityGroupId:
+    Value: !Ref PvInsightRdsSecurityGroup
+  RuntimeRoleName:
+    Value: !Ref PvInsightRuntimeRole
+  InstanceProfileName:
+    Value: !Ref PvInsightInstanceProfile
+  FrontendEcrRepositoryUri:
+    Value: !GetAtt PvInsightFrontendRepository.RepositoryUri
+  BackendEcrRepositoryUri:
+    Value: !GetAtt PvInsightBackendRepository.RepositoryUri
+  AiWorkerEcrRepositoryUri:
+    Value: !GetAtt PvInsightAiWorkerRepository.RepositoryUri
+  S3BucketName:
+    Value: !Ref PvInsightBucket
+  MainQueueUrl:
+    Value: !Ref PvInsightMainQueue
+  DlqUrl:
+    Value: !Ref PvInsightDlqQueue
+  RdsEndpoint:
+    Value: !GetAtt PvInsightDatabase.Endpoint.Address
+  RdsPort:
+    Value: !GetAtt PvInsightDatabase.Endpoint.Port
+  Ec2InstanceId:
+    Value: !Ref PvInsightEc2Instance
+  ElasticIp:
+    Value: !Ref PvInsightElasticIp
+  BackendLogGroupName:
+    Value: !Ref PvInsightBackendLogGroup
+  AiWorkerLogGroupName:
+    Value: !Ref PvInsightAiWorkerLogGroup
