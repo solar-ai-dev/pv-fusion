@@ -49,6 +49,49 @@
       "Resource": "*"
     },
     {
+      "Sid": "ReadOnlyInventoryEc2AndLogs",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeAvailabilityZones",
+        "ec2:DescribeInternetGateways",
+        "ec2:DescribeRouteTables",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeVpcs",
+        "logs:DescribeLogGroups"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadOnlyInventoryIam",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetInstanceProfile",
+        "iam:GetRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::${ACCOUNT_ID}:role/pv-insight-ec2-runtime-role",
+        "arn:aws:iam::${ACCOUNT_ID}:instance-profile/pv-insight-ec2-instance-profile"
+      ]
+    },
+    {
+      "Sid": "ReadOnlyInventoryProjectResources",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:DescribeRepositories",
+        "rds:DescribeDBInstances",
+        "sqs:GetQueueUrl"
+      ],
+      "Resource": [
+        "arn:aws:ecr:${AWS_REGION}:${ACCOUNT_ID}:repository/pv-insight-frontend",
+        "arn:aws:ecr:${AWS_REGION}:${ACCOUNT_ID}:repository/pv-insight-backend",
+        "arn:aws:ecr:${AWS_REGION}:${ACCOUNT_ID}:repository/pv-insight-ai-worker",
+        "arn:aws:rds:${AWS_REGION}:${ACCOUNT_ID}:db:pv-insight-postgres",
+        "arn:aws:sqs:${AWS_REGION}:${ACCOUNT_ID}:pv-insight-analysis-jobs",
+        "arn:aws:sqs:${AWS_REGION}:${ACCOUNT_ID}:pv-insight-analysis-jobs-dlq"
+      ]
+    },
+    {
       "Sid": "PassOnlyCloudFormationExecutionRole",
       "Effect": "Allow",
       "Action": "iam:PassRole",

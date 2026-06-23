@@ -137,9 +137,10 @@
 
 1. `pv-platform-b`가 MFA 인증
 2. `pv-insight-b-deployer-role` Assume
-3. CloudShell 또는 승인된 AWS CLI 환경에서 CloudFormation Change Set 작업 수행
-4. `iam:PassRole`로 `pv-insight-cloudformation-execution-role` 전달
-5. CloudFormation이 실행 Role을 사용해 실제 AWS 리소스 생성 또는 변경
+3. CloudShell 또는 승인된 AWS CLI 환경에서 read-only inventory 실행
+4. CloudFormation 템플릿 검증 및 Change Set 작업 수행
+5. `iam:PassRole`로 `pv-insight-cloudformation-execution-role` 전달
+6. CloudFormation이 실행 Role을 사용해 실제 AWS 리소스 생성 또는 변경
 
 중요:
 
@@ -193,6 +194,7 @@
 
 - 본인 계정과 MFA로 Role 전환 테스트
 - `aws sts get-caller-identity`로 Principal 확인
+- `bash scripts/aws/11-readonly-inventory.sh`로 read-only inventory 실행
 - Change Set 생성, 조회, 실행
 - Stack Outputs 수집
 - EC2 Session Manager 접속 테스트
