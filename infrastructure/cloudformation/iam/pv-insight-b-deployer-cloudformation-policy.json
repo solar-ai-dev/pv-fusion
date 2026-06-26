@@ -66,12 +66,27 @@
       "Sid": "ReadOnlyInventoryIam",
       "Effect": "Allow",
       "Action": [
+        "iam:GetRole",
         "iam:GetInstanceProfile",
-        "iam:GetRole"
+        "iam:GetRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies"
       ],
       "Resource": [
         "arn:aws:iam::${ACCOUNT_ID}:role/pv-insight-ec2-runtime-role",
-        "arn:aws:iam::${ACCOUNT_ID}:instance-profile/pv-insight-ec2-instance-profile"
+        "arn:aws:iam::${ACCOUNT_ID}:instance-profile/pv-insight-ec2-instance-profile",
+        "arn:aws:iam::${ACCOUNT_ID}:role/pv-insight-cloudformation-execution-role"
+      ]
+    },
+    {
+      "Sid": "InspectCloudFormationExecutionManagedPolicy",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion"
+      ],
+      "Resource": [
+        "arn:aws:iam::${ACCOUNT_ID}:policy/PVInsightCloudFormationExecutionPolicy"
       ]
     },
     {
