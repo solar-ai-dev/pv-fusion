@@ -17,7 +17,8 @@
         "s3:GetBucketLocation",
         "sqs:GetQueueAttributes",
         "sqs:GetQueueUrl",
-        "ssm:GetParameter"
+        "ssm:GetParameter",
+        "ssm:GetParameters"
       ],
       "Resource": "*"
     },
