@@ -1,0 +1,121 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "TemplateValidation",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:ValidateTemplate",
+        "cloudformation:GetTemplateSummary"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "StackAndChangeSetOperations",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateChangeSet",
+        "cloudformation:DeleteChangeSet",
+        "cloudformation:DescribeChangeSet",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResource",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:DescribeStacks",
+        "cloudformation:ExecuteChangeSet",
+        "cloudformation:GetTemplate",
+        "cloudformation:ListChangeSets",
+        "cloudformation:ListStackResources"
+      ],
+      "Resource": [
+        "arn:aws:cloudformation:${AWS_REGION}:${ACCOUNT_ID}:stack/pv-insight-mvp/*",
+        "arn:aws:cloudformation:${AWS_REGION}:${ACCOUNT_ID}:changeSet/*/*"
+      ]
+    },
+    {
+      "Sid": "OptionalDriftChecks",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:DescribeStackResourceDrifts",
+        "cloudformation:DetectStackDrift"
+      ],
+      "Resource": [
+        "arn:aws:cloudformation:${AWS_REGION}:${ACCOUNT_ID}:stack/pv-insight-mvp/*"
+      ]
+    },
+    {
+      "Sid": "DescribeStackDriftDetectionStatusAnyResource",
+      "Effect": "Allow",
+      "Action": "cloudformation:DescribeStackDriftDetectionStatus",
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadOnlyInventoryEc2AndLogs",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeAvailabilityZones",
+        "ec2:DescribeInternetGateways",
+        "ec2:DescribeRouteTables",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeVpcs",
+        "logs:DescribeLogGroups"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadOnlyInventoryIam",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole",
+        "iam:GetInstanceProfile",
+        "iam:GetRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies"
+      ],
+      "Resource": [
+        "arn:aws:iam::${ACCOUNT_ID}:role/pv-insight-ec2-runtime-role",
+        "arn:aws:iam::${ACCOUNT_ID}:instance-profile/pv-insight-ec2-instance-profile",
+        "arn:aws:iam::${ACCOUNT_ID}:role/pv-insight-cloudformation-execution-role"
+      ]
+    },
+    {
+      "Sid": "InspectCloudFormationExecutionManagedPolicy",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion"
+      ],
+      "Resource": [
+        "arn:aws:iam::${ACCOUNT_ID}:policy/PVInsightCloudFormationExecutionPolicy"
+      ]
+    },
+    {
+      "Sid": "ReadOnlyInventoryProjectResources",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:DescribeRepositories",
+        "rds:DescribeDBInstances",
+        "sqs:GetQueueUrl"
+      ],
+      "Resource": [
+        "arn:aws:ecr:${AWS_REGION}:${ACCOUNT_ID}:repository/pv-insight-frontend",
+        "arn:aws:ecr:${AWS_REGION}:${ACCOUNT_ID}:repository/pv-insight-backend",
+        "arn:aws:ecr:${AWS_REGION}:${ACCOUNT_ID}:repository/pv-insight-ai-worker",
+        "arn:aws:rds:${AWS_REGION}:${ACCOUNT_ID}:db:pv-insight-postgres",
+        "arn:aws:sqs:${AWS_REGION}:${ACCOUNT_ID}:pv-insight-analysis-jobs",
+        "arn:aws:sqs:${AWS_REGION}:${ACCOUNT_ID}:pv-insight-analysis-jobs-dlq"
+      ]
+    },
+    {
+      "Sid": "PassOnlyCloudFormationExecutionRole",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::${ACCOUNT_ID}:role/pv-insight-cloudformation-execution-role",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "cloudformation.amazonaws.com"
+        }
+      }
+    }
+  ]
+}

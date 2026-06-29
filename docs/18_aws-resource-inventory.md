@@ -110,16 +110,45 @@
 ## Plan에서 허용한 AWS 명령 범위
 
 - `sts get-caller-identity`
-- `ec2 describe-*`
+- `ec2 describe-vpcs`
+- `ec2 describe-internet-gateways`
+- `ec2 describe-subnets`
+- `ec2 describe-route-tables`
+- `ec2 describe-security-groups`
+- `ec2 describe-instances`
+- `ec2 describe-addresses`
+- `ec2 describe-availability-zones`
+- `ec2 describe-instance-type-offerings`
 - `ssm get-parameter`
-- `iam get-*`
-- `iam list-*`
-- `ecr describe-*`
-- `s3api head-bucket`
-- `s3api list-buckets`
+- `iam get-role`
+- `iam get-instance-profile`
+- `ecr describe-repositories`
+- `s3api get-bucket-location`
 - `sqs get-queue-url`
-- `rds describe-*`
-- `logs describe-*`
+- `rds describe-db-instances`
+- `rds describe-db-subnet-groups`
+- `rds describe-orderable-db-instance-options`
+- `logs describe-log-groups`
+
+## IAM 권한 보정 메모
+
+- `plan`과 `inventory`는 읽기 전용 조회만 사용하지만, `apply`는 태그 포함 생성 호출을 사용한다.
+- ECR:
+  - `create-repository --tags`를 사용하므로 `ecr:CreateRepository`와 함께 `ecr:TagResource`가 필요하다.
+  - 리소스는 `arn:aws:ecr:ap-northeast-2:<ACCOUNT_ID>:repository/pv-insight-*` 패턴으로 제한할 수 있다.
+- RDS:
+  - `create-db-subnet-group --tags`와 `create-db-instance --tags`를 사용하므로 `rds:AddTagsToResource`가 필요하다.
+  - 리소스는 `arn:aws:rds:ap-northeast-2:<ACCOUNT_ID>:subgrp:pv-insight-db-subnet-group` 및 `arn:aws:rds:ap-northeast-2:<ACCOUNT_ID>:db:pv-insight-postgres`로 제한할 수 있다.
+  - AWS 공식 표에는 `CreateDBInstance`의 옵션 의존 권한으로 `kms:*`, `secretsmanager:*`, `rds:CreateTenantDatabase`, RDS 기능용 `iam:PassRole`도 표시되지만, 현재 스크립트는 별도 KMS Key, Secrets Manager 관리형 Master Password, Enhanced Monitoring Role, Tenant Database를 사용하지 않으므로 최종 B 정책에서는 제외한다.
+- IAM:
+  - `create-role --tags`, `create-instance-profile --tags`를 사용하지만 AWS Service Authorization Reference의 종속 권한 표에는 `iam:TagRole`, `iam:TagInstanceProfile`이 별도로 나오지 않는다.
+  - 따라서 현재 스크립트 기준으로는 `iam:CreateRole`, `iam:CreateInstanceProfile`만 기록하고, 태그 관련 제약은 `aws:RequestTag/${TagKey}`, `aws:TagKeys` 조건으로 관리한다.
+- SSM:
+  - `ssm:GetParameter`는 `parameter` 리소스 타입을 지원하므로 `*`로 둘 필요가 없다.
+  - 현재 AMI 조회는 `/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64` 1개 경로로 제한한다.
+- SQS:
+  - `create-queue --tags`를 사용하지만 SQS 권한 표의 종속 권한 컬럼에는 `sqs:TagQueue`가 따로 없다.
+  - 따라서 이번 범위에서는 `sqs:TagQueue`를 추가하지 않는다.
 
 ## Apply 전용 변경 함수 보호
 
@@ -270,3 +299,47 @@ bash scripts/aws/11-create-infrastructure.sh
 ## 실제 AWS 생성 결과
 
 - `미생성 - CloudShell 재검증 대기`
+
+## CloudFormation 전환 메모
+
+- 현재 승인된 MVP 배포 아키텍처는 유지한다.
+- 변경 대상은 AWS Infrastructure 생성 방식뿐이다.
+  - 기존: `scripts/aws/11-create-infrastructure.sh` 직접 호출
+  - 전환: CloudFormation 템플릿 + Stack + Change Set + 실행 Role
+- 실제 실행 기준의 단일 문서는 [infrastructure/cloudformation/README.md](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/README.md) 이다.
+- 실제 AWS Infrastructure 정의의 단일 기준 파일은 [infrastructure/cloudformation/pv-insight-mvp.yaml](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/pv-insight-mvp.yaml) 이다.
+- 기존 `ACTION=apply` 예시와 Legacy Bash 생성 경로는 더 이상 공식 실행 경로가 아니다.
+
+## 공식 Change Set 흐름
+
+1. `aws cloudformation validate-template`
+2. `aws cloudformation create-change-set`
+3. `aws cloudformation describe-change-set`
+4. 승인 후 `aws cloudformation execute-change-set`
+5. `aws cloudformation describe-stacks`
+6. `aws cloudformation describe-stack-events`
+7. 필요 시 `aws cloudformation detect-stack-drift`
+
+Wrapper는 선택형 helper일 뿐이며 공식 AWS CLI 흐름을 대체하지 않는다.
+
+## CloudFormation 파일 목록
+
+- 템플릿:
+  - [infrastructure/cloudformation/pv-insight-mvp.yaml](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/pv-insight-mvp.yaml)
+- 실행 가이드:
+  - [infrastructure/cloudformation/README.md](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/README.md)
+- 파라미터 예시:
+  - [infrastructure/cloudformation/parameters/pv-insight-mvp.example.env](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/parameters/pv-insight-mvp.example.env)
+- IAM 초안:
+  - [infrastructure/cloudformation/iam/pv-insight-cloudformation-execution-role-trust-policy.json](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/iam/pv-insight-cloudformation-execution-role-trust-policy.json)
+  - [infrastructure/cloudformation/iam/pv-insight-cloudformation-execution-role-policy.json](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/iam/pv-insight-cloudformation-execution-role-policy.json)
+  - [infrastructure/cloudformation/iam/pv-insight-b-deployer-cloudformation-policy.json](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/iam/pv-insight-b-deployer-cloudformation-policy.json)
+- Optional helper:
+  - [scripts/aws/11-cfn-infrastructure.sh](/C:/solar-ai-dev/pv-fusion/scripts/aws/11-cfn-infrastructure.sh)
+- 정책 제안:
+  - [infrastructure/cloudformation/policies/pv-insight-mvp-stack-policy.proposal.json](/C:/solar-ai-dev/pv-fusion/infrastructure/cloudformation/policies/pv-insight-mvp-stack-policy.proposal.json)
+
+## Legacy Bash 상태
+
+- [scripts/aws/11-create-infrastructure.sh](/C:/solar-ai-dev/pv-fusion/scripts/aws/11-create-infrastructure.sh) 는 reference 전용이다.
+- 현재는 실행 즉시 CloudFormation 경로를 안내하고 종료한다.

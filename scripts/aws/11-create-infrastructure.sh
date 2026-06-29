@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Legacy reference only.
+# The approved execution baseline is migrating to CloudFormation Change Sets.
+# Keep this script for reference only.
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -155,6 +159,97 @@ aws_g() {
   aws --no-cli-pager "$@"
 }
 
+AWS_CMD_STDOUT=""
+AWS_CMD_STDERR=""
+AWS_CMD_EXIT_CODE=0
+
+run_aws_cli() {
+  local scope="$1"
+  shift
+
+  local stdout_file="${TEMP_DIR}/aws-stdout.txt"
+  local stderr_file="${TEMP_DIR}/aws-stderr.txt"
+
+  : >"${stdout_file}"
+  : >"${stderr_file}"
+
+  if [[ "${scope}" == "regional" ]]; then
+    if aws_r "$@" >"${stdout_file}" 2>"${stderr_file}"; then
+      AWS_CMD_EXIT_CODE=0
+    else
+      AWS_CMD_EXIT_CODE=$?
+    fi
+  else
+    if aws_g "$@" >"${stdout_file}" 2>"${stderr_file}"; then
+      AWS_CMD_EXIT_CODE=0
+    else
+      AWS_CMD_EXIT_CODE=$?
+    fi
+  fi
+
+  AWS_CMD_STDOUT="$(cat "${stdout_file}" 2>/dev/null || true)"
+  AWS_CMD_STDERR="$(cat "${stderr_file}" 2>/dev/null || true)"
+}
+
+normalize_aws_text_result() {
+  local value="$1"
+  [[ "${value}" == "None" ]] && value=""
+  printf '%s' "${value}"
+}
+
+aws_error_matches() {
+  local pattern="$1"
+  grep -Eqi "${pattern}" <<<"${AWS_CMD_STDERR:-}"
+}
+
+is_aws_access_denied_error() {
+  aws_error_matches 'AccessDenied|AccessDeniedException|UnauthorizedOperation|Unauthorized|ExpiredToken|InvalidClientTokenId|UnrecognizedClientException|AuthFailure|SignatureDoesNotMatch'
+}
+
+is_aws_region_or_endpoint_error() {
+  aws_error_matches 'Could not connect to the endpoint URL|Invalid endpoint|UnknownEndpoint|AuthorizationHeaderMalformed|PermanentRedirect|You must specify a region|InvalidSignatureException|NoRegionError'
+}
+
+is_aws_known_not_found_error() {
+  local extra_pattern="${1:-}"
+  local base_pattern='NoSuchEntity|RepositoryNotFoundException|QueueDoesNotExist|DBInstanceNotFound|DBSubnetGroupNotFoundFault|InvalidInstanceID\.NotFound|InvalidAllocationID\.NotFound|InvalidGroup\.NotFound|InvalidRouteTableID\.NotFound|InvalidSubnetID\.NotFound|InvalidInternetGatewayID\.NotFound|InvalidVpcID\.NotFound|ResourceNotFoundException'
+  if [[ -n "${extra_pattern}" ]]; then
+    base_pattern="${base_pattern}|${extra_pattern}"
+  fi
+  aws_error_matches "${base_pattern}"
+}
+
+format_aws_error() {
+  local message
+  message="$(printf '%s' "${AWS_CMD_STDERR:-}" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g; s/^ //; s/ $//')"
+  if [[ -z "${message}" ]]; then
+    printf 'exit=%s' "${AWS_CMD_EXIT_CODE}"
+    return
+  fi
+  printf '%s' "${message}"
+}
+
+print_optional_lookup_or_fail() {
+  local context="$1"
+  local not_found_pattern="${2:-}"
+
+  if [[ "${AWS_CMD_EXIT_CODE}" -eq 0 ]]; then
+    normalize_aws_text_result "${AWS_CMD_STDOUT}"
+    return 0
+  fi
+
+  if is_aws_access_denied_error || is_aws_region_or_endpoint_error; then
+    fail "AWS lookup failed for ${context}: $(format_aws_error)"
+  fi
+
+  if is_aws_known_not_found_error "${not_found_pattern}"; then
+    printf ''
+    return 0
+  fi
+
+  fail "AWS lookup failed for ${context}: $(format_aws_error)"
+}
+
 record_output() {
   require_apply_mode
   local key="$1"
@@ -248,58 +343,59 @@ find_single_security_group_in_vpc() {
 }
 
 find_single_rds_instance() {
-  local result
-  result="$(aws_r rds describe-db-instances \
+  run_aws_cli regional rds describe-db-instances \
     --db-instance-identifier "${RDS_IDENTIFIER}" \
     --query 'DBInstances[0].DBInstanceIdentifier' \
-    --output text 2>/dev/null || true)"
-  [[ "${result}" == "None" ]] && result=""
-  printf '%s' "${result}"
+    --output text
+  print_optional_lookup_or_fail "RDS instance ${RDS_IDENTIFIER}" 'DBInstanceNotFound'
 }
 
 find_single_db_subnet_group() {
-  local result
-  result="$(aws_r rds describe-db-subnet-groups \
+  run_aws_cli regional rds describe-db-subnet-groups \
     --db-subnet-group-name "${DB_SUBNET_GROUP_NAME}" \
     --query 'DBSubnetGroups[0].DBSubnetGroupName' \
-    --output text 2>/dev/null || true)"
-  [[ "${result}" == "None" ]] && result=""
-  printf '%s' "${result}"
+    --output text
+  print_optional_lookup_or_fail "RDS DB subnet group ${DB_SUBNET_GROUP_NAME}" 'DBSubnetGroupNotFoundFault'
 }
 
 find_single_role() {
-  local result
-  result="$(aws_g iam get-role --role-name "${1}" --query 'Role.RoleName' --output text 2>/dev/null || true)"
-  [[ "${result}" == "None" ]] && result=""
-  printf '%s' "${result}"
+  run_aws_cli global iam get-role --role-name "${1}" --query 'Role.RoleName' --output text
+  print_optional_lookup_or_fail "IAM role ${1}" 'NoSuchEntity'
 }
 
 find_single_instance_profile() {
-  local result
-  result="$(aws_g iam get-instance-profile --instance-profile-name "${1}" --query 'InstanceProfile.InstanceProfileName' --output text 2>/dev/null || true)"
-  [[ "${result}" == "None" ]] && result=""
-  printf '%s' "${result}"
+  run_aws_cli global iam get-instance-profile --instance-profile-name "${1}" --query 'InstanceProfile.InstanceProfileName' --output text
+  print_optional_lookup_or_fail "IAM instance profile ${1}" 'NoSuchEntity'
 }
 
 find_single_ecr_repo() {
-  local result
-  result="$(aws_r ecr describe-repositories --repository-names "${1}" --query 'repositories[0].repositoryName' --output text 2>/dev/null || true)"
-  [[ "${result}" == "None" ]] && result=""
-  printf '%s' "${result}"
+  run_aws_cli regional ecr describe-repositories --repository-names "${1}" --query 'repositories[0].repositoryName' --output text
+  print_optional_lookup_or_fail "ECR repository ${1}" 'RepositoryNotFoundException'
 }
 
 find_single_bucket() {
   local bucket="$1"
-  local result
-  result="$(aws_r s3api head-bucket --bucket "${bucket}" >/dev/null 2>&1 && printf '%s' "${bucket}" || true)"
-  printf '%s' "${result}"
+  run_aws_cli regional s3api get-bucket-location --bucket "${bucket}" --query 'LocationConstraint' --output text
+  if [[ "${AWS_CMD_EXIT_CODE}" -eq 0 ]]; then
+    printf '%s' "${bucket}"
+    return 0
+  fi
+  if is_aws_access_denied_error; then
+    fail "S3 bucket lookup failed for ${bucket}: access denied or bucket is owned by another account"
+  fi
+  if is_aws_region_or_endpoint_error; then
+    fail "S3 bucket lookup failed for ${bucket}: region or endpoint mismatch: $(format_aws_error)"
+  fi
+  if is_aws_known_not_found_error 'NoSuchBucket|404'; then
+    printf ''
+    return 0
+  fi
+  fail "S3 bucket lookup failed for ${bucket}: $(format_aws_error)"
 }
 
 find_single_queue_url() {
-  local result
-  result="$(aws_r sqs get-queue-url --queue-name "${1}" --query 'QueueUrl' --output text 2>/dev/null || true)"
-  [[ "${result}" == "None" ]] && result=""
-  printf '%s' "${result}"
+  run_aws_cli regional sqs get-queue-url --queue-name "${1}" --query 'QueueUrl' --output text
+  print_optional_lookup_or_fail "SQS queue ${1}" 'QueueDoesNotExist'
 }
 
 find_single_log_group() {
@@ -349,16 +445,79 @@ find_single_eip_by_name() {
 }
 
 ensure_account_context() {
-  AWS_ACCOUNT_ID="$(aws_g sts get-caller-identity --query 'Account' --output text)"
-  AWS_PRINCIPAL_ARN="$(aws_g sts get-caller-identity --query 'Arn' --output text)"
-  [[ -n "${AWS_ACCOUNT_ID}" && "${AWS_ACCOUNT_ID}" != "None" ]] || fail "failed to resolve AWS account ID"
+  run_aws_cli global sts get-caller-identity --query 'Account' --output text
+  [[ "${AWS_CMD_EXIT_CODE}" -eq 0 ]] || fail "failed to resolve AWS account ID: $(format_aws_error)"
+  AWS_ACCOUNT_ID="$(normalize_aws_text_result "${AWS_CMD_STDOUT}")"
+
+  run_aws_cli global sts get-caller-identity --query 'Arn' --output text
+  [[ "${AWS_CMD_EXIT_CODE}" -eq 0 ]] || fail "failed to resolve AWS principal ARN: $(format_aws_error)"
+  AWS_PRINCIPAL_ARN="$(normalize_aws_text_result "${AWS_CMD_STDOUT}")"
+
+  [[ -n "${AWS_ACCOUNT_ID}" ]] || fail "failed to resolve AWS account ID"
 }
 
 lookup_ami_id() {
-  aws_r ssm get-parameter \
+  run_aws_cli regional ssm get-parameter \
     --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64 \
     --query 'Parameter.Value' \
-    --output text 2>/dev/null || true
+    --output text
+  if [[ "${AWS_CMD_EXIT_CODE}" -ne 0 ]]; then
+    fail "failed to resolve AMI ID from SSM public parameter: $(format_aws_error)"
+  fi
+  normalize_aws_text_result "${AWS_CMD_STDOUT}"
+}
+
+preflight_check_availability_zone() {
+  local zone_name="$1"
+  run_aws_cli regional ec2 describe-availability-zones \
+    --zone-names "${zone_name}" \
+    --query 'AvailabilityZones[?State==`available`].ZoneName' \
+    --output text
+  if [[ "${AWS_CMD_EXIT_CODE}" -ne 0 ]]; then
+    fail "availability zone preflight failed for ${zone_name}: $(format_aws_error)"
+  fi
+  local result
+  result="$(normalize_aws_text_result "${AWS_CMD_STDOUT}")"
+  grep -qx "${zone_name}" <<<"${result}" || fail "availability zone ${zone_name} is not available in region ${AWS_REGION}"
+}
+
+preflight_check_instance_type_offering() {
+  run_aws_cli regional ec2 describe-instance-type-offerings \
+    --location-type availability-zone \
+    --filters "Name=location,Values=${AZ_A}" "Name=instance-type,Values=${EC2_INSTANCE_TYPE}" \
+    --query 'InstanceTypeOfferings[].InstanceType' \
+    --output text
+  if [[ "${AWS_CMD_EXIT_CODE}" -ne 0 ]]; then
+    fail "EC2 instance type preflight failed for ${EC2_INSTANCE_TYPE} in ${AZ_A}: $(format_aws_error)"
+  fi
+  local result
+  result="$(normalize_aws_text_result "${AWS_CMD_STDOUT}")"
+  grep -qw "${EC2_INSTANCE_TYPE}" <<<"${result}" || fail "EC2 instance type ${EC2_INSTANCE_TYPE} is not offered in ${AZ_A}"
+}
+
+preflight_check_rds_orderable_option() {
+  run_aws_cli regional rds describe-orderable-db-instance-options \
+    --engine "${RDS_ENGINE}" \
+    --engine-version "${RDS_ENGINE_VERSION}" \
+    --db-instance-class "${RDS_INSTANCE_CLASS}" \
+    --query 'OrderableDBInstanceOptions[].DBInstanceClass' \
+    --output text
+  if [[ "${AWS_CMD_EXIT_CODE}" -ne 0 ]]; then
+    fail "RDS orderable option preflight failed for ${RDS_ENGINE} ${RDS_ENGINE_VERSION} / ${RDS_INSTANCE_CLASS}: $(format_aws_error)"
+  fi
+  local result
+  result="$(normalize_aws_text_result "${AWS_CMD_STDOUT}")"
+  grep -qw "${RDS_INSTANCE_CLASS}" <<<"${result}" || fail "RDS orderable option is unavailable for ${RDS_ENGINE} ${RDS_ENGINE_VERSION} / ${RDS_INSTANCE_CLASS}"
+}
+
+run_preflight_checks() {
+  log "running read-only preflight checks"
+  preflight_check_availability_zone "${AZ_A}"
+  preflight_check_availability_zone "${AZ_B}"
+  preflight_check_instance_type_offering
+  preflight_check_rds_orderable_option
+  AMI_ID="$(lookup_ami_id)"
+  [[ -n "${AMI_ID}" ]] || fail "failed to resolve AMI ID from SSM public parameter"
 }
 
 print_existing_resource_status() {
@@ -396,8 +555,7 @@ EOF
 
 run_plan() {
   ensure_account_context
-  AMI_ID="$(lookup_ami_id)"
-  [[ -n "${AMI_ID}" && "${AMI_ID}" != "None" ]] || fail "failed to resolve AMI ID from SSM public parameter"
+  run_preflight_checks
 
   VPC_ID="$(find_single_ec2_tagged_resource 'describe-vpcs' 'Vpcs[].VpcId' "${VPC_NAME}")"
   IGW_ID="$(find_single_ec2_tagged_resource 'describe-internet-gateways' 'InternetGateways[].InternetGatewayId' "${IGW_NAME}")"
@@ -443,10 +601,14 @@ wait_for_instance_profile_ready() {
   require_apply_mode
   local attempt output
   for attempt in $(seq 1 "${IAM_PROPAGATION_RETRIES}"); do
-    output="$(aws_g iam get-instance-profile \
+    run_aws_cli global iam get-instance-profile \
       --instance-profile-name "${EC2_INSTANCE_PROFILE_NAME}" \
       --query 'InstanceProfile.Roles[?RoleName==`'"${EC2_ROLE_NAME}"'`].RoleName' \
-      --output text 2>/dev/null || true)"
+      --output text
+    if [[ "${AWS_CMD_EXIT_CODE}" -ne 0 ]]; then
+      fail "instance profile propagation check failed: $(format_aws_error)"
+    fi
+    output="$(normalize_aws_text_result "${AWS_CMD_STDOUT}")"
     if grep -q "${EC2_ROLE_NAME}" <<<"${output}"; then
       log "instance profile propagation ready after ${attempt} attempt(s)"
       return 0
@@ -772,6 +934,40 @@ write_ec2_inline_policy() {
 EOF
 }
 
+validate_existing_ec2_role() {
+  run_aws_cli global iam get-role \
+    --role-name "${EC2_ROLE_NAME}" \
+    --query 'Role.AssumeRolePolicyDocument.Statement[].Principal.Service' \
+    --output text
+  if [[ "${AWS_CMD_EXIT_CODE}" -ne 0 ]]; then
+    fail "failed to validate existing IAM role ${EC2_ROLE_NAME}: $(format_aws_error)"
+  fi
+  local trust_services
+  trust_services="$(normalize_aws_text_result "${AWS_CMD_STDOUT}")"
+  grep -qw 'ec2.amazonaws.com' <<<"${trust_services}" || fail "existing IAM role ${EC2_ROLE_NAME} does not trust ec2.amazonaws.com"
+}
+
+validate_existing_instance_profile() {
+  local -a attached_roles=()
+  run_aws_cli global iam get-instance-profile \
+    --instance-profile-name "${EC2_INSTANCE_PROFILE_NAME}" \
+    --query 'InstanceProfile.Roles[].RoleName' \
+    --output text
+  if [[ "${AWS_CMD_EXIT_CODE}" -ne 0 ]]; then
+    fail "failed to validate existing instance profile ${EC2_INSTANCE_PROFILE_NAME}: $(format_aws_error)"
+  fi
+  local roles_text
+  roles_text="$(normalize_aws_text_result "${AWS_CMD_STDOUT}")"
+  mapfile -t attached_roles < <(list_from_text "${roles_text}")
+  if (( ${#attached_roles[@]} == 0 )); then
+    return 0
+  fi
+  if (( ${#attached_roles[@]} > 1 )); then
+    fail "existing instance profile ${EC2_INSTANCE_PROFILE_NAME} has multiple attached roles"
+  fi
+  [[ "${attached_roles[0]}" == "${EC2_ROLE_NAME}" ]] || fail "existing instance profile ${EC2_INSTANCE_PROFILE_NAME} is attached to a different role: ${attached_roles[0]}"
+}
+
 ensure_ec2_role() {
   require_apply_mode
   write_ec2_trust_policy
@@ -785,6 +981,7 @@ ensure_ec2_role() {
       --tags "Key=Project,Value=${PROJECT_PREFIX}" "Key=Environment,Value=${ENVIRONMENT}" "Key=ManagedBy,Value=manual" "Key=Purpose,Value=ec2-runtime-role" >/dev/null
   else
     log "reusing IAM role ${EC2_ROLE_NAME}"
+    validate_existing_ec2_role
   fi
 
   aws_g iam put-role-policy \
@@ -810,6 +1007,7 @@ ensure_instance_profile() {
       --tags "Key=Project,Value=${PROJECT_PREFIX}" "Key=Environment,Value=${ENVIRONMENT}" "Key=ManagedBy,Value=manual" "Key=Purpose,Value=ec2-instance-profile" >/dev/null
   else
     log "reusing instance profile ${EC2_INSTANCE_PROFILE_NAME}"
+    validate_existing_instance_profile
   fi
 
   if ! aws_g iam get-instance-profile \
@@ -922,6 +1120,7 @@ ensure_sqs_redrive_policy() {
 prompt_rds_password_if_needed() {
   local first second
   if [[ -n "${RDS_MASTER_PASSWORD}" ]]; then
+    validate_rds_master_password "${RDS_MASTER_PASSWORD}"
     return
   fi
   read -r -s -p "Enter RDS master password: " first
@@ -930,7 +1129,22 @@ prompt_rds_password_if_needed() {
   printf '\n'
   [[ -n "${first}" ]] || fail "RDS master password cannot be empty"
   [[ "${first}" == "${second}" ]] || fail "RDS master password confirmation mismatch"
+  validate_rds_master_password "${first}"
   RDS_MASTER_PASSWORD="${first}"
+}
+
+validate_rds_master_password() {
+  local password="$1"
+  local length="${#password}"
+
+  (( length >= 8 && length <= 128 )) || fail "RDS master password must be 8 to 128 characters"
+  [[ "${password}" != *" "* ]] || fail "RDS master password must not contain spaces"
+  [[ "${password}" != *"/"* ]] || fail "RDS master password must not contain '/'"
+  [[ "${password}" != *"\""* ]] || fail "RDS master password must not contain '\"'"
+  [[ "${password}" != *"@"* ]] || fail "RDS master password must not contain '@'"
+  if printf '%s' "${password}" | LC_ALL=C grep -q '[^[:print:]]'; then
+    fail "RDS master password must use printable ASCII characters only"
+  fi
 }
 
 wait_for_rds_available() {
@@ -1058,6 +1272,7 @@ wait_for_instance_status_ok() {
 load_instance_network_info() {
   EC2_PUBLIC_IP="$(aws_r ec2 describe-instances --instance-ids "${EC2_INSTANCE_ID}" --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)"
   if [[ "$(to_bool "${ALLOCATE_ELASTIC_IP}")" == "true" ]]; then
+    [[ -n "${ELASTIC_IP_ALLOCATION_ID}" ]] || fail "Elastic IP allocation ID is empty before network info lookup"
     ELASTIC_IP_ADDRESS="$(aws_r ec2 describe-addresses --allocation-ids "${ELASTIC_IP_ALLOCATION_ID}" --query 'Addresses[0].PublicIp' --output text)"
     [[ -n "${ELASTIC_IP_ADDRESS}" && "${ELASTIC_IP_ADDRESS}" != "None" ]] || fail "Elastic IP address is empty"
     record_output "ELASTIC_IP" "${ELASTIC_IP_ADDRESS}"
@@ -1077,7 +1292,6 @@ ensure_ec2_instance() {
       running)
         log "reusing running EC2 instance ${EC2_NAME_TAG}"
         wait_for_instance_status_ok
-        load_instance_network_info
         ;;
       stopped)
         fail "existing EC2 instance is stopped; not starting automatically"
@@ -1088,7 +1302,6 @@ ensure_ec2_instance() {
       pending)
         wait_for_instance_running
         wait_for_instance_status_ok
-        load_instance_network_info
         ;;
       *)
         fail "existing EC2 instance is in unexpected state: ${state}"
@@ -1149,6 +1362,7 @@ print_apply_summary() {
 
 run_apply() {
   ensure_account_context
+  run_preflight_checks
   init_output_dir
   record_output "AWS_REGION" "${AWS_REGION}"
   record_output "ENVIRONMENT" "${ENVIRONMENT}"
@@ -1207,24 +1421,12 @@ EOF
 }
 
 main() {
-  require_cmd aws
-  require_cmd mktemp
-  require_cmd sleep
-
-  validate_action
-  require_env S3_BUCKET_NAME
-  print_config_summary
-
-  case "${ACTION}" in
-    plan)
-      run_plan
-      ;;
-    apply)
-      [[ "${AWS_CONFIRM_PHASE2_CREATE:-}" == "yes" ]] || fail "AWS_CONFIRM_PHASE2_CREATE=yes is required for apply"
-      confirm_exact_approval
-      run_apply
-      ;;
-  esac
+  cat <<'EOF' >&2
+[ERROR] scripts/aws/11-create-infrastructure.sh is legacy reference only.
+[ERROR] Direct AWS resource creation from this script is no longer an approved execution path.
+[ERROR] Use infrastructure/cloudformation/pv-insight-mvp.yaml and the official CloudFormation flow in infrastructure/cloudformation/README.md.
+EOF
+  exit 1
 }
 
 main "$@"
