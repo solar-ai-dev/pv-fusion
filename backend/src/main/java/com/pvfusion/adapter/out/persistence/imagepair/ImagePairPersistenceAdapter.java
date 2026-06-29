@@ -2,8 +2,6 @@ package com.pvfusion.adapter.out.persistence.imagepair;
 
 import com.pvfusion.application.dto.imagepair.ImagePairCandidateQuery;
 import com.pvfusion.application.port.out.imagepair.LoadImagePairPort;
-import com.pvfusion.application.port.out.imagepair.SaveImagePairPort;
-import com.pvfusion.application.port.out.imagepair.UpdateImagePairPort;
 import com.pvfusion.domain.common.ResourceStatus;
 import com.pvfusion.domain.common.TargetType;
 import com.pvfusion.domain.imagepair.ImagePair;
@@ -14,7 +12,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-public class ImagePairPersistenceAdapter implements LoadImagePairPort, SaveImagePairPort, UpdateImagePairPort {
+public class ImagePairPersistenceAdapter implements LoadImagePairPort {
 
     private final ImagePairJpaRepository imagePairJpaRepository;
 
@@ -61,15 +59,4 @@ public class ImagePairPersistenceAdapter implements LoadImagePairPort, SaveImage
                 .toList();
     }
 
-    @Override
-    public ImagePair saveImagePair(ImagePair imagePair) {
-        ImagePairJpaEntity saved = imagePairJpaRepository.save(ImagePairPersistenceMapper.toEntity(imagePair));
-        return ImagePairPersistenceMapper.toDomain(saved);
-    }
-
-    @Override
-    public ImagePair updateImagePair(ImagePair imagePair) {
-        ImagePairJpaEntity saved = imagePairJpaRepository.save(ImagePairPersistenceMapper.toEntity(imagePair));
-        return ImagePairPersistenceMapper.toDomain(saved);
-    }
 }

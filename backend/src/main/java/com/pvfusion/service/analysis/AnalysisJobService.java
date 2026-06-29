@@ -75,20 +75,20 @@ public class AnalysisJobService implements
     @Transactional
     public AnalysisJobResponse execute(RequestAnalysisCommand command) {
         Long currentUserId = requireCurrentUserId();
-        validateRequired(command.inputType(), "inputType");
-        validateRequired(command.requestedModelType(), "requestedModelType");
-
-        AnalysisTarget target = validateTarget(currentUserId, command.inputType(), command.imageId(), command.imagePairId());
-        validateRequestedModelType(command.inputType(), command.requestedModelType());
+        AnalysisTarget target = validateTarget(currentUserId, command.imageId());
         validateDuplicateJobs(target);
+
+        RequestedModelType requestedModelType = resolveRequestedModelType(target.imageType());
+        AnalysisInputType inputType = resolveInputType(target.imageType());
+        AnalysisModelType modelType = resolveModelType(target.imageType());
 
         AnalysisJob queued = saveAnalysisJobPort.saveAnalysisJob(new AnalysisJob(
                 null,
                 target.imageId(),
-                target.imagePairId(),
-                command.inputType(),
-                command.requestedModelType(),
-                resolveModelType(command.requestedModelType(), command.inputType()),
+                null,
+                inputType,
+                requestedModelType,
+                modelType,
                 AnalysisJobStatus.QUEUED,
                 currentUserId,
                 OffsetDateTime.now(),
@@ -262,94 +262,47 @@ public class AnalysisJobService implements
         }
     }
 
-    private AnalysisTarget validateTarget(Long actorUserId, AnalysisInputType inputType, Long imageId, Long imagePairId) {
-        return switch (inputType) {
-            case RGB_SINGLE -> validateSingleImageTarget(actorUserId, imageId, imagePairId, ImageType.RGB);
-            case THERMAL_SINGLE -> validateSingleImageTarget(actorUserId, imageId, imagePairId, ImageType.THERMAL);
-            case RGB_THERMAL_PAIR -> validateImagePairTarget(actorUserId, imageId, imagePairId);
-        };
-    }
-
-    private AnalysisTarget validateSingleImageTarget(Long actorUserId, Long imageId, Long imagePairId, ImageType expectedImageType) {
+    private AnalysisTarget validateTarget(Long actorUserId, Long imageId) {
         validateRequired(imageId, "imageId");
-        if (imagePairId != null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "imagePairId must be null for single image analysis.");
-        }
 
         InspectionImage image = loadImagePort.loadImage(imageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Image not found: " + imageId));
         if (image.getStatus() != ResourceStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "Only active images can be analyzed.");
         }
-        if (image.getImageType() != expectedImageType) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "Image type does not match inputType.");
+        if (image.getImageType() == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "Unsupported imageType.");
         }
         ensureAllowed(accessChecker.checkImageAccess(actorUserId, image.getId()));
-        return new AnalysisTarget(image.getId(), null, image.getInspectionId());
+        return new AnalysisTarget(image.getId(), image.getInspectionId(), image.getImageType());
     }
 
-    private AnalysisTarget validateImagePairTarget(Long actorUserId, Long imageId, Long imagePairId) {
-        validateRequired(imagePairId, "imagePairId");
-        if (imageId != null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "imageId must be null for pair analysis.");
-        }
-
-        ImagePair imagePair = loadImagePairPort.loadImagePair(imagePairId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "ImagePair not found: " + imagePairId));
-        if (imagePair.getStatus() != ResourceStatus.ACTIVE) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "Only active image pairs can be analyzed.");
-        }
-        ensureAllowed(accessChecker.checkImagePairAccess(actorUserId, imagePair.getId()));
-        InspectionImage rgbImage = loadImagePort.loadImage(imagePair.getRgbImageId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "RGB image not found for imagePair."));
-        InspectionImage thermalImage = loadImagePort.loadImage(imagePair.getThermalImageId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Thermal image not found for imagePair."));
-        if (rgbImage.getStatus() != ResourceStatus.ACTIVE || thermalImage.getStatus() != ResourceStatus.ACTIVE) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "Both pair images must be active.");
-        }
-        return new AnalysisTarget(null, imagePair.getId(), imagePair.getInspectionId());
+    private AnalysisInputType resolveInputType(ImageType imageType) {
+        return switch (imageType) {
+            case RGB -> AnalysisInputType.RGB_SINGLE;
+            case THERMAL -> AnalysisInputType.THERMAL_SINGLE;
+        };
     }
 
-    private void validateRequestedModelType(AnalysisInputType inputType, RequestedModelType requestedModelType) {
-        switch (inputType) {
-            case RGB_SINGLE -> {
-                if (!(requestedModelType == RequestedModelType.AUTO || requestedModelType == RequestedModelType.RGB_ONLY)) {
-                    throw new BusinessException(ErrorCode.INVALID_INPUT, "Requested model type is invalid for RGB_SINGLE.");
-                }
-            }
-            case THERMAL_SINGLE -> {
-                if (!(requestedModelType == RequestedModelType.AUTO || requestedModelType == RequestedModelType.THERMAL_ONLY)) {
-                    throw new BusinessException(ErrorCode.INVALID_INPUT, "Requested model type is invalid for THERMAL_SINGLE.");
-                }
-            }
-            case RGB_THERMAL_PAIR -> {
-                if (!(requestedModelType == RequestedModelType.AUTO
-                        || requestedModelType == RequestedModelType.FUSION_AUTO
-                        || requestedModelType == RequestedModelType.EARLY_FUSION
-                        || requestedModelType == RequestedModelType.LATE_FUSION)) {
-                    throw new BusinessException(ErrorCode.INVALID_INPUT, "Requested model type is invalid for RGB_THERMAL_PAIR.");
-                }
-            }
-        }
+    private RequestedModelType resolveRequestedModelType(ImageType imageType) {
+        return switch (imageType) {
+            case RGB -> RequestedModelType.RGB_ONLY;
+            case THERMAL -> RequestedModelType.THERMAL_ONLY;
+        };
     }
 
-    private AnalysisModelType resolveModelType(RequestedModelType requestedModelType, AnalysisInputType inputType) {
-        return switch (requestedModelType) {
-            case RGB_ONLY -> AnalysisModelType.RGB_ONLY;
-            case THERMAL_ONLY -> AnalysisModelType.THERMAL_ONLY;
-            case FUSION_AUTO, EARLY_FUSION, LATE_FUSION -> AnalysisModelType.FUSION;
-            case AUTO -> switch (inputType) {
-                case RGB_SINGLE -> AnalysisModelType.RGB_ONLY;
-                case THERMAL_SINGLE -> AnalysisModelType.THERMAL_ONLY;
-                case RGB_THERMAL_PAIR -> AnalysisModelType.FUSION;
-            };
+    private AnalysisModelType resolveModelType(ImageType imageType) {
+        return switch (imageType) {
+            case RGB -> AnalysisModelType.RGB_ONLY;
+            case THERMAL -> AnalysisModelType.THERMAL_ONLY;
         };
     }
 
     private void validateDuplicateJobs(AnalysisTarget target) {
-        boolean duplicated = target.imageId() != null
-                ? !loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(target.imageId(), ACTIVE_JOB_STATUSES).isEmpty()
-                : !loadAnalysisJobPort.loadAnalysisJobsByImagePairIdAndStatuses(target.imagePairId(), ACTIVE_JOB_STATUSES).isEmpty();
+        boolean duplicated = !loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(
+                target.imageId(),
+                ACTIVE_JOB_STATUSES
+        ).isEmpty();
         if (duplicated) {
             throw new BusinessException(ErrorCode.ANALYSIS_JOB_ALREADY_RUNNING);
         }
@@ -474,7 +427,7 @@ public class AnalysisJobService implements
         }
     }
 
-    private record AnalysisTarget(Long imageId, Long imagePairId, Long inspectionId) {
+    private record AnalysisTarget(Long imageId, Long inspectionId, ImageType imageType) {
     }
 
     private record Context(Long inspectionId, Long zoneId, Long plantId) {
