@@ -1,5 +1,8 @@
 import type { ImageSummary } from '../images/types'
-import type { ImagePairSummary } from '../imagePairs/types'
+
+export type InspectionImagePairSummary = {
+  imagePairId: number
+}
 
 export type InspectionStatus =
   | 'READY'
@@ -35,7 +38,7 @@ export type Inspection = {
   createdAt: string
   updatedAt: string
   images: ImageSummary[]
-  imagePairs: ImagePairSummary[]
+  imagePairs: InspectionImagePairSummary[]
   analysisJobIds: number[]
 }
 

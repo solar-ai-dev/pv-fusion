@@ -54,10 +54,7 @@ export type AnalysisJobListParams = {
 }
 
 export type CreateAnalysisJobRequest = {
-  imageId?: number | null
-  imagePairId?: number | null
-  inputType: AnalysisInputType
-  requestedModelType: RequestedModelType
+  imageId: number
   traceId?: string | null
 }
 
@@ -78,20 +75,6 @@ export const ANALYSIS_INPUT_TYPE_OPTIONS: AnalysisInputType[] = [
   'RGB_SINGLE',
   'THERMAL_SINGLE',
   'RGB_THERMAL_PAIR',
-]
-
-export const RGB_REQUESTED_MODEL_OPTIONS: RequestedModelType[] = ['AUTO', 'RGB_ONLY']
-
-export const THERMAL_REQUESTED_MODEL_OPTIONS: RequestedModelType[] = [
-  'AUTO',
-  'THERMAL_ONLY',
-]
-
-export const FUSION_REQUESTED_MODEL_OPTIONS: RequestedModelType[] = [
-  'AUTO',
-  'FUSION_AUTO',
-  'EARLY_FUSION',
-  'LATE_FUSION',
 ]
 
 export function getAnalysisInputTypeLabel(inputType: AnalysisInputType) {

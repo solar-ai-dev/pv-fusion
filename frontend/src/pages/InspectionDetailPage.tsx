@@ -5,15 +5,9 @@ import { useForm } from 'react-hook-form'
 import { Link, useParams } from 'react-router-dom'
 import { z } from 'zod'
 import {
-  FUSION_REQUESTED_MODEL_OPTIONS,
-  RGB_REQUESTED_MODEL_OPTIONS,
-  THERMAL_REQUESTED_MODEL_OPTIONS,
   getAnalysisInputTypeLabel,
   getAnalysisJobStatusLabel,
   getAnalysisJobStatusTone,
-  getAnalysisModelTypeLabel,
-  getRequestedModelTypeLabel,
-  type RequestedModelType,
 } from '../features/analysisJobs/types'
 import {
   useAnalysisJob,
@@ -24,17 +18,6 @@ import {
 import { useEquipments } from '../features/equipments/hooks/useEquipments'
 import { flattenEquipmentTree } from '../features/equipments/types'
 import {
-  useCreateImagePair,
-  useDeactivateImagePair,
-  useImagePair,
-  useImagePairCandidates,
-  useUpdateImagePair,
-} from '../features/imagePairs/hooks/useImagePairs'
-import {
-  getImagePairTargetLabel,
-  type ImagePairCandidateParams,
-} from '../features/imagePairs/types'
-import {
   IMAGE_TYPE_OPTIONS,
   TARGET_TYPE_OPTIONS,
   getImageTypeLabel,
@@ -42,7 +25,6 @@ import {
   getUploadStatusLabel,
   getUploadStatusTone,
   type ImageSummary,
-  type TargetType,
 } from '../features/images/types'
 import {
   useDeactivateImage,
@@ -61,6 +43,7 @@ import {
   useInspection,
   useUpdateInspection,
 } from '../features/inspections/hooks/useInspections'
+import { getResourceStatusLabel, getResourceStatusTone } from '../features/plants/types'
 import { useZone } from '../features/zones/hooks/useZones'
 import { ConfirmModal } from '../shared/components/feedback/ConfirmModal'
 import { FormField } from '../shared/components/form/FormField'
@@ -80,7 +63,6 @@ import {
   toDateTimeLocalInputValue,
   toOffsetDateTime,
 } from '../shared/utils'
-import { getResourceStatusLabel, getResourceStatusTone } from '../features/plants/types'
 
 const updateInspectionSchema = z.object({
   name: z.string().trim().min(1, '점검명을 입력해 주세요.'),
@@ -117,7 +99,7 @@ const uploadImageSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['equipmentId'],
-        message: '구역 대상 이미지는 장비를 선택할 수 없습니다.',
+        message: '구역 대상 이미지는 설비를 선택할 수 없습니다.',
       })
     }
 
@@ -125,7 +107,7 @@ const uploadImageSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['equipmentId'],
-        message: '장비 대상 이미지는 장비를 지정해야 합니다.',
+        message: '설비 대상 이미지는 설비를 지정해 주세요.',
       })
     }
   })
@@ -141,27 +123,8 @@ export function InspectionDetailPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [previewImageId, setPreviewImageId] = useState<number | null>(null)
   const [selectedImage, setSelectedImage] = useState<ImageSummary | null>(null)
-  const [uploadFormVersion, setUploadFormVersion] = useState(0)
-
-  const [candidateTargetType, setCandidateTargetType] = useState<TargetType>('ZONE')
-  const [candidateEquipmentId, setCandidateEquipmentId] = useState('')
-  const [candidateRequest, setCandidateRequest] = useState<ImagePairCandidateParams | null>(null)
-  const [selectedRgbImageId, setSelectedRgbImageId] = useState('')
-  const [selectedThermalImageId, setSelectedThermalImageId] = useState('')
-
-  const [activePairId, setActivePairId] = useState<number | null>(null)
-  const [isPairEditModalOpen, setIsPairEditModalOpen] = useState(false)
-  const [editRgbImageId, setEditRgbImageId] = useState('')
-  const [editThermalImageId, setEditThermalImageId] = useState('')
-  const [isPairDeactivateModalOpen, setIsPairDeactivateModalOpen] = useState(false)
-
-  const [rgbRequestedModelType, setRgbRequestedModelType] =
-    useState<RequestedModelType>('AUTO')
-  const [thermalRequestedModelType, setThermalRequestedModelType] =
-    useState<RequestedModelType>('AUTO')
-  const [fusionRequestedModelType, setFusionRequestedModelType] =
-    useState<RequestedModelType>('AUTO')
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null)
+  const [uploadFormVersion, setUploadFormVersion] = useState(0)
 
   const inspectionQuery = useInspection(inspectionId ?? 0)
   const zoneId = inspectionQuery.data?.data.zoneId ?? 0
@@ -172,25 +135,6 @@ export function InspectionDetailPage() {
   const uploadImageMutation = useUploadImage(inspectionId ?? 0)
   const deactivateImageMutation = useDeactivateImage(inspectionId ?? 0)
   const previewQuery = useImagePreview(previewImageId ?? 0, Boolean(previewImageId))
-
-  const pairCandidatesQuery = useImagePairCandidates(
-    candidateRequest ?? {
-      inspectionId: inspectionId ?? 0,
-      targetType: 'ZONE',
-    },
-    Boolean(candidateRequest),
-  )
-  const pairQuery = useImagePair(activePairId ?? 0, Boolean(activePairId))
-  const createImagePairMutation = useCreateImagePair(inspectionId ?? 0)
-  const updateImagePairMutation = useUpdateImagePair(
-    inspectionId ?? 0,
-    activePairId ?? 0,
-  )
-  const deactivateImagePairMutation = useDeactivateImagePair(
-    inspectionId ?? 0,
-    activePairId ?? 0,
-  )
-
   const analysisJobsQuery = useAnalysisJobs(
     {
       inspectionId: inspectionId ?? undefined,
@@ -230,7 +174,6 @@ export function InspectionDetailPage() {
     () => flattenEquipmentTree(equipmentsQuery.data?.data ?? []),
     [equipmentsQuery.data],
   )
-
   const selectedTargetType = uploadForm.watch('targetType')
   const isZoneUploadTarget = selectedTargetType === 'ZONE'
   const uploadEquipmentOptions = useMemo(
@@ -248,23 +191,7 @@ export function InspectionDetailPage() {
     !equipmentsQuery.isError &&
     uploadEquipmentOptions.length === 0
 
-  const pairEquipmentOptions = useMemo(
-    () =>
-      candidateTargetType === 'ZONE'
-        ? []
-        : flattenedEquipments.filter(
-            (equipment) => equipment.equipmentType === candidateTargetType,
-          ),
-    [candidateTargetType, flattenedEquipments],
-  )
-  const isPairEquipmentEmpty =
-    candidateTargetType !== 'ZONE' &&
-    !equipmentsQuery.isLoading &&
-    !equipmentsQuery.isError &&
-    pairEquipmentOptions.length === 0
-
   const imageRows = useMemo(() => imagesQuery.data?.data ?? [], [imagesQuery.data])
-  const currentPair = pairQuery.data?.data ?? null
   const jobRows = useMemo(
     () => analysisJobsQuery.data?.data.content ?? [],
     [analysisJobsQuery.data],
@@ -281,33 +208,9 @@ export function InspectionDetailPage() {
     [jobRows],
   )
 
-  const runningPairJobIds = useMemo(
-    () =>
-      new Set(
-        jobRows
-          .filter((job) => job.imagePairId != null && isRunningAnalysisJob(job.jobStatus))
-          .map((job) => job.imagePairId as number),
-      ),
-    [jobRows],
-  )
-
   const singleAnalysisImages = useMemo(
     () => imageRows.filter((image) => isActiveResource(image.status)),
     [imageRows],
-  )
-
-  const mergedRgbCandidates = useMemo(
-    () => mergeCandidateImages(currentPair?.rgbImage, pairCandidatesQuery.data?.data.rgbCandidates),
-    [currentPair?.rgbImage, pairCandidatesQuery.data?.data.rgbCandidates],
-  )
-
-  const mergedThermalCandidates = useMemo(
-    () =>
-      mergeCandidateImages(
-        currentPair?.thermalImage,
-        pairCandidatesQuery.data?.data.thermalCandidates,
-      ),
-    [currentPair?.thermalImage, pairCandidatesQuery.data?.data.thermalCandidates],
   )
 
   useEffect(() => {
@@ -343,43 +246,6 @@ export function InspectionDetailPage() {
       uploadForm.setValue('equipmentId', '')
     }
   }, [selectedTargetType, uploadEquipmentOptions, uploadForm])
-
-  useEffect(() => {
-    if (candidateTargetType === 'ZONE') {
-      setCandidateEquipmentId('')
-      return
-    }
-
-    if (
-      candidateEquipmentId &&
-      !pairEquipmentOptions.some(
-        (equipment) => String(equipment.equipmentId) === candidateEquipmentId,
-      )
-    ) {
-      setCandidateEquipmentId('')
-    }
-  }, [candidateEquipmentId, candidateTargetType, pairEquipmentOptions])
-
-  useEffect(() => {
-    const rgbCandidates = pairCandidatesQuery.data?.data.rgbCandidates ?? []
-    const thermalCandidates = pairCandidatesQuery.data?.data.thermalCandidates ?? []
-
-    setSelectedRgbImageId(rgbCandidates[0] ? String(rgbCandidates[0].imageId) : '')
-    setSelectedThermalImageId(thermalCandidates[0] ? String(thermalCandidates[0].imageId) : '')
-  }, [pairCandidatesQuery.data])
-
-  useEffect(() => {
-    if (!activePairId && inspectionQuery.data?.data.imagePairs[0]) {
-      setActivePairId(inspectionQuery.data.data.imagePairs[0].imagePairId)
-    }
-  }, [activePairId, inspectionQuery.data])
-
-  useEffect(() => {
-    if (currentPair) {
-      setEditRgbImageId(String(currentPair.rgbImageId))
-      setEditThermalImageId(String(currentPair.thermalImageId))
-    }
-  }, [currentPair])
 
   useEffect(() => {
     if (!selectedJobId && jobRows[0]) {
@@ -481,128 +347,15 @@ export function InspectionDetailPage() {
     }
   }
 
-  const handleFetchCandidates = async () => {
-    if (candidateTargetType !== 'ZONE' && !candidateEquipmentId) {
-      toast.push('장비 대상 Pair 후보 조회에는 장비 선택이 필요합니다.')
-      return
-    }
-
-    const nextParams: ImagePairCandidateParams = {
-      inspectionId,
-      targetType: candidateTargetType,
-      equipmentId:
-        candidateTargetType === 'ZONE' ? undefined : Number(candidateEquipmentId),
-    }
-
-    const isSameRequest =
-      candidateRequest?.inspectionId === nextParams.inspectionId &&
-      candidateRequest?.targetType === nextParams.targetType &&
-      candidateRequest?.equipmentId === nextParams.equipmentId
-
-    setCandidateRequest(nextParams)
-
-    if (isSameRequest) {
-      await pairCandidatesQuery.refetch()
-    }
-  }
-
-  const handleCreatePair = async () => {
-    if (!selectedRgbImageId || !selectedThermalImageId) {
-      toast.push('RGB와 열화상 후보를 각각 선택해 주세요.')
-      return
-    }
-
-    try {
-      const response = await createImagePairMutation.mutateAsync({
-        rgbImageId: Number(selectedRgbImageId),
-        thermalImageId: Number(selectedThermalImageId),
-      })
-      setActivePairId(response.data.imagePairId)
-      toast.push(response.message || 'RGB-Thermal Pair를 생성했습니다.')
-    } catch (error) {
-      toast.push(getApiErrorMessage(error, 'Pair 생성에 실패했습니다.'))
-    }
-  }
-
-  const handleOpenPairEdit = () => {
-    if (!currentPair) {
-      toast.push('수정할 Pair 상세가 아직 로드되지 않았습니다.')
-      return
-    }
-
-    setEditRgbImageId(String(currentPair.rgbImageId))
-    setEditThermalImageId(String(currentPair.thermalImageId))
-    setIsPairEditModalOpen(true)
-  }
-
-  const handleUpdatePair = async () => {
-    if (!editRgbImageId || !editThermalImageId) {
-      toast.push('RGB와 열화상 이미지를 각각 선택해 주세요.')
-      return
-    }
-
-    try {
-      const response = await updateImagePairMutation.mutateAsync({
-        rgbImageId: Number(editRgbImageId),
-        thermalImageId: Number(editThermalImageId),
-      })
-      setActivePairId(response.data.imagePairId)
-      setIsPairEditModalOpen(false)
-      toast.push(response.message || 'Pair 정보를 수정했습니다.')
-    } catch (error) {
-      toast.push(getApiErrorMessage(error, 'Pair 수정에 실패했습니다.'))
-    }
-  }
-
-  const handleDeactivatePair = async () => {
-    if (!activePairId) {
-      return
-    }
-
-    try {
-      const response = await deactivateImagePairMutation.mutateAsync()
-      toast.push(response.message || 'Pair를 비활성화했습니다.')
-      setIsPairDeactivateModalOpen(false)
-    } catch (error) {
-      toast.push(getApiErrorMessage(error, 'Pair 비활성화에 실패했습니다.'))
-    }
-  }
-
-  const requestSingleAnalysis = async (
-    image: ImageSummary,
-    requestedModelType: RequestedModelType,
-  ) => {
+  const requestSingleAnalysis = async (image: ImageSummary) => {
     try {
       const response = await createAnalysisJobMutation.mutateAsync({
         imageId: image.imageId,
-        imagePairId: null,
-        inputType: image.imageType === 'RGB' ? 'RGB_SINGLE' : 'THERMAL_SINGLE',
-        requestedModelType,
       })
       setSelectedJobId(response.data.jobId)
       toast.push(response.message || '분석 요청을 등록했습니다.')
     } catch (error) {
       toast.push(getApiErrorMessage(error, '분석 요청에 실패했습니다.'))
-    }
-  }
-
-  const requestFusionAnalysis = async () => {
-    if (!currentPair) {
-      toast.push('Fusion 분석을 요청할 Pair가 없습니다.')
-      return
-    }
-
-    try {
-      const response = await createAnalysisJobMutation.mutateAsync({
-        imageId: null,
-        imagePairId: currentPair.imagePairId,
-        inputType: 'RGB_THERMAL_PAIR',
-        requestedModelType: fusionRequestedModelType,
-      })
-      setSelectedJobId(response.data.jobId)
-      toast.push(response.message || 'Fusion 분석 요청을 등록했습니다.')
-    } catch (error) {
-      toast.push(getApiErrorMessage(error, 'Fusion 분석 요청에 실패했습니다.'))
     }
   }
 
@@ -631,7 +384,7 @@ export function InspectionDetailPage() {
     <section className="space-y-6">
       <PageHeader
         title="점검 상세"
-        description="점검 메타데이터 수정, 이미지 업로드, Pair 후보 조회, 분석 요청과 상태 확인을 한 화면에서 처리합니다."
+        description="점검 메타데이터 수정, 이미지 업로드, 단건 분석 요청과 상태 확인을 이 화면에서 처리합니다."
         actions={
           <>
             <Link className="btn btn-secondary" to="/inspections">
@@ -691,7 +444,7 @@ export function InspectionDetailPage() {
           <div>
             <h2 className="panel-title">이미지 업로드</h2>
             <p className="panel-description">
-              구역 대상 이미지는 장비 없이, ARRAY/PANEL/MODULE 대상 이미지는 같은 구역 소속 장비와 함께 업로드합니다.
+              구역 또는 설비 단위 이미지를 업로드합니다. 단건 이미지 분석 흐름만 유지합니다.
             </p>
           </div>
           <form className="stack-md" onSubmit={handleUploadImage}>
@@ -709,15 +462,15 @@ export function InspectionDetailPage() {
             </FormField>
             {isUploadEquipmentEmpty ? (
               <p className="text-sm text-amber-700">
-                등록된 설비가 없습니다. 구역 상세에서 Array/Panel/Module을 먼저 등록하세요.
+                등록된 설비가 없습니다. 구역 상세에서 Array/Panel/Module을 먼저 등록해 주세요.
               </p>
             ) : null}
             <FormField
-              label="장비 선택"
+              label="설비 선택"
               hint={
                 isZoneUploadTarget
-                  ? '구역 대상 이미지는 장비를 선택하지 않습니다.'
-                  : '선택한 targetType과 같은 장비 타입만 표시됩니다.'
+                  ? '구역 대상 이미지는 설비를 선택하지 않습니다.'
+                  : '선택한 대상 타입과 같은 설비만 표시합니다.'
               }
               error={uploadForm.formState.errors.equipmentId?.message}
             >
@@ -728,8 +481,8 @@ export function InspectionDetailPage() {
               >
                 <option value="">
                   {selectedTargetType === 'ZONE'
-                    ? '장비 선택 없음'
-                    : '장비를 선택해 주세요'}
+                    ? '설비 선택 없음'
+                    : '설비를 선택해 주세요.'}
                 </option>
                 {uploadEquipmentOptions.map((equipment) => (
                   <option key={equipment.equipmentId} value={equipment.equipmentId}>
@@ -752,7 +505,7 @@ export function InspectionDetailPage() {
             </FormField>
             <FormField
               label="촬영 시각"
-              hint="비워 두면 backend로 null이 전달됩니다."
+              hint="비워 두면 backend로 null을 전달합니다."
               error={uploadForm.formState.errors.capturedAt?.message}
             >
               <input
@@ -793,21 +546,20 @@ export function InspectionDetailPage() {
           <div>
             <h2 className="panel-title">연결 상태</h2>
             <p className="panel-description">
-              이미지 목록은 별도 `/api/v1/images?inspectionId=...` 호출로, Pair와 분석 작업은 각각 전용 API로 조회합니다.
+              이미지 목록과 분석 작업은 각각 public API로 조회합니다.
             </p>
           </div>
           <div className="detail-grid">
             <DetailItem label="구역명" value={zoneQuery.data?.data.name || '-'} />
-            <DetailItem label="장비 노드 수" value={String(flattenedEquipments.length)} />
+            <DetailItem label="설비 노드 수" value={String(flattenedEquipments.length)} />
             <DetailItem label="업로드 이미지 수" value={String(imageRows.length)} />
-            <DetailItem label="점검 응답 pair 수" value={String(inspection.imagePairs.length)} />
           </div>
           {equipmentsQuery.isLoading ? (
-            <LoadingState message="장비 목록을 불러오는 중입니다." />
+            <LoadingState message="설비 목록을 불러오는 중입니다." />
           ) : null}
           {equipmentsQuery.isError ? (
             <ErrorState
-              title="장비 목록을 불러오지 못했습니다."
+              title="설비 목록을 불러오지 못했습니다."
               description={getApiErrorMessage(equipmentsQuery.error)}
             />
           ) : null}
@@ -819,7 +571,7 @@ export function InspectionDetailPage() {
           <div>
             <h2 className="panel-title">업로드 이미지 목록</h2>
             <p className="panel-description">
-              이미지 미리보기는 preview URL 응답을 사용하고, 여기서 단일 분석 요청까지 바로 연결합니다.
+              미리보기와 RGB/열화상 단건 분석 요청을 바로 실행할 수 있습니다.
             </p>
           </div>
           {imagesQuery.isLoading ? (
@@ -857,7 +609,7 @@ export function InspectionDetailPage() {
                 render: (image: ImageSummary) => (
                   <div className="stack-sm text-sm">
                     <span>{getTargetTypeLabel(image.targetType)}</span>
-                    <span>장비 {image.equipmentId ?? '-'}</span>
+                    <span>설비 {image.equipmentId ?? '-'}</span>
                   </div>
                 ),
               },
@@ -893,10 +645,6 @@ export function InspectionDetailPage() {
                 key: 'actions',
                 header: '동작',
                 render: (image: ImageSummary) => {
-                  const singleRequestedModelType =
-                    image.imageType === 'RGB'
-                      ? rgbRequestedModelType
-                      : thermalRequestedModelType
                   const hasRunningJob = runningImageJobIds.has(image.imageId)
                   const canRequest = isActiveResource(image.status) && !hasRunningJob
 
@@ -913,7 +661,7 @@ export function InspectionDetailPage() {
                         className="text-button"
                         type="button"
                         disabled={!canRequest || createAnalysisJobMutation.isPending}
-                        onClick={() => requestSingleAnalysis(image, singleRequestedModelType)}
+                        onClick={() => requestSingleAnalysis(image)}
                       >
                         {image.imageType === 'RGB' ? 'RGB 분석' : '열화상 분석'}
                       </button>
@@ -931,233 +679,10 @@ export function InspectionDetailPage() {
             ]}
             rows={imageRows}
             rowKey={(image: ImageSummary) => image.imageId}
-            emptyTitle="업로드된 이미지가 없습니다."
-            emptyDescription="먼저 이미지를 업로드하면 Pair와 분석 작업을 이어서 진행할 수 있습니다."
+            emptyTitle="업로드한 이미지가 없습니다."
+            emptyDescription="먼저 이미지를 업로드해 주세요."
           />
         ) : null}
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-        <section className="panel stack-md">
-          <div className="toolbar">
-            <div>
-              <h2 className="panel-title">RGB-Thermal Pair 후보</h2>
-              <p className="panel-description">
-                inspectionId, targetType, equipmentId 기준으로 사용 가능한 RGB와 열화상 후보를 조회합니다.
-              </p>
-            </div>
-            <button className="btn btn-secondary" type="button" onClick={handleFetchCandidates}>
-              후보 조회
-            </button>
-          </div>
-
-          <div className="filter-grid">
-            <FormField label="대상 타입">
-              <select
-                className="input-field"
-                value={candidateTargetType}
-                onChange={(event) => setCandidateTargetType(event.target.value as TargetType)}
-              >
-                {TARGET_TYPE_OPTIONS.map((targetType) => (
-                  <option key={targetType} value={targetType}>
-                    {getTargetTypeLabel(targetType)}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField
-              label="장비"
-              hint={
-                candidateTargetType === 'ZONE'
-                  ? '구역 대상 후보는 장비를 선택하지 않습니다.'
-                  : '장비 대상 후보는 같은 타입의 장비만 조회됩니다.'
-              }
-            >
-              <select
-                className="input-field"
-                disabled={candidateTargetType === 'ZONE' || isPairEquipmentEmpty}
-                value={candidateEquipmentId}
-                onChange={(event) => setCandidateEquipmentId(event.target.value)}
-              >
-                <option value="">
-                  {candidateTargetType === 'ZONE' ? '장비 없음' : '장비를 선택해 주세요'}
-                </option>
-                {pairEquipmentOptions.map((equipment) => (
-                  <option key={equipment.equipmentId} value={equipment.equipmentId}>
-                    {`${'· '.repeat(equipment.depth)}${equipment.name}`}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            {isPairEquipmentEmpty ? (
-              <p className="text-sm text-amber-700">
-                등록된 설비가 없습니다. 구역 상세에서 Array/Panel/Module을 먼저 등록하세요.
-              </p>
-            ) : null}
-          </div>
-
-          {pairCandidatesQuery.isLoading ? (
-            <LoadingState message="Pair 후보를 불러오는 중입니다." />
-          ) : null}
-
-          {pairCandidatesQuery.isError ? (
-            <ErrorState
-              title="Pair 후보를 불러오지 못했습니다."
-              description={getApiErrorMessage(pairCandidatesQuery.error)}
-            />
-          ) : null}
-
-          {pairCandidatesQuery.data ? (
-            <>
-              <div className="detail-grid">
-                <DetailItem
-                  label="조회 대상"
-                  value={getImagePairTargetLabel(candidateRequest?.targetType ?? candidateTargetType)}
-                />
-                <DetailItem
-                  label="장비 ID"
-                  value={String(pairCandidatesQuery.data.data.equipmentId ?? '-')}
-                />
-                <DetailItem
-                  label="RGB 후보"
-                  value={String(pairCandidatesQuery.data.data.rgbCandidates.length)}
-                />
-                <DetailItem
-                  label="열화상 후보"
-                  value={String(pairCandidatesQuery.data.data.thermalCandidates.length)}
-                />
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-2">
-                <FormField label="RGB 후보 선택">
-                  <select
-                    className="input-field"
-                    value={selectedRgbImageId}
-                    onChange={(event) => setSelectedRgbImageId(event.target.value)}
-                  >
-                    <option value="">RGB 후보를 선택해 주세요</option>
-                    {pairCandidatesQuery.data.data.rgbCandidates.map((image) => (
-                      <option key={image.imageId} value={image.imageId}>
-                        {`#${image.imageId} ${image.originalFilename}`}
-                      </option>
-                    ))}
-                  </select>
-                </FormField>
-                <FormField label="열화상 후보 선택">
-                  <select
-                    className="input-field"
-                    value={selectedThermalImageId}
-                    onChange={(event) => setSelectedThermalImageId(event.target.value)}
-                  >
-                    <option value="">열화상 후보를 선택해 주세요</option>
-                    {pairCandidatesQuery.data.data.thermalCandidates.map((image) => (
-                      <option key={image.imageId} value={image.imageId}>
-                        {`#${image.imageId} ${image.originalFilename}`}
-                      </option>
-                    ))}
-                  </select>
-                </FormField>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  className="btn btn-primary"
-                  type="button"
-                  disabled={
-                    !selectedRgbImageId ||
-                    !selectedThermalImageId ||
-                    createImagePairMutation.isPending
-                  }
-                  onClick={handleCreatePair}
-                >
-                  Pair 생성
-                </button>
-              </div>
-            </>
-          ) : (
-            <EmptyState
-              title="Pair 후보를 아직 조회하지 않았습니다."
-              description="대상 타입과 장비를 고른 뒤 후보 조회를 실행해 주세요."
-            />
-          )}
-        </section>
-
-        <section className="panel stack-md">
-          <div className="toolbar">
-            <div>
-              <h2 className="panel-title">현재 Pair 상세</h2>
-              <p className="panel-description">
-                inspection 응답의 summary 또는 방금 생성한 Pair를 기준으로 상세 조회를 연결합니다.
-              </p>
-            </div>
-            {inspection.imagePairs.length > 0 ? (
-              <select
-                className="input-field max-w-[14rem]"
-                value={String(activePairId ?? inspection.imagePairs[0].imagePairId)}
-                onChange={(event) => setActivePairId(Number(event.target.value))}
-              >
-                {inspection.imagePairs.map((pair) => (
-                  <option key={pair.imagePairId} value={pair.imagePairId}>
-                    {`Pair #${pair.imagePairId}`}
-                  </option>
-                ))}
-                {activePairId &&
-                !inspection.imagePairs.some((pair) => pair.imagePairId === activePairId) ? (
-                  <option value={activePairId}>{`Pair #${activePairId}`}</option>
-                ) : null}
-              </select>
-            ) : null}
-          </div>
-
-          {activePairId && pairQuery.isLoading && !pairQuery.data ? (
-            <LoadingState message="Pair 상세를 불러오는 중입니다." />
-          ) : null}
-
-          {pairQuery.isError ? (
-            <ErrorState
-              title="Pair 상세를 불러오지 못했습니다."
-              description={getApiErrorMessage(pairQuery.error)}
-            />
-          ) : null}
-
-          {currentPair ? (
-            <>
-              <div className="detail-grid">
-                <DetailItem label="Pair ID" value={String(currentPair.imagePairId)} />
-                <DetailItem
-                  label="대상"
-                  value={getImagePairTargetLabel(currentPair.targetType)}
-                />
-                <DetailItem label="장비 ID" value={String(currentPair.equipmentId ?? '-')} />
-                <DetailItem
-                  label="상태"
-                  value={getResourceStatusLabel(currentPair.status)}
-                />
-              </div>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <PairImageCard title="RGB 이미지" image={currentPair.rgbImage} />
-                <PairImageCard title="열화상 이미지" image={currentPair.thermalImage} />
-              </div>
-              <div className="inline-actions">
-                <button className="btn btn-secondary" type="button" onClick={handleOpenPairEdit}>
-                  Pair 수정
-                </button>
-                <button
-                  className="btn btn-secondary"
-                  type="button"
-                  onClick={() => setIsPairDeactivateModalOpen(true)}
-                >
-                  Pair 비활성화
-                </button>
-              </div>
-            </>
-          ) : (
-            <EmptyState
-              title="확인할 Pair가 없습니다."
-              description="현재 backend에는 inspectionId 기준 Pair 목록 API가 없어, 생성한 Pair 또는 inspection 응답의 summary 범위 안에서만 상세를 확인합니다."
-            />
-          )}
-        </section>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -1165,56 +690,8 @@ export function InspectionDetailPage() {
           <div>
             <h2 className="panel-title">AI 분석 요청</h2>
             <p className="panel-description">
-              RGB 단일, 열화상 단일, Pair 기반 Fusion 분석 요청을 backend enum 규격에 맞춰 생성합니다.
+              활성 이미지에 대해 `imageId`만 포함한 단건 분석 요청을 전송합니다.
             </p>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-3">
-            <FormField label="RGB 요청 모델">
-              <select
-                className="input-field"
-                value={rgbRequestedModelType}
-                onChange={(event) =>
-                  setRgbRequestedModelType(event.target.value as RequestedModelType)
-                }
-              >
-                {RGB_REQUESTED_MODEL_OPTIONS.map((modelType) => (
-                  <option key={modelType} value={modelType}>
-                    {getRequestedModelTypeLabel(modelType)}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label="열화상 요청 모델">
-              <select
-                className="input-field"
-                value={thermalRequestedModelType}
-                onChange={(event) =>
-                  setThermalRequestedModelType(event.target.value as RequestedModelType)
-                }
-              >
-                {THERMAL_REQUESTED_MODEL_OPTIONS.map((modelType) => (
-                  <option key={modelType} value={modelType}>
-                    {getRequestedModelTypeLabel(modelType)}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label="Fusion 요청 모델">
-              <select
-                className="input-field"
-                value={fusionRequestedModelType}
-                onChange={(event) =>
-                  setFusionRequestedModelType(event.target.value as RequestedModelType)
-                }
-              >
-                {FUSION_REQUESTED_MODEL_OPTIONS.map((modelType) => (
-                  <option key={modelType} value={modelType}>
-                    {getRequestedModelTypeLabel(modelType)}
-                  </option>
-                ))}
-              </select>
-            </FormField>
           </div>
 
           <DataTable
@@ -1237,7 +714,7 @@ export function InspectionDetailPage() {
                 render: (image: ImageSummary) => (
                   <div className="stack-sm text-sm">
                     <span>{getTargetTypeLabel(image.targetType)}</span>
-                    <span>장비 {image.equipmentId ?? '-'}</span>
+                    <span>설비 {image.equipmentId ?? '-'}</span>
                   </div>
                 ),
               },
@@ -1245,10 +722,6 @@ export function InspectionDetailPage() {
                 key: 'request',
                 header: '분석 요청',
                 render: (image: ImageSummary) => {
-                  const requestedModelType =
-                    image.imageType === 'RGB'
-                      ? rgbRequestedModelType
-                      : thermalRequestedModelType
                   const hasRunningJob = runningImageJobIds.has(image.imageId)
                   const canRequest = isActiveResource(image.status) && !hasRunningJob
 
@@ -1257,7 +730,7 @@ export function InspectionDetailPage() {
                       className="btn btn-secondary"
                       type="button"
                       disabled={!canRequest || createAnalysisJobMutation.isPending}
-                      onClick={() => requestSingleAnalysis(image, requestedModelType)}
+                      onClick={() => requestSingleAnalysis(image)}
                     >
                       {image.imageType === 'RGB' ? 'RGB 분석 요청' : '열화상 분석 요청'}
                     </button>
@@ -1270,30 +743,6 @@ export function InspectionDetailPage() {
             emptyTitle="분석 요청 가능한 활성 이미지가 없습니다."
             emptyDescription="활성 상태의 RGB 또는 열화상 이미지를 업로드한 뒤 다시 확인해 주세요."
           />
-
-          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-            <div className="toolbar">
-              <div>
-                <h3 className="text-base font-semibold text-slate-900">Fusion 분석 요청</h3>
-                <p className="mt-1 text-sm text-slate-600">
-                  현재 Pair 기준으로 `RGB_THERMAL_PAIR` 입력 작업을 생성합니다.
-                </p>
-              </div>
-              <button
-                className="btn btn-primary"
-                type="button"
-                disabled={
-                  !currentPair ||
-                  !isActiveResource(currentPair.status) ||
-                  runningPairJobIds.has(currentPair.imagePairId) ||
-                  createAnalysisJobMutation.isPending
-                }
-                onClick={requestFusionAnalysis}
-              >
-                Fusion 분석 요청
-              </button>
-            </div>
-          </div>
         </section>
 
         <section className="panel stack-md">
@@ -1301,7 +750,7 @@ export function InspectionDetailPage() {
             <div>
               <h2 className="panel-title">분석 작업 상태</h2>
               <p className="panel-description">
-                inspectionId 기준 목록을 조회하고, 실패한 작업은 상세 조회 후 재요청할 수 있습니다.
+                inspectionId 기준 목록을 조회하고, 실패 작업 상세와 재요청을 확인합니다.
               </p>
             </div>
             <button className="btn btn-secondary" type="button" onClick={handleRefreshJobs}>
@@ -1336,19 +785,6 @@ export function InspectionDetailPage() {
                   ),
                 },
                 {
-                  key: 'inputType',
-                  header: '입력',
-                  render: (job) => (
-                    <div className="stack-sm">
-                      <StatusBadge label={getAnalysisInputTypeLabel(job.inputType)} />
-                      <StatusBadge
-                        label={getAnalysisModelTypeLabel(job.modelType)}
-                        tone="default"
-                      />
-                    </div>
-                  ),
-                },
-                {
                   key: 'status',
                   header: '상태',
                   render: (job) => (
@@ -1361,12 +797,7 @@ export function InspectionDetailPage() {
                 {
                   key: 'target',
                   header: '대상 ID',
-                  render: (job) => (
-                    <div className="stack-sm text-sm">
-                      <span>{`imageId: ${job.imageId ?? '-'}`}</span>
-                      <span>{`imagePairId: ${job.imagePairId ?? '-'}`}</span>
-                    </div>
-                  ),
+                  render: (job) => <span className="text-sm">{`imageId: ${job.imageId ?? '-'}`}</span>,
                 },
                 {
                   key: 'actions',
@@ -1381,10 +812,7 @@ export function InspectionDetailPage() {
                         상세/실패 사유
                       </button>
                       {job.jobStatus === 'SUCCEEDED' ? (
-                        <Link
-                          className="text-button"
-                          to={`/results?inspectionId=${inspectionId}`}
-                        >
+                        <Link className="text-button" to={`/results?inspectionId=${inspectionId}`}>
                           결과 목록
                         </Link>
                       ) : null}
@@ -1403,7 +831,7 @@ export function InspectionDetailPage() {
               rows={jobRows}
               rowKey={(job) => job.jobId}
               emptyTitle="분석 작업이 없습니다."
-              emptyDescription="단일 이미지나 Pair 분석을 요청하면 이 목록에 상태가 표시됩니다."
+              emptyDescription="이미지 단건 분석을 요청하면 이 목록에 상태가 표시됩니다."
             />
           ) : null}
         </section>
@@ -1414,7 +842,7 @@ export function InspectionDetailPage() {
           <div>
             <h2 className="panel-title">실패 사유 / 재요청</h2>
             <p className="panel-description">
-              실패한 작업을 선택하면 실패 코드, 실패 메시지, 추적 ID를 확인하고 다시 요청할 수 있습니다.
+              실패한 작업을 선택하면 실패 코드, 메시지, 추적 ID를 확인하고 재요청할 수 있습니다.
             </p>
           </div>
 
@@ -1438,13 +866,10 @@ export function InspectionDetailPage() {
                   value={getAnalysisInputTypeLabel(selectedJob.inputType)}
                 />
                 <DetailItem
-                  label="요청 모델"
-                  value={getRequestedModelTypeLabel(selectedJob.requestedModelType)}
-                />
-                <DetailItem
                   label="상태"
                   value={getAnalysisJobStatusLabel(selectedJob.jobStatus)}
                 />
+                <DetailItem label="대상 이미지" value={String(selectedJob.imageId ?? '-')} />
               </div>
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                 <div className="stack-sm">
@@ -1461,7 +886,7 @@ export function InspectionDetailPage() {
                       실패 메시지
                     </div>
                     <div className="mt-1 text-sm text-slate-900">
-                      {selectedJob.failureMessage ?? '현재 선택한 작업에 실패 메시지가 없습니다.'}
+                      {selectedJob.failureMessage ?? '현재 선택한 작업에는 실패 메시지가 없습니다.'}
                     </div>
                   </div>
                   <div>
@@ -1497,13 +922,13 @@ export function InspectionDetailPage() {
           <div>
             <h2 className="panel-title">화면 안내</h2>
             <p className="panel-description">
-              점검 상세에서는 이미지, Pair, 분석 작업 상태를 확인하고 결과 화면으로 이동할 수 있습니다.
+              점검 상세에서 이미지와 분석 작업 상태를 확인하고 결과 화면으로 이동할 수 있습니다.
             </p>
           </div>
           <ul className="marker-list">
-            <li>성공한 분석 작업에서는 결과 목록으로 이동해 상세와 시각화를 이어서 확인할 수 있습니다.</li>
-            <li>관리자 전용 운영 화면과 대시보드 실데이터 연동은 이번 작업 범위가 아닙니다.</li>
-            <li>backend가 내려주는 실패 코드와 실패 메시지는 원문 기준으로 보여 주고, 해석은 최소 안내만 제공합니다.</li>
+            <li>성공한 분석 작업에서는 결과 목록으로 이동해 상세 결과를 확인할 수 있습니다.</li>
+            <li>Pair/Fusion 생성과 관리 UI는 제거했고, 레거시 응답이 남아 있어도 화면이 깨지지 않도록 최소 안전 처리를 유지합니다.</li>
+            <li>backend가 내려주는 실패 코드와 실패 메시지는 원문 기준으로 보여 줍니다.</li>
           </ul>
         </section>
       </section>
@@ -1556,61 +981,6 @@ export function InspectionDetailPage() {
         </form>
       </EntityModal>
 
-      <EntityModal
-        isOpen={isPairEditModalOpen}
-        title="Pair 수정"
-        description="PATCH /api/v1/image-pairs/{imagePairId} 요청으로 RGB 또는 열화상 이미지를 교체합니다."
-        onClose={() => setIsPairEditModalOpen(false)}
-      >
-        <div className="stack-md">
-          <FormField label="RGB 이미지">
-            <select
-              className="input-field"
-              value={editRgbImageId}
-              onChange={(event) => setEditRgbImageId(event.target.value)}
-            >
-              <option value="">RGB 이미지를 선택해 주세요</option>
-              {mergedRgbCandidates.map((image) => (
-                <option key={image.imageId} value={image.imageId}>
-                  {`#${image.imageId} ${image.originalFilename}`}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="열화상 이미지">
-            <select
-              className="input-field"
-              value={editThermalImageId}
-              onChange={(event) => setEditThermalImageId(event.target.value)}
-            >
-              <option value="">열화상 이미지를 선택해 주세요</option>
-              {mergedThermalCandidates.map((image) => (
-                <option key={image.imageId} value={image.imageId}>
-                  {`#${image.imageId} ${image.originalFilename}`}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <div className="flex justify-end gap-3">
-            <button
-              className="btn btn-secondary"
-              type="button"
-              onClick={() => setIsPairEditModalOpen(false)}
-            >
-              취소
-            </button>
-            <button
-              className="btn btn-primary"
-              type="button"
-              disabled={updateImagePairMutation.isPending}
-              onClick={handleUpdatePair}
-            >
-              수정
-            </button>
-          </div>
-        </div>
-      </EntityModal>
-
       <PreviewModal
         isOpen={Boolean(previewImageId)}
         imageName={
@@ -1637,21 +1007,6 @@ export function InspectionDetailPage() {
         onConfirm={handleDeactivateImage}
         onCancel={() => setSelectedImage(null)}
       />
-
-      <ConfirmModal
-        isOpen={isPairDeactivateModalOpen}
-        title="Pair 비활성화"
-        description={
-          currentPair
-            ? `Pair #${currentPair.imagePairId}를 비활성화합니다.`
-            : '현재 Pair를 비활성화합니다.'
-        }
-        confirmText="비활성화"
-        cancelText="취소"
-        isConfirming={deactivateImagePairMutation.isPending}
-        onConfirm={handleDeactivatePair}
-        onCancel={() => setIsPairDeactivateModalOpen(false)}
-      />
     </section>
   )
 }
@@ -1663,50 +1018,6 @@ function DetailItem({ label, value }: { label: string; value: string }) {
       <span className="detail-value">{value}</span>
     </div>
   )
-}
-
-function PairImageCard({ title, image }: { title: string; image: ImageSummary }) {
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-      <div className="stack-sm">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-            {title}
-          </div>
-          <div className="mt-2 text-sm font-semibold text-slate-900">
-            {image.originalFilename}
-          </div>
-        </div>
-        <div className="inline-actions">
-          <StatusBadge label={getImageTypeLabel(image.imageType)} />
-          <StatusBadge
-            label={getResourceStatusLabel(image.status)}
-            tone={getResourceStatusTone(image.status)}
-          />
-        </div>
-        <div className="text-sm text-slate-600">
-          {`imageId ${image.imageId} · ${getTargetTypeLabel(image.targetType)} · 장비 ${image.equipmentId ?? '-'}`}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function mergeCandidateImages(
-  pinnedImage?: ImageSummary | null,
-  images?: ImageSummary[],
-) {
-  const imageMap = new Map<number, ImageSummary>()
-
-  if (pinnedImage) {
-    imageMap.set(pinnedImage.imageId, pinnedImage)
-  }
-
-  for (const image of images ?? []) {
-    imageMap.set(image.imageId, image)
-  }
-
-  return [...imageMap.values()]
 }
 
 function EntityModal({
