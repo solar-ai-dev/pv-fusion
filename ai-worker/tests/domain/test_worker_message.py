@@ -13,7 +13,6 @@ def build_message(**overrides):
         "jobId": 1000,
         "inputType": "RGB_SINGLE",
         "imageId": 201,
-        "imagePairId": None,
         "requestedModelType": "RGB_ONLY",
         "requestedByUserId": 1,
         "traceId": "req-20260607-0001",
@@ -28,7 +27,6 @@ def test_rgb_single_message_is_valid():
 
     assert message.inputType.value == "RGB_SINGLE"
     assert message.imageId == 201
-    assert message.imagePairId is None
 
 
 def test_thermal_single_message_is_valid():
@@ -38,51 +36,16 @@ def test_thermal_single_message_is_valid():
     assert message.imageId == 201
 
 
-def test_rgb_thermal_pair_message_is_valid():
-    message = WorkerMessage(
-        **build_message(
-            inputType="RGB_THERMAL_PAIR",
-            imageId=None,
-            imagePairId=301,
-            requestedModelType="FUSION_AUTO",
-        )
-    )
+def test_backend_legacy_image_pair_id_null_is_ignored():
+    message = WorkerMessage(**build_message(imagePairId=None))
 
-    assert message.inputType.value == "RGB_THERMAL_PAIR"
-    assert message.imagePairId == 301
+    assert message.imageId == 201
+    assert not hasattr(message, "imagePairId")
 
 
-def test_rgb_single_without_image_id_fails():
+def test_image_id_is_required():
     with pytest.raises(ValidationError):
         WorkerMessage(**build_message(imageId=None))
-
-
-def test_thermal_single_without_image_id_fails():
-    with pytest.raises(ValidationError):
-        WorkerMessage(**build_message(inputType="THERMAL_SINGLE", requestedModelType="THERMAL_ONLY", imageId=None))
-
-
-def test_pair_without_image_pair_id_fails():
-    with pytest.raises(ValidationError):
-        WorkerMessage(
-            **build_message(
-                inputType="RGB_THERMAL_PAIR",
-                imageId=None,
-                imagePairId=None,
-                requestedModelType="FUSION_AUTO",
-            )
-        )
-
-
-def test_image_id_and_image_pair_id_together_fails():
-    with pytest.raises(ValidationError):
-        WorkerMessage(
-            **build_message(
-                inputType="RGB_SINGLE",
-                imageId=201,
-                imagePairId=301,
-            )
-        )
 
 
 def test_blank_trace_id_fails():
@@ -90,16 +53,24 @@ def test_blank_trace_id_fails():
         WorkerMessage(**build_message(traceId="   "))
 
 
-def test_requested_model_type_fusion_is_rejected():
+def test_rgb_and_thermal_model_type_mismatch_fails():
+    with pytest.raises(ValidationError):
+        WorkerMessage(**build_message(requestedModelType="THERMAL_ONLY"))
+
+
+def test_pair_input_is_rejected():
     with pytest.raises(ValidationError):
         WorkerMessage(
             **build_message(
                 inputType="RGB_THERMAL_PAIR",
-                imageId=None,
-                imagePairId=301,
-                requestedModelType="FUSION",
+                requestedModelType="RGB_ONLY",
             )
         )
+
+
+def test_fusion_requested_model_type_is_rejected():
+    with pytest.raises(ValidationError):
+        WorkerMessage(**build_message(requestedModelType="FUSION_AUTO"))
 
 
 def test_result_status_failed_is_not_allowed():

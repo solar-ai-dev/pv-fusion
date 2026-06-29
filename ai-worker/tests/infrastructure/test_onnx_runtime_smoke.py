@@ -229,7 +229,6 @@ def test_thermal_processor_smoke_keeps_mask_fields_null():
                 jobId=1000,
                 inputType=InputType.THERMAL_SINGLE,
                 imageId=201,
-                imagePairId=None,
                 requestedModelType=RequestedModelType.THERMAL_ONLY,
                 modelType=None,
                 jobStatus=JobStatus.QUEUED,
@@ -357,7 +356,6 @@ def _build_worker_message(
         jobId=1000,
         inputType=input_type,
         imageId=201,
-        imagePairId=None,
         requestedModelType=requested_model_type,
         requestedByUserId=1,
         traceId="req-20260607-0001",
@@ -371,7 +369,6 @@ class _SmokeJobRepository:
             jobId=1000,
             inputType=InputType.RGB_SINGLE,
             imageId=201,
-            imagePairId=None,
             requestedModelType=RequestedModelType.RGB_ONLY,
             modelType=None,
             jobStatus=JobStatus.QUEUED,
@@ -400,9 +397,6 @@ class _SmokeImageMetadata:
 
     def get_single_image(self, image_id: int) -> SingleImageInput | None:
         return self._image
-
-    def get_paired_image(self, image_pair_id: int):
-        return None
 
 
 class _SmokeStorage:

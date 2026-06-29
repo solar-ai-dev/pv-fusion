@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict
 from app.domain.analysis_job import AnalysisJob
 from app.domain.analysis_result import AnalysisResultDraft
 from app.domain.detected_defect import DetectedDefectDraft
-from app.domain.image_input import PairedImageInput, SingleImageInput
+from app.domain.image_input import SingleImageInput
 from app.domain.inference_result import InferenceResult
 from app.domain.model import ModelInfo
 
@@ -36,9 +36,6 @@ class ImageMetadataPort(Protocol):
     def get_single_image(self, image_id: int) -> SingleImageInput | None:
         """Load metadata for a single RGB or thermal image."""
 
-    def get_paired_image(self, image_pair_id: int) -> PairedImageInput | None:
-        """Load metadata for a paired RGB/thermal input."""
-
 
 class StoragePort(Protocol):
     def read_object(self, bucket_name: str, object_key: str) -> bytes:
@@ -51,11 +48,11 @@ class StoragePort(Protocol):
 class ModelRunnerPort(Protocol):
     def run(
         self,
-        input_data: SingleImageInput | PairedImageInput,
+        input_data: SingleImageInput,
         model_info: ModelInfo,
         image_bytes: bytes,
     ) -> InferenceResult:
-        """Run inference for a single or paired image input."""
+        """Run inference for a single image input."""
 
 
 class ResultRepositoryPort(Protocol):

@@ -8,8 +8,7 @@ class AnalysisJob(BaseModel):
 
     jobId: int
     inputType: InputType
-    imageId: int | None = None
-    imagePairId: int | None = None
+    imageId: int
     requestedModelType: RequestedModelType
     modelType: ModelType | None = None
     jobStatus: JobStatus

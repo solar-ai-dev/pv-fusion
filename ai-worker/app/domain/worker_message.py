@@ -6,18 +6,18 @@ from app.domain.enums import InputType, RequestedModelType
 
 
 class WorkerMessage(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    # Backend 3단계의 임시 호환 필드(imagePairId=null)는 무시한다.
+    model_config = ConfigDict(extra="ignore")
 
     jobId: int
     inputType: InputType
-    imageId: int | None = None
-    imagePairId: int | None = None
+    imageId: int
     requestedModelType: RequestedModelType
     requestedByUserId: int
     traceId: str
     createdAt: datetime
 
-    @field_validator("jobId", "requestedByUserId")
+    @field_validator("jobId", "requestedByUserId", "imageId")
     @classmethod
     def validate_positive_int(cls, value: int) -> int:
         if value <= 0:
@@ -33,10 +33,13 @@ class WorkerMessage(BaseModel):
 
     @model_validator(mode="after")
     def validate_target_fields(self) -> "WorkerMessage":
-        if self.inputType in {InputType.RGB_SINGLE, InputType.THERMAL_SINGLE}:
-            if self.imageId is None or self.imagePairId is not None:
-                raise ValueError("single-image input requires imageId and imagePairId must be null")
-        if self.inputType is InputType.RGB_THERMAL_PAIR:
-            if self.imageId is not None or self.imagePairId is None:
-                raise ValueError("pair input requires imagePairId and imageId must be null")
+        allowed_pairs = {
+            InputType.RGB_SINGLE: RequestedModelType.RGB_ONLY,
+            InputType.THERMAL_SINGLE: RequestedModelType.THERMAL_ONLY,
+        }
+        expected_model_type = allowed_pairs.get(self.inputType)
+        if expected_model_type is None:
+            raise ValueError("unsupported inputType")
+        if self.requestedModelType is not expected_model_type:
+            raise ValueError("inputType and requestedModelType do not match")
         return self

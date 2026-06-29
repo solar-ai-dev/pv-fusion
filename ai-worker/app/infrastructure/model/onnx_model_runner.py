@@ -1,6 +1,6 @@
 from app.application.ports import ModelRunnerPort
 from app.domain.enums import InputType
-from app.domain.image_input import PairedImageInput, SingleImageInput
+from app.domain.image_input import SingleImageInput
 from app.domain.model import ModelInfo
 from app.infrastructure.model.model_registry import ModelRegistry
 from app.infrastructure.model.onnx_session import OnnxSessionProvider
@@ -23,13 +23,10 @@ class OnnxModelRunner(ModelRunnerPort):
 
     def run(
         self,
-        input_data: SingleImageInput | PairedImageInput,
+        input_data: SingleImageInput,
         model_info: ModelInfo,
         image_bytes: bytes,
     ):
-        if isinstance(input_data, PairedImageInput):
-            raise NotImplementedError("RGB_THERMAL_PAIR inference is not supported yet.")
-
         resolved_model = self._model_registry.resolve(
             self._resolve_input_type(input_data),
             model_info.requestedModelType,
