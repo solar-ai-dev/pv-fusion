@@ -15,6 +15,4 @@ public interface LoadAnalysisJobPort {
     long countAnalysisJobs(AnalysisJobListQuery query);
 
     List<AnalysisJob> loadAnalysisJobsByImageIdAndStatuses(Long imageId, List<AnalysisJobStatus> statuses);
-
-    List<AnalysisJob> loadAnalysisJobsByImagePairIdAndStatuses(Long imagePairId, List<AnalysisJobStatus> statuses);
 }

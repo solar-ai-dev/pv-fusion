@@ -1,11 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../features/auth/hooks/useAuth'
-import {
-  ANALYSIS_INPUT_TYPE_OPTIONS,
-  getAnalysisInputTypeLabel,
-  getAnalysisModelTypeLabel,
-} from '../features/analysisJobs/types'
 import { getTargetTypeLabel, TARGET_TYPE_OPTIONS } from '../features/images/types'
 import {
   getActionCandidateLabel,
@@ -19,7 +14,11 @@ import {
   type PriorityLevel,
 } from '../features/results/types'
 import { useTracking, useTrackingCompare } from '../features/tracking/hooks/useTracking'
-import type { TrackingCompareParams, TrackingListParams, TrackingSummary } from '../features/tracking/types'
+import type {
+  TrackingCompareParams,
+  TrackingListParams,
+  TrackingSummary,
+} from '../features/tracking/types'
 import { FormField } from '../shared/components/form/FormField'
 import { PageHeader } from '../shared/components/layout/PageHeader'
 import { EmptyState } from '../shared/components/state/EmptyState'
@@ -46,8 +45,6 @@ const ACTION_CANDIDATE_OPTIONS: ActionCandidate[] = [
 
 const PRIORITY_LEVEL_OPTIONS: PriorityLevel[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT']
 
-const MODEL_TYPE_OPTIONS = ['RGB_ONLY', 'THERMAL_ONLY', 'FUSION'] as const
-
 export function TrackingPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const role = useAuth((state) => state.user?.role)
@@ -70,10 +67,6 @@ export function TrackingPage() {
         (searchParams.get('targetType') as TrackingListParams['targetType']) ?? undefined,
       from: searchParams.get('from') ?? undefined,
       to: searchParams.get('to') ?? undefined,
-      inputType:
-        (searchParams.get('inputType') as TrackingListParams['inputType']) ?? undefined,
-      modelType:
-        (searchParams.get('modelType') as TrackingListParams['modelType']) ?? undefined,
       actionCandidate:
         (searchParams.get('actionCandidate') as TrackingListParams['actionCandidate']) ??
         undefined,
@@ -92,7 +85,10 @@ export function TrackingPage() {
   const canQuery = role === 'ADMIN' || hasScopedFilter
 
   const trackingQuery = useTracking(params, canQuery)
-  const compareQuery = useTrackingCompare(compareParams ?? { currentResultId: 0 }, Boolean(compareParams))
+  const compareQuery = useTrackingCompare(
+    compareParams ?? { currentResultId: 0 },
+    Boolean(compareParams),
+  )
 
   const items = trackingQuery.data?.data.items ?? []
   const repeatedItems = items.filter((item) => item.repeated)
@@ -122,8 +118,6 @@ export function TrackingPage() {
     setIfPresent('targetType', formData.get('targetType'))
     setIfPresent('from', formData.get('from'))
     setIfPresent('to', formData.get('to'))
-    setIfPresent('inputType', formData.get('inputType'))
-    setIfPresent('modelType', formData.get('modelType'))
     setIfPresent('actionCandidate', formData.get('actionCandidate'))
     setIfPresent('priorityLevel', formData.get('priorityLevel'))
     setIfPresent('severityLevel', formData.get('severityLevel'))
@@ -144,7 +138,7 @@ export function TrackingPage() {
     <section className="space-y-6">
       <PageHeader
         title="변화 추적"
-        description="실제 tracking 목록과 이전 점검 비교 응답을 기준으로 반복 이상, 악화, 비교 결과를 확인합니다."
+        description="tracking 목록과 이전 점검 비교 결과를 기반으로 반복 이상과 악화를 확인합니다."
         actions={
           <>
             <button
@@ -170,7 +164,7 @@ export function TrackingPage() {
         <div>
           <h2 className="panel-title">조회 필터</h2>
           <p className="panel-description">
-            일반 사용자는 발전소, 구역, 장비 중 하나 이상의 범위를 지정해야 tracking 조회가 가능합니다.
+            일반 사용자는 발전소, 구역, 설비 중 하나 이상의 범위를 지정해야 tracking 조회가 가능합니다.
           </p>
         </div>
         <form
@@ -197,7 +191,7 @@ export function TrackingPage() {
                 onChange={(event) => setZoneIdInput(event.target.value)}
               />
             </FormField>
-            <FormField label="장비 ID">
+            <FormField label="설비 ID">
               <input
                 className="input-field"
                 name="equipmentId"
@@ -236,34 +230,6 @@ export function TrackingPage() {
                 value={toInput}
                 onChange={(event) => setToInput(event.target.value)}
               />
-            </FormField>
-            <FormField label="입력 유형">
-              <select
-                className="input-field"
-                name="inputType"
-                defaultValue={searchParams.get('inputType') ?? ''}
-              >
-                <option value="">전체</option>
-                {ANALYSIS_INPUT_TYPE_OPTIONS.map((inputType) => (
-                  <option key={inputType} value={inputType}>
-                    {getAnalysisInputTypeLabel(inputType)}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label="모델 유형">
-              <select
-                className="input-field"
-                name="modelType"
-                defaultValue={searchParams.get('modelType') ?? ''}
-              >
-                <option value="">전체</option>
-                {MODEL_TYPE_OPTIONS.map((modelType) => (
-                  <option key={modelType} value={modelType}>
-                    {getAnalysisModelTypeLabel(modelType)}
-                  </option>
-                ))}
-              </select>
             </FormField>
             <FormField label="조치 후보">
               <select
@@ -322,7 +288,7 @@ export function TrackingPage() {
       {!canQuery ? (
         <EmptyState
           title="먼저 범위를 지정해 주세요."
-          description="현재 backend 구현은 일반 사용자 tracking 조회에 plantId, zoneId, equipmentId 중 하나를 요구합니다."
+          description="현재 backend 구현상 일반 사용자 tracking 조회는 plantId, zoneId, equipmentId 중 하나를 요구합니다."
         />
       ) : null}
 
@@ -351,18 +317,18 @@ export function TrackingPage() {
               <div>
                 <h2 className="panel-title">추적 요약</h2>
                 <p className="panel-description">
-                  `/tracking` 목록 응답을 기준으로 현재 범위의 반복 이상과 악화 상태를 요약합니다.
+                  `/tracking` 목록 응답 기준으로 현재 범위의 반복 이상과 악화 상태를 요약합니다.
                 </p>
               </div>
               <div className="detail-grid">
-                <SummaryItem label="최근 분석 시각" value={formatDateTime(latestTracked?.analyzedAt)} />
+                <SummaryItem label="최신 분석 시각" value={formatDateTime(latestTracked?.analyzedAt)} />
                 <SummaryItem label="반복 이상 개수" value={`${formatCount(summary.repeated)}건`} />
                 <SummaryItem label="악화 대상 개수" value={`${formatCount(summary.worsened)}건`} />
                 <SummaryItem
                   label="범위"
                   value={
                     params.equipmentId
-                      ? `장비 ${params.equipmentId}`
+                      ? `설비 ${params.equipmentId}`
                       : params.zoneId
                         ? `구역 ${params.zoneId}`
                         : params.plantId
@@ -375,7 +341,7 @@ export function TrackingPage() {
 
             <section className="panel stack-md">
               <div>
-                <h2 className="panel-title">비교 패널</h2>
+                <h2 className="panel-title">비교 설명</h2>
                 <p className="panel-description">
                   비교할 항목을 선택하면 `/tracking/compare` 응답으로 이전 점검 대비 변화량을 보여줍니다.
                 </p>
@@ -387,7 +353,7 @@ export function TrackingPage() {
                 getApiErrorStatus(compareQuery.error) === 404 ? (
                   <EmptyState
                     title="비교 가능한 이전 결과가 없습니다."
-                    description="현재 결과에 연결된 이전 점검 결과를 찾지 못했습니다."
+                    description="현재 결과와 연결되는 이전 점검 결과를 찾지 못했습니다."
                   />
                 ) : (
                   <ErrorState
@@ -424,7 +390,7 @@ export function TrackingPage() {
               <div>
                 <h2 className="panel-title">반복 이상 목록</h2>
                 <p className="panel-description">
-                  `repeated=true` 항목만 추려 반복 이상 대상을 보여줍니다.
+                  `repeated=true` 항목만 추려 반복 이상 영역을 보여줍니다.
                 </p>
               </div>
               <TrackingTable
@@ -444,7 +410,7 @@ export function TrackingPage() {
               <div>
                 <h2 className="panel-title">악화 대상 목록</h2>
                 <p className="panel-description">
-                  `worsened=true` 항목만 추려 우선 확인 대상을 보여줍니다.
+                  `worsened=true` 항목만 추려 우선 확인할 대상을 보여줍니다.
                 </p>
               </div>
               <TrackingTable
@@ -489,7 +455,7 @@ function TrackingTable({
                 {getTargetTypeLabel(row.targetType ?? 'ZONE')}
               </span>
               <span className="text-xs text-slate-500">
-                {`구역 ${row.zoneId ?? '-'} · 장비 ${row.equipmentId ?? '-'} · 결과 ${row.currentResultId ?? '-'}`}
+                {`구역 ${row.zoneId ?? '-'} · 설비 ${row.equipmentId ?? '-'} · 결과 ${row.currentResultId ?? '-'}`}
               </span>
             </div>
           ),
@@ -602,14 +568,14 @@ function TrackingComparePanel({
       </div>
       <div className="detail-grid">
         <SummaryItem
-          label="새 결함 유형"
-          value={newDefects.length > 0 ? newDefects.map((item) => getDefectTypeLabel(item as never)).join(', ') : '-'}
+          label="신규 결함 유형"
+          value={newDefects.length > 0 ? newDefects.map((item) => getDefectTypeLabel(item)).join(', ') : '-'}
         />
         <SummaryItem
           label="지속 결함 유형"
           value={
             persistentDefects.length > 0
-              ? persistentDefects.map((item) => getDefectTypeLabel(item as never)).join(', ')
+              ? persistentDefects.map((item) => getDefectTypeLabel(item)).join(', ')
               : '-'
           }
         />

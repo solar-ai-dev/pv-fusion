@@ -2,7 +2,7 @@ from pathlib import Path
 
 from app.domain.detected_defect import DetectedDefectDraft
 from app.domain.enums import ActionCandidate, ModelType, RequestedModelType
-from app.domain.image_input import PairedImageInput, SingleImageInput
+from app.domain.image_input import SingleImageInput
 from app.domain.model import ModelInfo
 from app.infrastructure.model.model_registry import ModelRegistry
 from app.infrastructure.model.onnx_model_runner import OnnxModelRunner
@@ -39,20 +39,10 @@ def build_single_image(image_type: str = "RGB") -> SingleImageInput:
     )
 
 
-def build_pair_image() -> PairedImageInput:
-    return PairedImageInput(
-        imagePairId=3,
-        targetType="PANEL",
-        equipmentId=10,
-        rgbImage=build_single_image("RGB"),
-        thermalImage=build_single_image("THERMAL"),
-    )
-
-
-def build_placeholder_model(requested: RequestedModelType) -> ModelInfo:
+def build_placeholder_model(requested: RequestedModelType, model_type: ModelType) -> ModelInfo:
     return ModelInfo(
         modelPath="",
-        modelType=ModelType.RGB_ONLY,
+        modelType=model_type,
         requestedModelType=requested,
         modelName="placeholder",
         modelVersion="v0",
@@ -119,7 +109,7 @@ def test_runner_routes_rgb_single_to_rgb_model(tmp_path: Path):
         preprocess=lambda image_bytes, input_size: ("tensor", image_bytes, input_size),
     )
 
-    result = runner.run(build_single_image("RGB"), build_placeholder_model(RequestedModelType.RGB_ONLY), b"img")
+    result = runner.run(build_single_image("RGB"), build_placeholder_model(RequestedModelType.RGB_ONLY, ModelType.RGB_ONLY), b"img")
 
     assert result.modelInfo.modelType is ModelType.RGB_ONLY
     assert result.modelInfo.modelName == "pv-rgb"
@@ -164,7 +154,7 @@ def test_runner_routes_thermal_single_to_thermal_model(tmp_path: Path):
 
     result = runner.run(
         build_single_image("THERMAL"),
-        build_placeholder_model(RequestedModelType.THERMAL_ONLY),
+        build_placeholder_model(RequestedModelType.THERMAL_ONLY, ModelType.THERMAL_ONLY),
         b"thermal",
     )
 
@@ -213,48 +203,10 @@ def test_runner_handles_rgb_outputs_with_bbox_and_mask_tensors(tmp_path: Path):
         preprocess=lambda image_bytes, input_size: ("tensor", image_bytes, input_size),
     )
 
-    result = runner.run(build_single_image("RGB"), build_placeholder_model(RequestedModelType.RGB_ONLY), b"img")
+    result = runner.run(build_single_image("RGB"), build_placeholder_model(RequestedModelType.RGB_ONLY, ModelType.RGB_ONLY), b"img")
 
     assert result.modelInfo.modelType is ModelType.RGB_ONLY
     assert result.anomalyCount == 1
-
-
-def test_runner_rejects_pair_input(tmp_path: Path):
-    model_path = tmp_path / "rgb.onnx"
-    model_path.write_bytes(b"fake")
-    registry = ModelRegistry(
-        build_settings(
-            rgbModelManifestPath=_write_manifest(
-                tmp_path / "rgb-manifest.yaml",
-                model_name="pv-rgb",
-                model_version="v1.0.0",
-                input_type="RGB_SINGLE",
-                model_type="RGB_ONLY",
-                input_size=640,
-                confidence_threshold="0.50",
-                model_path=str(model_path),
-            ),
-            thermalModelManifestPath=_write_manifest(
-                tmp_path / "thermal-manifest.yaml",
-                model_name="pv-thermal",
-                model_version="v1.0.0",
-                input_type="THERMAL_SINGLE",
-                model_type="THERMAL_ONLY",
-                input_size=512,
-                confidence_threshold="0.60",
-                model_path=str(tmp_path / "thermal.onnx"),
-            ),
-        )
-    )
-    provider = OnnxSessionProvider(session_factory=lambda _: FakeSession({}))
-    runner = OnnxModelRunner(registry, provider, preprocess=lambda image_bytes, input_size: None)
-
-    try:
-        runner.run(build_pair_image(), build_placeholder_model(RequestedModelType.FUSION_AUTO), b"ignored")
-    except NotImplementedError as exc:
-        assert str(exc) == "RGB_THERMAL_PAIR inference is not supported yet."
-    else:
-        raise AssertionError("Expected NotImplementedError for pair input.")
 
 
 def test_session_provider_raises_when_model_file_is_missing(tmp_path: Path):

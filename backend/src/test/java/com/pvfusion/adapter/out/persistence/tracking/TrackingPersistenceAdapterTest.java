@@ -196,7 +196,7 @@ class TrackingPersistenceAdapterTest {
 
     private DetectedDefectJpaEntity defect(Long id, Long resultId, DefectType defectType, SeverityLevel severityLevel) {
         return new DetectedDefectJpaEntity(
-                id, resultId, defectType, DefectSource.FUSION, BigDecimal.valueOf(0.9), BigDecimal.valueOf(0.1),
+                id, resultId, defectType, DefectSource.RGB, BigDecimal.valueOf(0.9), BigDecimal.valueOf(0.1),
                 1, 2, 3, 4, null, null, null, BigDecimal.valueOf(0.8), severityLevel, ActionCandidate.CLEANING
         );
     }

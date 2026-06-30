@@ -8,7 +8,6 @@ public record AnalysisJobMessage(
         Long jobId,
         AnalysisInputType inputType,
         Long imageId,
-        Long imagePairId,
         RequestedModelType requestedModelType,
         Long requestedByUserId,
         String traceId,

@@ -37,7 +37,7 @@ export type DefectType =
   | 'ABNORMAL_HEAT'
   | 'UNKNOWN'
 
-export type DefectSource = 'RGB' | 'THERMAL' | 'FUSION'
+export type DefectSource = 'RGB' | 'THERMAL'
 
 export type ResultVisualizationType = 'bbox' | 'heatmap' | 'mask'
 
@@ -362,8 +362,6 @@ export function getDefectSourceLabel(defectSource?: DefectSource | null) {
       return 'RGB'
     case 'THERMAL':
       return '열화상'
-    case 'FUSION':
-      return 'Fusion'
     default:
       return '-'
   }

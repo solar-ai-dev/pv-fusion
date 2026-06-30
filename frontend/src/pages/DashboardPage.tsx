@@ -15,7 +15,12 @@ import {
   YAxis,
 } from 'recharts'
 import { useAuth } from '../features/auth/hooks/useAuth'
-import { useDashboardActionStats, useDashboardSeverityStats, useDashboardSummary, useDashboardTrends } from '../features/dashboard/hooks/useDashboard'
+import {
+  useDashboardActionStats,
+  useDashboardSeverityStats,
+  useDashboardSummary,
+  useDashboardTrends,
+} from '../features/dashboard/hooks/useDashboard'
 import {
   DASHBOARD_INTERVAL_OPTIONS,
   getDashboardIntervalLabel,
@@ -79,7 +84,6 @@ export function DashboardPage() {
   const summary = summaryQuery.data?.data.summary
   const recentResults = summaryQuery.data?.data.recentResults ?? []
   const priorityTargets = summaryQuery.data?.data.priorityTargets ?? []
-
   const actionChartData = actionStatsQuery.data?.data.items ?? []
   const severityChartData = severityStatsQuery.data?.data.items ?? []
   const trendChartData = trendQuery.data?.data.points ?? []
@@ -112,7 +116,7 @@ export function DashboardPage() {
     <section className="space-y-6">
       <PageHeader
         title="대시보드"
-        description="실제 backend 요약, 통계, 추이, 우선 확인 대상을 한 화면에서 확인합니다."
+        description="요약, 통계, 추이, 우선 확인 대상을 한 화면에서 확인합니다."
         actions={
           <>
             <button
@@ -190,11 +194,7 @@ export function DashboardPage() {
               />
             </FormField>
             <FormField label="추이 단위">
-              <select
-                className="input-field"
-                name="interval"
-                defaultValue={interval}
-              >
+              <select className="input-field" name="interval" defaultValue={interval}>
                 {DASHBOARD_INTERVAL_OPTIONS.map((option) => (
                   <option key={option} value={option}>
                     {getDashboardIntervalLabel(option)}
@@ -217,7 +217,7 @@ export function DashboardPage() {
       {!canQuery ? (
         <EmptyState
           title="먼저 발전소 또는 구역 범위를 지정해 주세요."
-          description="현재 backend 구현은 일반 사용자 dashboard 조회에 plantId 또는 zoneId 필터를 요구합니다."
+          description="현재 backend 구현상 일반 사용자 dashboard 조회는 plantId 또는 zoneId 필터를 요구합니다."
         />
       ) : null}
 
@@ -242,7 +242,11 @@ export function DashboardPage() {
             <KpiCard label="이상 구역" value={summary.anomalyZoneCount} tone="warning" />
             <KpiCard label="높은 우선순위" value={summary.highPriorityCount} tone="danger" />
             <KpiCard label="검토 대기" value={summary.pendingReviewCount} tone="warning" />
-            <KpiCard label="반복/악화" value={summary.repeatedAnomalyCount + summary.worsenedCount} tone="danger" />
+            <KpiCard
+              label="반복/악화"
+              value={summary.repeatedAnomalyCount + summary.worsenedCount}
+              tone="danger"
+            />
           </section>
 
           <section className="dashboard-split">
@@ -269,12 +273,11 @@ export function DashboardPage() {
               <div>
                 <h2 className="panel-title">자산 현황</h2>
                 <p className="panel-description">
-                  이미지, Pair, 결과 수를 현재 접근 범위 기준으로 요약합니다.
+                  이미지, 작업, 결과 집계를 현재 조회 범위 기준으로 요약합니다.
                 </p>
               </div>
               <div className="detail-grid">
                 <DetailMetric label="이미지" value={summary.totalImageCount} />
-                <DetailMetric label="이미지 Pair" value={summary.totalImagePairCount} />
                 <DetailMetric label="분석 작업" value={summary.totalAnalysisJobCount} />
                 <DetailMetric label="저신뢰 결과" value={summary.lowConfidenceResultCount} />
                 <DetailMetric label="반복 이상" value={summary.repeatedAnomalyCount} />
@@ -321,7 +324,7 @@ export function DashboardPage() {
 
             <DashboardChartSection
               title="심각도 분포"
-              description="`GET /dashboard/severity-stats` 응답을 심각도별 분포로 보여줍니다."
+              description="`GET /dashboard/severity-stats` 응답을 심각도 단계별 분포로 보여줍니다."
               isLoading={severityStatsQuery.isLoading}
               error={severityStatsQuery.isError ? getApiErrorMessage(severityStatsQuery.error) : null}
               isEmpty={severityChartData.length === 0}
@@ -414,7 +417,7 @@ export function DashboardPage() {
               <div>
                 <h2 className="panel-title">우선 확인 대상</h2>
                 <p className="panel-description">
-                  dashboard 응답의 priorityTargets는 tracking 결과 중 반복 이상 또는 악화 대상을 우선순위 기준으로 정렬한 목록입니다.
+                  dashboard 응답의 priorityTargets를 우선순위 기준으로 정렬해 보여줍니다.
                 </p>
               </div>
               <DataTable
@@ -428,7 +431,7 @@ export function DashboardPage() {
                           {getTargetTypeLabel(row.targetType ?? 'ZONE')}
                         </span>
                         <span className="text-xs text-slate-500">
-                          {`발전소 ${row.plantId ?? '-'} · 구역 ${row.zoneId ?? '-'} · 장비 ${row.equipmentId ?? '-'}`}
+                          {`발전소 ${row.plantId ?? '-'} · 구역 ${row.zoneId ?? '-'} · 설비 ${row.equipmentId ?? '-'}`}
                         </span>
                       </div>
                     ),
@@ -578,9 +581,7 @@ function KpiCard({
   return (
     <article className={`kpi-card kpi-card-${tone}`}>
       <div className="text-sm font-medium text-slate-500">{label}</div>
-      <div className="mt-3 text-3xl font-semibold text-slate-900">
-        {formatCount(value)}
-      </div>
+      <div className="mt-3 text-3xl font-semibold text-slate-900">{formatCount(value)}</div>
     </article>
   )
 }
@@ -620,7 +621,9 @@ function DashboardChartSection({
         <p className="panel-description">{description}</p>
       </div>
       {isLoading ? <LoadingState message={`${title} 데이터를 불러오는 중입니다.`} /> : null}
-      {!isLoading && error ? <ErrorState title={`${title} 조회에 실패했습니다.`} description={error} /> : null}
+      {!isLoading && error ? (
+        <ErrorState title={`${title} 조회에 실패했습니다.`} description={error} />
+      ) : null}
       {!isLoading && !error && isEmpty ? (
         <EmptyState title={emptyTitle} description={emptyDescription} />
       ) : null}

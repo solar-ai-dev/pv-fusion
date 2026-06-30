@@ -32,16 +32,6 @@ public interface AnalysisJobJpaRepository extends JpaRepository<AnalysisJobJpaEn
                         and (:zoneId is null or i.zoneId = :zoneId)
                         and (:inspectionId is null or i.id = :inspectionId)
                   )
-                  or exists (
-                      select 1
-                      from ImagePairJpaEntity ip, InspectionJpaEntity i, ZoneJpaEntity z
-                      where ip.id = aj.imagePairId
-                        and i.id = ip.inspectionId
-                        and z.id = i.zoneId
-                        and (:plantId is null or z.plantId = :plantId)
-                        and (:zoneId is null or i.zoneId = :zoneId)
-                        and (:inspectionId is null or i.id = :inspectionId)
-                  )
               )
             """)
     Page<AnalysisJobJpaEntity> search(
@@ -55,6 +45,4 @@ public interface AnalysisJobJpaRepository extends JpaRepository<AnalysisJobJpaEn
     );
 
     List<AnalysisJobJpaEntity> findByImageIdAndJobStatusIn(Long imageId, List<String> statuses);
-
-    List<AnalysisJobJpaEntity> findByImagePairIdAndJobStatusIn(Long imagePairId, List<String> statuses);
 }

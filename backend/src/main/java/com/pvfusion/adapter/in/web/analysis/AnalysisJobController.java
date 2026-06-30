@@ -43,9 +43,6 @@ public class AnalysisJobController {
     ) {
         AnalysisJobResponse response = requestAnalysisUseCase.execute(new RequestAnalysisCommand(
                 request.imageId(),
-                request.imagePairId(),
-                request.inputType(),
-                request.requestedModelType(),
                 request.traceId()
         ));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));

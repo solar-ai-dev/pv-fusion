@@ -2,11 +2,11 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../features/auth/hooks/useAuth'
 import {
-  getAnalysisInputTypeLabel,
   getAnalysisJobStatusLabel,
   getAnalysisJobStatusTone,
-  getAnalysisModelTypeLabel,
 } from '../features/analysisJobs/types'
+import { TARGET_TYPE_OPTIONS, getTargetTypeLabel } from '../features/images/types'
+import { useResults } from '../features/results/hooks/useResults'
 import {
   ACTION_CANDIDATE_OPTIONS,
   REVIEW_STATUS_OPTIONS,
@@ -22,9 +22,6 @@ import {
   getSeverityLevelTone,
   type ResultListParams,
 } from '../features/results/types'
-import { useResults } from '../features/results/hooks/useResults'
-import { TARGET_TYPE_OPTIONS, getTargetTypeLabel } from '../features/images/types'
-import { ANALYSIS_INPUT_TYPE_OPTIONS } from '../features/analysisJobs/types'
 import { FormField } from '../shared/components/form/FormField'
 import { PageHeader } from '../shared/components/layout/PageHeader'
 import { EmptyState } from '../shared/components/state/EmptyState'
@@ -59,8 +56,6 @@ export function ResultListPage() {
       equipmentId:
         parsePositiveNumber(searchParams.get('equipmentId') ?? undefined) ?? undefined,
       targetType: (searchParams.get('targetType') as ResultListParams['targetType']) ?? undefined,
-      inputType: (searchParams.get('inputType') as ResultListParams['inputType']) ?? undefined,
-      modelType: (searchParams.get('modelType') as ResultListParams['modelType']) ?? undefined,
       jobStatus: (searchParams.get('jobStatus') as ResultListParams['jobStatus']) ?? undefined,
       resultStatus:
         (searchParams.get('resultStatus') as ResultListParams['resultStatus']) ?? undefined,
@@ -98,8 +93,6 @@ export function ResultListPage() {
     setIfPresent('inspectionId', formData.get('inspectionId'))
     setIfPresent('equipmentId', formData.get('equipmentId'))
     setIfPresent('targetType', formData.get('targetType'))
-    setIfPresent('inputType', formData.get('inputType'))
-    setIfPresent('modelType', formData.get('modelType'))
     setIfPresent('jobStatus', formData.get('jobStatus'))
     setIfPresent('resultStatus', formData.get('resultStatus'))
     setIfPresent('actionCandidate', formData.get('actionCandidate'))
@@ -121,15 +114,14 @@ export function ResultListPage() {
     <section className="space-y-6">
       <PageHeader
         title="분석 결과 목록"
-        description="실제 backend가 지원하는 범위에서 점검, 장비, 상태 기준으로 결과를 검색하고 상세 화면으로 이동합니다."
+        description="점검 범위, 상태, 검토 정보를 기준으로 분석 결과를 조회합니다."
       />
 
       <section className="panel stack-md">
         <div>
           <h2 className="panel-title">검색 필터</h2>
           <p className="panel-description">
-            일반 사용자는 발전소, 구역, 점검, 장비 중 하나 이상의 범위 필터가 필요하며,
-            관리자는 전체 결과를 바로 조회할 수 있습니다.
+            일반 사용자는 발전소, 구역, 점검, 설비 중 하나 이상의 범위를 먼저 지정해야 합니다.
           </p>
         </div>
         <form
@@ -164,7 +156,7 @@ export function ResultListPage() {
                 onChange={(event) => setInspectionIdInput(event.target.value)}
               />
             </FormField>
-            <FormField label="장비 ID">
+            <FormField label="설비 ID">
               <input
                 className="input-field"
                 name="equipmentId"
@@ -184,32 +176,6 @@ export function ResultListPage() {
                     {getTargetTypeLabel(targetType)}
                   </option>
                 ))}
-              </select>
-            </FormField>
-            <FormField label="입력 유형">
-              <select
-                className="input-field"
-                name="inputType"
-                defaultValue={searchParams.get('inputType') ?? ''}
-              >
-                <option value="">전체</option>
-                {ANALYSIS_INPUT_TYPE_OPTIONS.map((inputType) => (
-                  <option key={inputType} value={inputType}>
-                    {getAnalysisInputTypeLabel(inputType)}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label="모델 유형">
-              <select
-                className="input-field"
-                name="modelType"
-                defaultValue={searchParams.get('modelType') ?? ''}
-              >
-                <option value="">전체</option>
-                <option value="RGB_ONLY">RGB 전용</option>
-                <option value="THERMAL_ONLY">열화상 전용</option>
-                <option value="FUSION">Fusion</option>
               </select>
             </FormField>
             <FormField label="작업 상태">
@@ -296,7 +262,7 @@ export function ResultListPage() {
       {!canQuery ? (
         <EmptyState
           title="먼저 범위 필터를 입력해 주세요."
-          description="점검 ID, 구역 ID, 발전소 ID, 장비 ID 중 하나를 넣으면 결과 목록을 조회할 수 있습니다."
+          description="점검 ID, 구역 ID, 발전소 ID, 설비 ID 중 하나를 넣으면 결과 목록을 조회할 수 있습니다."
         />
       ) : null}
 
@@ -316,7 +282,7 @@ export function ResultListPage() {
           <div>
             <h2 className="panel-title">결과 목록</h2>
             <p className="panel-description">
-              결과 ID와 분석 작업, 검토 상태, 조치 후보를 확인하고 상세 화면으로 이동할 수 있습니다.
+              결과 ID, 작업 상태, 검토 상태를 확인하고 상세 화면으로 이동합니다.
             </p>
           </div>
           <DataTable
@@ -333,22 +299,12 @@ export function ResultListPage() {
               },
               {
                 key: 'scope',
-                header: '대상',
+                header: '범위',
                 render: (row) => (
                   <div className="stack-sm text-sm">
                     <span>{`발전소 ${row.plantId ?? '-'}`}</span>
                     <span>{`구역 ${row.zoneId ?? '-'}`}</span>
                     <span>{`점검 ${row.inspectionId ?? '-'}`}</span>
-                  </div>
-                ),
-              },
-              {
-                key: 'types',
-                header: '유형',
-                render: (row) => (
-                  <div className="stack-sm">
-                    <StatusBadge label={getAnalysisInputTypeLabel(row.inputType!)} />
-                    <StatusBadge label={getAnalysisModelTypeLabel(row.modelType)} tone="default" />
                   </div>
                 ),
               },

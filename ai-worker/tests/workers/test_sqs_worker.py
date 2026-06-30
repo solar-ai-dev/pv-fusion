@@ -28,11 +28,7 @@ class FakeProcessor:
 
 
 def build_queue_message(body: str) -> QueueMessage:
-    return QueueMessage(
-        messageId="msg-1",
-        receiptHandle="receipt-1",
-        body=body,
-    )
+    return QueueMessage(messageId="msg-1", receiptHandle="receipt-1", body=body)
 
 
 def build_valid_body(**overrides) -> str:
@@ -40,7 +36,6 @@ def build_valid_body(**overrides) -> str:
         "jobId": 1000,
         "inputType": "RGB_SINGLE",
         "imageId": 201,
-        "imagePairId": None,
         "requestedModelType": "RGB_ONLY",
         "requestedByUserId": 1,
         "traceId": "req-20260607-0001",
@@ -52,9 +47,7 @@ def build_valid_body(**overrides) -> str:
 
 def test_run_once_passes_message_to_processor():
     queue = FakeQueuePort([build_queue_message(build_valid_body())])
-    processor = FakeProcessor(
-        ProcessingResult(status="processed", jobId=1000, message="ok")
-    )
+    processor = FakeProcessor(ProcessingResult(status="processed", jobId=1000, message="ok"))
     runner = SqsWorkerRunner(queue, processor)
 
     handled = runner.run_once()
@@ -65,9 +58,7 @@ def test_run_once_passes_message_to_processor():
 
 def test_processed_result_deletes_message():
     queue = FakeQueuePort([build_queue_message(build_valid_body())])
-    processor = FakeProcessor(
-        ProcessingResult(status="processed", jobId=1000, message="ok")
-    )
+    processor = FakeProcessor(ProcessingResult(status="processed", jobId=1000, message="ok"))
     runner = SqsWorkerRunner(queue, processor)
 
     result = runner.handle_message(queue.messages[0])
@@ -78,9 +69,7 @@ def test_processed_result_deletes_message():
 
 def test_skipped_result_deletes_message():
     queue = FakeQueuePort([build_queue_message(build_valid_body())])
-    processor = FakeProcessor(
-        ProcessingResult(status="skipped", jobId=1000, message="skip")
-    )
+    processor = FakeProcessor(ProcessingResult(status="skipped", jobId=1000, message="skip"))
     runner = SqsWorkerRunner(queue, processor)
 
     result = runner.handle_message(queue.messages[0])
@@ -110,9 +99,7 @@ def test_failed_result_does_not_delete_message():
 
 def test_invalid_json_body_is_not_deleted():
     queue = FakeQueuePort([build_queue_message("{invalid-json}")])
-    processor = FakeProcessor(
-        ProcessingResult(status="processed", jobId=1000, message="ok")
-    )
+    processor = FakeProcessor(ProcessingResult(status="processed", jobId=1000, message="ok"))
     runner = SqsWorkerRunner(queue, processor)
 
     result = runner.handle_message(queue.messages[0])
@@ -124,9 +111,7 @@ def test_invalid_json_body_is_not_deleted():
 
 def test_invalid_worker_message_is_not_deleted():
     queue = FakeQueuePort([build_queue_message(build_valid_body(traceId="  "))])
-    processor = FakeProcessor(
-        ProcessingResult(status="processed", jobId=1000, message="ok")
-    )
+    processor = FakeProcessor(ProcessingResult(status="processed", jobId=1000, message="ok"))
     runner = SqsWorkerRunner(queue, processor)
 
     result = runner.handle_message(queue.messages[0])
@@ -136,39 +121,43 @@ def test_invalid_worker_message_is_not_deleted():
     assert processor.messages == []
 
 
-def test_rgb_thermal_pair_message_is_passed_to_processor_and_deleted_when_skipped():
+def test_backend_legacy_image_pair_id_null_field_is_ignored():
+    queue = FakeQueuePort([build_queue_message(build_valid_body(imagePairId=None))])
+    processor = FakeProcessor(ProcessingResult(status="processed", jobId=1000, message="ok"))
+    runner = SqsWorkerRunner(queue, processor)
+
+    result = runner.handle_message(queue.messages[0])
+
+    assert result.status == "processed"
+    assert processor.messages[0].imageId == 201
+    assert queue.deleted_receipts == ["receipt-1"]
+
+
+def test_pair_message_is_rejected():
     queue = FakeQueuePort(
         [
             build_queue_message(
                 build_valid_body(
                     inputType="RGB_THERMAL_PAIR",
-                    imageId=None,
-                    imagePairId=301,
-                    requestedModelType="FUSION_AUTO",
+                    requestedModelType="RGB_ONLY",
+                    imageId=201,
                 )
             )
         ]
     )
-    processor = FakeProcessor(
-        ProcessingResult(status="skipped", jobId=1000, message="skip")
-    )
+    processor = FakeProcessor(ProcessingResult(status="processed", jobId=1000, message="ok"))
     runner = SqsWorkerRunner(queue, processor)
 
     result = runner.handle_message(queue.messages[0])
 
-    assert result.status == "skipped"
-    assert len(processor.messages) == 1
-    assert processor.messages[0].inputType.value == "RGB_THERMAL_PAIR"
-    assert processor.messages[0].imageId is None
-    assert processor.messages[0].imagePairId == 301
-    assert queue.deleted_receipts == ["receipt-1"]
+    assert result.failureCode == "INVALID_WORKER_MESSAGE"
+    assert processor.messages == []
+    assert queue.deleted_receipts == []
 
 
 def test_run_forever_stops_after_stop_is_requested():
     queue = FakeQueuePort([])
-    processor = FakeProcessor(
-        ProcessingResult(status="processed", jobId=1000, message="ok")
-    )
+    processor = FakeProcessor(ProcessingResult(status="processed", jobId=1000, message="ok"))
     runner = SqsWorkerRunner(queue, processor)
 
     call_count = 0
@@ -188,9 +177,7 @@ def test_run_forever_stops_after_stop_is_requested():
 
 def test_run_forever_prevents_duplicate_start():
     queue = FakeQueuePort([])
-    processor = FakeProcessor(
-        ProcessingResult(status="processed", jobId=1000, message="ok")
-    )
+    processor = FakeProcessor(ProcessingResult(status="processed", jobId=1000, message="ok"))
     runner = SqsWorkerRunner(queue, processor)
     runner._is_running = True
 
@@ -198,5 +185,5 @@ def test_run_forever_prevents_duplicate_start():
         runner.run_forever()
     except RuntimeError as error:
         assert str(error) == "SQS worker loop is already running."
-    else:  # pragma: no cover - defensive
+    else:
         raise AssertionError("Expected RuntimeError for duplicate worker start.")

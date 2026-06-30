@@ -28,9 +28,8 @@ public class AnalysisJobJpaEntity extends BaseJpaEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
     private Long imageId;
-
-    private Long imagePairId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
@@ -73,7 +72,6 @@ public class AnalysisJobJpaEntity extends BaseJpaEntity {
     public AnalysisJobJpaEntity(
             Long id,
             Long imageId,
-            Long imagePairId,
             AnalysisInputType inputType,
             RequestedModelType requestedModelType,
             AnalysisModelType modelType,
@@ -89,7 +87,6 @@ public class AnalysisJobJpaEntity extends BaseJpaEntity {
     ) {
         this.id = id;
         this.imageId = imageId;
-        this.imagePairId = imagePairId;
         this.inputType = inputType;
         this.requestedModelType = requestedModelType;
         this.modelType = modelType;

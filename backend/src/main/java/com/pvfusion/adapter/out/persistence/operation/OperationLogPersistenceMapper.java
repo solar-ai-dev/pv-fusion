@@ -21,7 +21,7 @@ public class OperationLogPersistenceMapper {
                 entity.getZoneId(),
                 entity.getInspectionId(),
                 entity.getImageId(),
-                entity.getImagePairId(),
+                null,
                 entity.getAnalysisJobId(),
                 entity.getAnalysisResultId(),
                 entity.getIpAddress(),

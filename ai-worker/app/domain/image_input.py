@@ -11,13 +11,3 @@ class SingleImageInput(BaseModel):
     fileUrl: str | None = None
     targetType: str
     equipmentId: int | None = None
-
-
-class PairedImageInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    imagePairId: int
-    targetType: str
-    equipmentId: int | None = None
-    rgbImage: SingleImageInput
-    thermalImage: SingleImageInput

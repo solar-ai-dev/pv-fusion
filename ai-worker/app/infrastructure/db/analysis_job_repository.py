@@ -17,7 +17,6 @@ class PostgresAnalysisJobRepository(JobRepositoryPort):
             SELECT
                 id,
                 image_id,
-                image_pair_id,
                 input_type,
                 requested_model_type,
                 model_type,
@@ -38,7 +37,6 @@ class PostgresAnalysisJobRepository(JobRepositoryPort):
         return AnalysisJob(
             jobId=row["id"],
             imageId=row["image_id"],
-            imagePairId=row["image_pair_id"],
             inputType=InputType(row["input_type"]),
             requestedModelType=RequestedModelType(row["requested_model_type"]),
             modelType=ModelType(row["model_type"]) if row["model_type"] else None,

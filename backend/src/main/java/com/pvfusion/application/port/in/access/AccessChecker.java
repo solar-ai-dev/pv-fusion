@@ -19,8 +19,6 @@ public interface AccessChecker {
 
     boolean checkImageAccess(Long userId, Long imageId);
 
-    boolean checkImagePairAccess(Long userId, Long imagePairId);
-
     boolean checkAnalysisJobAccess(Long userId, Long jobId);
 
     boolean checkResultAccess(Long userId, Long resultId);

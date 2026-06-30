@@ -32,7 +32,7 @@ class SqsAnalysisJobPublisherAdapterTest {
         );
 
         adapter.publish(new AnalysisJobMessage(
-                1L, AnalysisInputType.RGB_SINGLE, 10L, null, RequestedModelType.RGB_ONLY, 1L, "trace", OffsetDateTime.now()
+                1L, AnalysisInputType.RGB_SINGLE, 10L, RequestedModelType.RGB_ONLY, 1L, "trace", OffsetDateTime.now()
         ));
 
         verify(sqsClient).sendMessage(any(software.amazon.awssdk.services.sqs.model.SendMessageRequest.class));
@@ -47,7 +47,7 @@ class SqsAnalysisJobPublisherAdapterTest {
         );
 
         assertThatThrownBy(() -> adapter.publish(new AnalysisJobMessage(
-                1L, AnalysisInputType.RGB_SINGLE, 10L, null, RequestedModelType.RGB_ONLY, 1L, "trace", OffsetDateTime.now()
+                1L, AnalysisInputType.RGB_SINGLE, 10L, RequestedModelType.RGB_ONLY, 1L, "trace", OffsetDateTime.now()
         ))).isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.QUEUE_UNAVAILABLE);

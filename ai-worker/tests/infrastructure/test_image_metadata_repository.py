@@ -71,110 +71,12 @@ def test_get_single_image_returns_none_when_row_is_missing():
     assert image is None
 
 
-def test_get_paired_image_maps_rgb_and_thermal_images():
-    cursor = FakeCursor(
-        [
-            {
-                "id": 21,
-                "equipment_id": None,
-                "target_type": "ZONE",
-                "rgb_image_id": 101,
-                "thermal_image_id": 102,
-            },
-            {
-                "id": 101,
-                "equipment_id": None,
-                "target_type": "ZONE",
-                "image_type": "RGB",
-                "bucket_name": "rgb-bucket",
-                "object_key": "rgb/101.jpg",
-                "file_url": None,
-            },
-            {
-                "id": 102,
-                "equipment_id": None,
-                "target_type": "ZONE",
-                "image_type": "THERMAL",
-                "bucket_name": "thermal-bucket",
-                "object_key": "thermal/102.jpg",
-                "file_url": None,
-            },
-        ]
-    )
+def test_repository_queries_inspection_images_only():
+    cursor = FakeCursor([None])
     repository = PostgresImageMetadataRepository(lambda: FakeConnection(cursor))
 
-    pair = repository.get_paired_image(21)
+    repository.get_single_image(999)
 
-    assert pair is not None
-    assert pair.imagePairId == 21
-    assert pair.targetType == "ZONE"
-    assert pair.rgbImage.imageId == 101
-    assert pair.rgbImage.imageType == "RGB"
-    assert pair.thermalImage.imageId == 102
-    assert pair.thermalImage.imageType == "THERMAL"
-
-
-def test_get_paired_image_returns_none_when_pair_is_missing():
-    repository = PostgresImageMetadataRepository(lambda: FakeConnection(FakeCursor([None])))
-
-    pair = repository.get_paired_image(21)
-
-    assert pair is None
-
-
-def test_get_paired_image_returns_none_when_rgb_image_is_missing():
-    cursor = FakeCursor(
-        [
-            {
-                "id": 21,
-                "equipment_id": 5,
-                "target_type": "MODULE",
-                "rgb_image_id": 101,
-                "thermal_image_id": 102,
-            },
-            None,
-            {
-                "id": 102,
-                "equipment_id": 5,
-                "target_type": "MODULE",
-                "image_type": "THERMAL",
-                "bucket_name": "thermal-bucket",
-                "object_key": "thermal/102.jpg",
-                "file_url": None,
-            },
-        ]
-    )
-    repository = PostgresImageMetadataRepository(lambda: FakeConnection(cursor))
-
-    pair = repository.get_paired_image(21)
-
-    assert pair is None
-
-
-def test_get_paired_image_returns_none_when_thermal_image_is_missing():
-    cursor = FakeCursor(
-        [
-            {
-                "id": 21,
-                "equipment_id": 5,
-                "target_type": "MODULE",
-                "rgb_image_id": 101,
-                "thermal_image_id": 102,
-            },
-            {
-                "id": 101,
-                "equipment_id": 5,
-                "target_type": "MODULE",
-                "image_type": "RGB",
-                "bucket_name": "rgb-bucket",
-                "object_key": "rgb/101.jpg",
-                "file_url": None,
-            },
-            None,
-        ]
-    )
-    repository = PostgresImageMetadataRepository(lambda: FakeConnection(cursor))
-
-    pair = repository.get_paired_image(21)
-
-    assert pair is None
+    assert len(cursor.executed) == 1
+    assert "FROM inspection_images" in cursor.executed[0][0]
+    assert "image_pairs" not in cursor.executed[0][0]

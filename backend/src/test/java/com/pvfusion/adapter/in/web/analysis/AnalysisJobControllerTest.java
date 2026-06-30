@@ -48,85 +48,121 @@ class AnalysisJobControllerTest {
 
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
-    private LocalValidatorFactoryBean validator;
 
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper().findAndRegisterModules();
-        validator = new LocalValidatorFactoryBean();
+        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.setProviderClass(HibernateValidator.class);
         validator.afterPropertiesSet();
+
         mockMvc = MockMvcBuilders.standaloneSetup(new AnalysisJobController(
-                requestAnalysisUseCase,
-                queryAnalysisJobUseCase,
-                getAnalysisJobUseCase,
-                retryAnalysisJobUseCase
-        ))
+                        requestAnalysisUseCase,
+                        queryAnalysisJobUseCase,
+                        getAnalysisJobUseCase,
+                        retryAnalysisJobUseCase
+                ))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
                 .build();
     }
 
     @Test
-    @DisplayName("AnalysisJob 생성 성공 응답은 공통 success wrapper를 반환한다")
+    @DisplayName("분석 Job 생성 성공 응답은 success wrapper를 반환한다")
     void requestAnalysisReturnsCreated() throws Exception {
         when(requestAnalysisUseCase.execute(any())).thenReturn(sampleResponse());
 
         mockMvc.perform(post("/api/v1/analysis-jobs")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new RequestAnalysisJobRequest(
-                                10L, null, AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, "trace"
-                        ))))
+                        .content(objectMapper.writeValueAsString(new RequestAnalysisJobRequest(10L, "trace"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").isNotEmpty())
                 .andExpect(jsonPath("$.data.jobId").value(1L));
     }
 
     @Test
-    void requestAnalysisValidationReturnsBadRequestWithErrorWrapper() throws Exception {
-        mockMvc.perform(post("/api/v1/analysis-jobs")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new RequestAnalysisJobRequest(
-                                10L, null, null, null, "trace"
-                        ))))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.error.status").value(400))
-                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"))
-                .andExpect(jsonPath("$.error.path").value("/api/v1/analysis-jobs"))
-                .andExpect(jsonPath("$.error.traceId").isNotEmpty());
-    }
-
-    @Test
-    void requestAnalysisRejectsUnknownInputType() throws Exception {
+    void requestAnalysisValidationReturnsBadRequestWhenImageIdMissing() throws Exception {
         mockMvc.perform(post("/api/v1/analysis-jobs")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "imageId": 10,
-                                  "imagePairId": null,
-                                  "inputType": "UNKNOWN",
-                                  "requestedModelType": "RGB_ONLY",
                                   "traceId": "trace"
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.error.status").value(400))
                 .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"))
-                .andExpect(jsonPath("$.error.path").value("/api/v1/analysis-jobs"))
-                .andExpect(jsonPath("$.error.traceId").isNotEmpty());
+                .andExpect(jsonPath("$.error.path").value("/api/v1/analysis-jobs"));
+    }
+
+    @Test
+    void requestAnalysisValidationReturnsBadRequestWhenImageIdNull() throws Exception {
+        mockMvc.perform(post("/api/v1/analysis-jobs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "imageId": null,
+                                  "traceId": "trace"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.error.path").value("/api/v1/analysis-jobs"));
+    }
+
+    @Test
+    void requestAnalysisIgnoresLegacyFieldsInRequestBody() throws Exception {
+        when(requestAnalysisUseCase.execute(any())).thenReturn(sampleResponse());
+
+        mockMvc.perform(post("/api/v1/analysis-jobs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "imageId": 10,
+                                  "imagePairId": 20,
+                                  "inputType": "RGB_SINGLE",
+                                  "requestedModelType": "RGB_ONLY",
+                                  "traceId": "trace"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.jobId").value(1L));
+    }
+
+    @Test
+    void requestDtoSerializationDoesNotContainLegacyFields() throws Exception {
+        String json = objectMapper.writeValueAsString(new RequestAnalysisJobRequest(10L, "trace"));
+
+        org.assertj.core.api.Assertions.assertThat(json).contains("imageId");
+        org.assertj.core.api.Assertions.assertThat(json).doesNotContain("imagePairId");
+        org.assertj.core.api.Assertions.assertThat(json).doesNotContain("inputType");
+        org.assertj.core.api.Assertions.assertThat(json).doesNotContain("requestedModelType");
     }
 
     @Test
     void queryAnalysisJobsReturnsOk() throws Exception {
         when(queryAnalysisJobUseCase.execute(any())).thenReturn(PageResponse.of(
                 List.of(new AnalysisJobSummaryResponse(
-                        1L, 100L, 20L, 30L, 10L, null, AnalysisInputType.RGB_SINGLE,
-                        AnalysisModelType.RGB_ONLY, AnalysisJobStatus.QUEUED, OffsetDateTime.now(), null, null
+                        1L,
+                        100L,
+                        20L,
+                        30L,
+                        10L,
+                        null,
+                        AnalysisInputType.RGB_SINGLE,
+                        AnalysisModelType.RGB_ONLY,
+                        AnalysisJobStatus.QUEUED,
+                        OffsetDateTime.now(),
+                        null,
+                        null
                 )),
-                0, 20, 1, 1, false
+                0,
+                20,
+                1,
+                1,
+                false
         ));
 
         mockMvc.perform(get("/api/v1/analysis-jobs")
@@ -157,9 +193,25 @@ class AnalysisJobControllerTest {
 
     private AnalysisJobResponse sampleResponse() {
         return new AnalysisJobResponse(
-                1L, 100L, 20L, 30L, 10L, null, AnalysisInputType.RGB_SINGLE,
-                RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY, AnalysisJobStatus.QUEUED,
-                1L, OffsetDateTime.now(), null, null, null, null, OffsetDateTime.now(), OffsetDateTime.now(), "trace"
+                1L,
+                100L,
+                20L,
+                30L,
+                10L,
+                null,
+                AnalysisInputType.RGB_SINGLE,
+                RequestedModelType.RGB_ONLY,
+                AnalysisModelType.RGB_ONLY,
+                AnalysisJobStatus.QUEUED,
+                1L,
+                OffsetDateTime.now(),
+                null,
+                null,
+                null,
+                null,
+                OffsetDateTime.now(),
+                OffsetDateTime.now(),
+                "trace"
         );
     }
 }

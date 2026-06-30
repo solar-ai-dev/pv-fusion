@@ -45,7 +45,6 @@ export type ChangeUserRoleRequest = {
 export type OperationEventCategory =
   | 'AUTH'
   | 'IMAGE'
-  | 'PAIR'
   | 'ANALYSIS'
   | 'RESULT'
   | 'ADMIN'
@@ -115,7 +114,6 @@ export const ACCOUNT_STATUS_OPTIONS: AccountStatus[] = [
 export const OPERATION_EVENT_CATEGORY_OPTIONS: OperationEventCategory[] = [
   'AUTH',
   'IMAGE',
-  'PAIR',
   'ANALYSIS',
   'RESULT',
   'ADMIN',
@@ -211,8 +209,6 @@ export function getOperationEventCategoryLabel(category: OperationEventCategory)
       return '인증'
     case 'IMAGE':
       return '이미지'
-    case 'PAIR':
-      return '페어'
     case 'ANALYSIS':
       return '분석'
     case 'RESULT':
