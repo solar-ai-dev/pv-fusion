@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -6,6 +7,22 @@ from app.domain.detected_defect import DetectedDefectDraft
 from app.domain.enums import ActionCandidate, ResultStatus
 from app.domain.inference_result import InferenceResult, RestoredMask, VisualizationPaths
 from app.domain.model import ModelInfo
+
+logger = logging.getLogger(__name__)
+
+ALLOWED_DEFECT_TYPES = {
+    "CONTAMINATION",
+    "DUST",
+    "LEAF",
+    "BIRD_DROPPING",
+    "SHADING",
+    "VEGETATION",
+    "APPEARANCE_DAMAGE",
+    "HOTSPOT",
+    "OVERHEATING",
+    "ABNORMAL_HEAT",
+    "UNKNOWN",
+}
 
 
 @dataclass(frozen=True)
@@ -31,7 +48,7 @@ def parse_inference_output(raw_output: Any, model_info: ModelInfo) -> InferenceR
         action_candidate = ActionCandidate(
             raw_output.get("actionCandidate", ActionCandidate.CLEANING.value)
         )
-        defects = list(raw_output.get("defects", []))
+        defects = _normalize_structured_defects(raw_output.get("defects", []))
         visualization_paths = VisualizationPaths(
             bboxObjectKey=raw_output.get("bboxObjectKey"),
             heatmapObjectKey=raw_output.get("heatmapObjectKey"),
@@ -82,12 +99,14 @@ def _extract_detections_and_masks(
             output1=raw_output[1],
             threshold=model_info.threshold,
             input_size=model_info.inputSize,
+            class_names=model_info.classNames,
         )
     return (
         _parse_detection_rows(
             rows=_flatten_rows(raw_output),
             threshold=model_info.threshold,
             source="THERMAL",
+            class_names=model_info.classNames,
         ),
         [],
     )
@@ -96,9 +115,17 @@ def _extract_detections_and_masks(
 def detections_to_defects(detections: list[ParsedDetection]) -> list[DetectedDefectDraft]:
     defects: list[DetectedDefectDraft] = []
     for detection in detections:
+        defect_type = _resolve_defect_type(detection.class_name)
+        logger.info(
+            "Defect type normalized. source=%s, classId=%s, rawClassName=%s, storedDefectType=%s",
+            detection.source,
+            detection.class_id,
+            detection.class_name,
+            defect_type,
+        )
         defects.append(
             DetectedDefectDraft(
-                defectType=detection.class_name or _fallback_defect_type(detection),
+                defectType=defect_type,
                 defectSource=detection.source,
                 confidence=detection.confidence,
                 areaRatio=None,
@@ -132,7 +159,12 @@ def _flatten_rows(output: Any) -> list[Any]:
     return list(rows)
 
 
-def _parse_detection_rows(rows: list[Any], threshold: Decimal, source: str) -> list[ParsedDetection]:
+def _parse_detection_rows(
+    rows: list[Any],
+    threshold: Decimal,
+    source: str,
+    class_names: list[str],
+) -> list[ParsedDetection]:
     detections: list[ParsedDetection] = []
     for row in rows:
         values = _to_sequence(row)
@@ -158,7 +190,7 @@ def _parse_detection_rows(rows: list[Any], threshold: Decimal, source: str) -> l
         detections.append(
             ParsedDetection(
                 class_id=class_id,
-                class_name=None,
+                class_name=_resolve_raw_class_name(class_id, class_names),
                 confidence=confidence,
                 bbox_x=x1,
                 bbox_y=y1,
@@ -175,6 +207,7 @@ def _parse_rgb_outputs(
     output1: Any,
     threshold: Decimal,
     input_size: int,
+    class_names: list[str],
 ) -> tuple[list[ParsedDetection], list[RestoredMask]]:
     rows = _flatten_rows(output0)
     detections: list[ParsedDetection] = []
@@ -185,7 +218,7 @@ def _parse_rgb_outputs(
         if len(values) < 6:
             continue
 
-        detection = _parse_detection(values, threshold, "RGB")
+        detection = _parse_detection(values, threshold, "RGB", class_names)
         if detection is None:
             continue
 
@@ -217,7 +250,12 @@ def _parse_rgb_outputs(
     return detections, restored_masks
 
 
-def _parse_detection(values: list[Any], threshold: Decimal, source: str) -> ParsedDetection | None:
+def _parse_detection(
+    values: list[Any],
+    threshold: Decimal,
+    source: str,
+    class_names: list[str],
+) -> ParsedDetection | None:
     confidence = _to_decimal(values[4])
     if confidence is None or confidence < threshold:
         return None
@@ -235,7 +273,7 @@ def _parse_detection(values: list[Any], threshold: Decimal, source: str) -> Pars
 
     return ParsedDetection(
         class_id=_safe_int(values[5]),
-        class_name=None,
+        class_name=_resolve_raw_class_name(_safe_int(values[5]), class_names),
         confidence=confidence,
         bbox_x=x1,
         bbox_y=y1,
@@ -373,12 +411,51 @@ def _max_confidence(detections: list[ParsedDetection]) -> Decimal | None:
     return max(detection.confidence for detection in detections)
 
 
-def _fallback_defect_type(detection: ParsedDetection) -> str:
-    if detection.source == "THERMAL":
-        return f"THERMAL_CLASS_{detection.class_id}"
-    if detection.source == "RGB":
-        return f"RGB_CLASS_{detection.class_id}"
-    return f"CLASS_{detection.class_id}"
+def _resolve_raw_class_name(class_id: int, class_names: list[str]) -> str | None:
+    if class_id < 0 or class_id >= len(class_names):
+        return None
+    raw_value = class_names[class_id].strip()
+    return raw_value or None
+
+
+def _resolve_defect_type(raw_value: str | None) -> str:
+    if raw_value in ALLOWED_DEFECT_TYPES:
+        return raw_value
+    return "UNKNOWN"
+
+
+def _normalize_structured_defects(raw_defects: Any) -> list[DetectedDefectDraft]:
+    normalized: list[DetectedDefectDraft] = []
+    for raw_defect in list(raw_defects or []):
+        if isinstance(raw_defect, DetectedDefectDraft):
+            normalized.append(
+                raw_defect.model_copy(update={"defectType": _resolve_defect_type(raw_defect.defectType)})
+            )
+            continue
+
+        if not isinstance(raw_defect, dict):
+            continue
+
+        normalized.append(
+            DetectedDefectDraft(
+                defectType=_resolve_defect_type(raw_defect.get("defectType")),
+                defectSource=str(raw_defect.get("defectSource", "UNKNOWN")),
+                confidence=_to_decimal(raw_defect.get("confidence")),
+                areaRatio=_to_decimal(raw_defect.get("areaRatio")),
+                bboxX=int(raw_defect.get("bboxX", 0)),
+                bboxY=int(raw_defect.get("bboxY", 0)),
+                bboxWidth=int(raw_defect.get("bboxWidth", 0)),
+                bboxHeight=int(raw_defect.get("bboxHeight", 0)),
+                maskBucketName=raw_defect.get("maskBucketName"),
+                maskObjectKey=raw_defect.get("maskObjectKey"),
+                maskFileUrl=raw_defect.get("maskFileUrl"),
+                severityScore=_to_decimal(raw_defect.get("severityScore")),
+                actionCandidate=ActionCandidate(
+                    raw_defect.get("actionCandidate", ActionCandidate.CLEANING.value)
+                ),
+            )
+        )
+    return normalized
 
 
 def _looks_normalized(x: float, y: float, width: float, height: float) -> bool:

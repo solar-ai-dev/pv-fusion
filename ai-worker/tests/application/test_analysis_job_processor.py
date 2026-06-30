@@ -223,7 +223,7 @@ def build_thermal_inference_result() -> InferenceResult:
         actionCandidate=ActionCandidate.CLEANING,
         defects=[
             DetectedDefectDraft(
-                defectType="THERMAL_CLASS_1",
+                defectType="UNKNOWN",
                 defectSource="THERMAL",
                 confidence="0.8",
                 areaRatio=None,

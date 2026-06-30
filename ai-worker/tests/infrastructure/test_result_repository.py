@@ -74,7 +74,7 @@ def build_result_draft() -> AnalysisResultDraft:
 
 def build_defect() -> DetectedDefectDraft:
     return DetectedDefectDraft(
-        defectType="THERMAL_CLASS_1",
+        defectType="UNKNOWN",
         defectSource="THERMAL",
         confidence=Decimal("0.91"),
         areaRatio=None,
@@ -140,7 +140,7 @@ def test_save_defects_inserts_each_defect():
     query, params = cursor.executed[0]
     assert "INSERT INTO detected_defects" in query
     assert params[0] == 321
-    assert params[1] == "THERMAL_CLASS_1"
+    assert params[1] == "UNKNOWN"
     assert params[2] == "THERMAL"
     assert params[13] == "LOW"
     assert params[14] == "CLEANING"

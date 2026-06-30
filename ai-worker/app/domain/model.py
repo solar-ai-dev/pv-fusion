@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import ModelType, RequestedModelType
 
@@ -17,3 +17,4 @@ class ModelInfo(BaseModel):
     runtime: str
     inputSize: int
     threshold: Decimal
+    classNames: list[str] = Field(default_factory=list)

@@ -3,7 +3,11 @@ from app.domain.model import ModelInfo
 from app.infrastructure.model.output_parser import extract_detections, parse_inference_output, restore_rgb_instance_masks
 
 
-def build_model_info(model_type: ModelType, threshold: str = "0.50") -> ModelInfo:
+def build_model_info(
+    model_type: ModelType,
+    threshold: str = "0.50",
+    class_names: list[str] | None = None,
+) -> ModelInfo:
     return ModelInfo(
         modelPath="models/test.onnx",
         modelType=model_type,
@@ -16,6 +20,7 @@ def build_model_info(model_type: ModelType, threshold: str = "0.50") -> ModelInf
         runtime="onnxruntime",
         inputSize=640,
         threshold=threshold,
+        classNames=class_names or [],
     )
 
 
@@ -44,12 +49,33 @@ def test_thermal_output_below_threshold_is_filtered_out():
     assert result.defects == []
 
 
-def test_thermal_output_uses_none_class_name_and_fallback_defect_type():
+def test_thermal_output_uses_unknown_for_unmapped_class_name():
     detections = extract_detections([[[10, 20, 30, 50, 0.9, 99]]], build_model_info(ModelType.THERMAL_ONLY))
     result = parse_inference_output([[[10, 20, 30, 50, 0.9, 99]]], build_model_info(ModelType.THERMAL_ONLY))
 
     assert detections[0].class_name is None
-    assert result.defects[0].defectType == "THERMAL_CLASS_99"
+    assert result.defects[0].defectType == "UNKNOWN"
+
+
+def test_thermal_output_uses_allowed_manifest_class_name_as_defect_type():
+    result = parse_inference_output(
+        [[[10, 20, 30, 50, 0.9, 0]]],
+        build_model_info(ModelType.THERMAL_ONLY, class_names=["DUST"]),
+    )
+
+    assert result.defects[0].defectType == "DUST"
+
+
+def test_rgb_output_uses_unknown_for_non_enum_manifest_class_name():
+    output0 = [[[10, 20, 30, 50, 0.9, 0] + ([0] * 32)]]
+    output1 = [[[[0] * 192 for _ in range(192)] for _ in range(32)]]
+
+    result = parse_inference_output(
+        [output0, output1],
+        build_model_info(ModelType.RGB_ONLY, class_names=["dusty"]),
+    )
+
+    assert result.defects[0].defectType == "UNKNOWN"
 
 
 def test_rgb_output_with_two_tensors_does_not_crash_and_ignores_mask_proto():
