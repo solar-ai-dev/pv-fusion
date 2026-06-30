@@ -19,8 +19,9 @@
 7. `Docker Build`
 8. `Image Metadata Summary`
 9. `Optional ECR Push`
+10. `K3s Rollout`
 
-K3s 배포 단계는 이번 범위에 포함하지 않는다.
+K3s rollout 단계는 `ENABLE_ECR_PUSH=true` 이고 branch가 `main`일 때만 실행한다.
 
 ## 3. 서비스별 실제 명령
 
@@ -170,7 +171,7 @@ feature branch에서 `ENABLE_ECR_PUSH=true`를 주더라도 기본 정책상 pus
 - Jenkinsfile, 문서, 로그에 실제 Secret 값을 기록하지 않는다.
 - AWS 인증은 장기 Access Key 대신 EC2 Instance Role 사용을 전제로 한다.
 - AI 모델 파일은 image에 포함하지 않는다.
-- `docker push`와 `kubectl` 배포는 이번 단계 기본 동작이 아니다.
+- `kubectl` 배포는 `ENABLE_ECR_PUSH=true` + `main` branch에서만 수행한다.
 
 ## 10. K3s 정합성 확인
 
@@ -198,4 +199,4 @@ feature branch에서 `ENABLE_ECR_PUSH=true`를 주더라도 기본 정책상 pus
 - EC2 Instance Role 검증
 - 실제 ECR repository 생성 완료 확인
 - Jenkins job 연결
-- K3s 배포 단계 추가
+- K3s rollout stage는 Frontend / Backend / AI Worker Deployment를 Git SHA 이미지로 갱신한다
