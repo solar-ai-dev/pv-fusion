@@ -1,0 +1,72 @@
+package com.pvfusion.domain.plant;
+
+import com.pvfusion.domain.common.ResourceStatus;
+import java.time.OffsetDateTime;
+import lombok.Getter;
+
+@Getter
+public class Plant {
+
+    private final Long id;
+    private final String name;
+    private final String location;
+    private final String description;
+    private final ResourceStatus status;
+    private final Long createdByUserId;
+    private final OffsetDateTime createdAt;
+    private final OffsetDateTime updatedAt;
+
+    public Plant(
+            Long id,
+            String name,
+            String location,
+            String description,
+            ResourceStatus status,
+            Long createdByUserId,
+            OffsetDateTime createdAt,
+            OffsetDateTime updatedAt
+    ) {
+        this.id = id;
+        this.name = name;
+        this.location = location;
+        this.description = description;
+        this.status = status;
+        this.createdByUserId = createdByUserId;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
+
+    public Plant update(String name, String location, String description) {
+        return new Plant(
+                id,
+                name,
+                location,
+                description,
+                status,
+                createdByUserId,
+                createdAt,
+                OffsetDateTime.now()
+        );
+    }
+
+    public Plant deactivate() {
+        return new Plant(
+                id,
+                name,
+                location,
+                description,
+                ResourceStatus.INACTIVE,
+                createdByUserId,
+                createdAt,
+                OffsetDateTime.now()
+        );
+    }
+
+    public boolean isActive() {
+        return status == ResourceStatus.ACTIVE;
+    }
+
+    public boolean isInactive() {
+        return status == ResourceStatus.INACTIVE;
+    }
+}

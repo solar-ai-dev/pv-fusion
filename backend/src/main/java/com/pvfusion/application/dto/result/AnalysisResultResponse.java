@@ -1,0 +1,55 @@
+package com.pvfusion.application.dto.result;
+
+import com.pvfusion.application.dto.defect.DetectedDefectResponse;
+import com.pvfusion.application.dto.review.ResultReviewHistoryResponse;
+import com.pvfusion.domain.analysis.AnalysisInputType;
+import com.pvfusion.domain.analysis.AnalysisModelType;
+import com.pvfusion.domain.common.TargetType;
+import com.pvfusion.domain.result.ActionCandidate;
+import com.pvfusion.domain.result.AnalysisResultStatus;
+import com.pvfusion.domain.result.PriorityLevel;
+import com.pvfusion.domain.result.SeverityLevel;
+import com.pvfusion.domain.review.ReviewStatus;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.List;
+
+public record AnalysisResultResponse(
+        Long resultId,
+        Long jobId,
+        Long plantId,
+        Long zoneId,
+        Long inspectionId,
+        TargetType targetType,
+        Long equipmentId,
+        AnalysisInputType inputType,
+        AnalysisModelType modelType,
+        AnalysisResultStatus resultStatus,
+        Integer anomalyCount,
+        BigDecimal maxConfidence,
+        BigDecimal areaRatio,
+        BigDecimal severityScore,
+        SeverityLevel severityLevel,
+        ActionCandidate actionCandidate,
+        PriorityLevel priorityLevel,
+        ReviewStatus reviewStatus,
+        String bboxBucketName,
+        String bboxObjectKey,
+        String bboxFileUrl,
+        String heatmapBucketName,
+        String heatmapObjectKey,
+        String heatmapFileUrl,
+        String maskBucketName,
+        String maskObjectKey,
+        String maskFileUrl,
+        OffsetDateTime analyzedAt,
+        OffsetDateTime createdAt,
+        OffsetDateTime updatedAt,
+        List<DetectedDefectResponse> detections,
+        List<ResultReviewHistoryResponse> reviewHistories,
+        ResultVisualizationResponse bboxVisualization,
+        ResultVisualizationResponse heatmapVisualization,
+        ResultVisualizationResponse maskVisualization,
+        ModelInfoResponse modelInfo
+) {
+}

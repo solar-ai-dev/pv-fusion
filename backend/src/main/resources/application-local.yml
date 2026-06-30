@@ -2,16 +2,44 @@ spring:
   config:
     activate:
       on-profile: local
+
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:pv_fusion_local}
     username: ${POSTGRES_USER:pvfusion}
-    password: ${POSTGRES_PASSWORD:pvfusion}
+    password: ${POSTGRES_PASSWORD:change_me_postgres_password}
     driver-class-name: org.postgresql.Driver
-  jpa:
-    hibernate:
-      ddl-auto: none
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-  flyway:
-    enabled: true
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+
+app:
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:5175}
+  auth:
+    oauth2:
+      success-redirect-url: ${OAUTH2_SUCCESS_REDIRECT_URL:${app.frontend.base-url}/dashboard}
+      failure-redirect-url: ${OAUTH2_FAILURE_REDIRECT_URL:${app.frontend.base-url}/login?error=oauth}
+
+storage:
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    public-endpoint: ${MINIO_PUBLIC_ENDPOINT:${MINIO_ENDPOINT:http://localhost:9000}}
+    access-key: ${MINIO_ROOT_USER:change_me_minio_root_user}
+    secret-key: ${MINIO_ROOT_PASSWORD:change_me_minio_root_password}
+    bucket-name: ${MINIO_BUCKET_NAME:pv-insight-local}
+    region: ${MINIO_REGION:ap-northeast-2}
+
+queue:
+  sqs:
+    endpoint: ${SQS_ENDPOINT:http://localhost:4566}
+    access-key: ${SQS_ACCESS_KEY:test}
+    secret-key: ${SQS_SECRET_KEY:test}
+    region: ${SQS_REGION:ap-northeast-2}
+    queue-url: ${SQS_QUEUE_URL:http://localhost:4566/000000000000/analysis-job-queue}

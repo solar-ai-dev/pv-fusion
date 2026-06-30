@@ -2,12 +2,14 @@
 **/.env
 **/.env.*
 **/*.local
+**/application-*.local.yml
+**/application-*.local.yaml
+**/application-*.local.properties
 !**/.env.example
 
 # Build outputs
 **/build/
 **/dist/
-**/out/
 **/target/
 **/.gradle/
 **/.vite/
@@ -15,6 +17,7 @@
 # Packages, virtualenvs, caches
 **/node_modules/
 **/.venv/
+**/.venv-experiments/
 **/venv/
 **/__pycache__/
 **/.pytest_cache/
@@ -33,6 +36,7 @@
 .DS_Store
 Thumbs.db
 .idea/
+.vscode/
 
 # Model and training artifacts
 **/*.pt
@@ -45,19 +49,17 @@ Thumbs.db
 **/*.joblib
 **/*.mlflow
 
-# Experiment data and outputs
-experiments/datasets/*
-!experiments/datasets/.gitkeep
-experiments/results/*
-!experiments/results/.gitkeep
-experiments/runs/*
-!experiments/runs/.gitkeep
-experiments/models/*
-!experiments/models/.gitkeep
-
 # AI worker model and temp directories
-ai-worker/models/*
+ai-worker/models/**
+!ai-worker/models/
 !ai-worker/models/.gitkeep
+!ai-worker/models/README.md
+ai-worker/models/**/*.onnx
+ai-worker/models/**/*.pt
+ai-worker/models/**/*.engine
+ai-worker/models/**/*.torchscript
+ai-worker/models/**/model-manifest*.yaml
+ai-worker/models/*/README.md
 ai-worker/tmp/*
 !ai-worker/tmp/.gitkeep
 
@@ -65,11 +67,22 @@ ai-worker/tmp/*
 k8s/**/*secret*.yaml
 k8s/**/*secret*.yml
 !k8s/_examples/**
+k8s/secrets/
+k8s/secret.yaml
+kubeconfig
 
-# Docs are intentionally excluded
-docs/
+# AWS and infrastructure local secrets
+.aws/credentials
+.aws/config
+**/*.pem
+**/*.key
+scripts/aws/output/
 
 # Keep tracking placeholders and examples
 !**/.gitkeep
 !**/.env.example
 !k8s/_examples/**
+
+# Experiments
+experiments/
+experiments/**

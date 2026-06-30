@@ -1,0 +1,39 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: ${RDS_JDBC_URL}
+    username: ${RDS_USERNAME}
+    password: ${RDS_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+
+app:
+  frontend:
+    base-url: ${FRONTEND_BASE_URL}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+  auth:
+    oauth2:
+      success-redirect-url: ${OAUTH2_SUCCESS_REDIRECT_URL:${app.frontend.base-url}/dashboard}
+      failure-redirect-url: ${OAUTH2_FAILURE_REDIRECT_URL:${app.frontend.base-url}/login?error=oauth}
+
+storage:
+  s3:
+    bucket-name: ${S3_BUCKET_NAME}
+    region: ${AWS_REGION}
+    path-style-access-enabled: ${S3_PATH_STYLE_ACCESS_ENABLED:false}
+
+queue:
+  sqs:
+    region: ${AWS_REGION}
+    queue-url: ${SQS_QUEUE_URL}

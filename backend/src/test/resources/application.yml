@@ -1,0 +1,29 @@
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: test-google-client-id
+            client-secret: test-google-client-secret
+
+app:
+  auth:
+    oauth2:
+      success-redirect-url: /api/v1/auth/me
+      failure-redirect-url: /login?error=oauth
+
+storage:
+  presign-duration-seconds: 900
+  minio:
+    region: ap-northeast-2
+    path-style-access-enabled: true
+  s3:
+    bucket-name: test-bucket
+    region: ap-northeast-2
+    path-style-access-enabled: false
+
+queue:
+  sqs:
+    region: ap-northeast-2
+    queue-url: http://localhost:4566/000000000000/test-analysis-job-queue
