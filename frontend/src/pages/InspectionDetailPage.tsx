@@ -927,7 +927,7 @@ export function InspectionDetailPage() {
           </div>
           <ul className="marker-list">
             <li>성공한 분석 작업에서는 결과 목록으로 이동해 상세 결과를 확인할 수 있습니다.</li>
-            <li>Pair/Fusion 생성과 관리 UI는 제거했고, 레거시 응답이 남아 있어도 화면이 깨지지 않도록 최소 안전 처리를 유지합니다.</li>
+            <li>현재 제품 범위는 RGB 및 열화상 단건 분석이며, 화면은 이 흐름 기준으로 동작합니다.</li>
             <li>backend가 내려주는 실패 코드와 실패 메시지는 원문 기준으로 보여 줍니다.</li>
           </ul>
         </section>

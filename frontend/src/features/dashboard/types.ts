@@ -21,7 +21,6 @@ export type DashboardSummary = {
   inProgressInspectionCount: number
   completedInspectionCount: number
   totalImageCount: number
-  totalImagePairCount: number
   totalAnalysisJobCount: number
   queuedJobCount: number
   runningJobCount: number

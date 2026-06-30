@@ -102,11 +102,6 @@ public class AccessCheckerService implements AccessChecker {
     }
 
     @Override
-    public boolean checkImagePairAccess(Long userId, Long imagePairId) {
-        return false;
-    }
-
-    @Override
     public boolean checkAnalysisJobAccess(Long userId, Long jobId) {
         if (userId == null || jobId == null || loadAnalysisJobPort.isEmpty()) {
             return false;

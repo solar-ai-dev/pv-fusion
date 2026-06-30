@@ -239,11 +239,6 @@ class AccessCheckerServiceTest {
     }
 
     @Test
-    void checkImagePairAccessReturnsFalse() {
-        assertThat(accessCheckerService.checkImagePairAccess(2L, 60L)).isFalse();
-    }
-
-    @Test
     void checkAnalysisJobAccessReturnsTrueViaImagePath() {
         when(loadAnalysisJobPort.loadAnalysisJob(70L)).thenReturn(Optional.of(analysisJobByImage(70L, 50L)));
         when(loadImagePort.loadImage(50L)).thenReturn(Optional.of(image(50L, 40L)));
