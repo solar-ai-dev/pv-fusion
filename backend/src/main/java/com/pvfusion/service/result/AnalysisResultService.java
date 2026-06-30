@@ -41,7 +41,6 @@ import com.pvfusion.application.port.out.defect.LoadDetectedDefectPort;
 import com.pvfusion.application.port.out.defect.SaveDetectedDefectPort;
 import com.pvfusion.application.port.out.image.GenerateImageAccessUrlPort;
 import com.pvfusion.application.port.out.image.LoadImagePort;
-import com.pvfusion.application.port.out.imagepair.LoadImagePairPort;
 import com.pvfusion.application.port.out.inspection.LoadInspectionPort;
 import com.pvfusion.application.port.out.result.LoadAnalysisResultPort;
 import com.pvfusion.application.port.out.result.SaveAnalysisResultPort;
@@ -54,7 +53,6 @@ import com.pvfusion.domain.analysis.AnalysisJobStatus;
 import com.pvfusion.domain.common.TargetType;
 import com.pvfusion.domain.defect.DetectedDefect;
 import com.pvfusion.domain.image.InspectionImage;
-import com.pvfusion.domain.imagepair.ImagePair;
 import com.pvfusion.domain.inspection.Inspection;
 import com.pvfusion.domain.result.ActionCandidate;
 import com.pvfusion.domain.result.AnalysisResult;
@@ -95,7 +93,6 @@ public class AnalysisResultService implements
     private final SaveResultReviewHistoryPort saveResultReviewHistoryPort;
     private final LoadAnalysisJobPort loadAnalysisJobPort;
     private final LoadImagePort loadImagePort;
-    private final LoadImagePairPort loadImagePairPort;
     private final LoadInspectionPort loadInspectionPort;
     private final GenerateImageAccessUrlPort generateImageAccessUrlPort;
     private final AccessChecker accessChecker;
@@ -536,23 +533,13 @@ public class AnalysisResultService implements
         Long inspectionId;
         Long equipmentId;
         TargetType targetType;
-        if (job.getImageId() != null) {
-            InspectionImage image = loadImagePort.loadImage(job.getImageId()).orElse(null);
-            if (image == null) {
-                return new ResultContext(null, null, null, null, null, job.getInputType(), job.getJobStatus());
-            }
-            inspectionId = image.getInspectionId();
-            equipmentId = image.getEquipmentId();
-            targetType = image.getTargetType();
-        } else {
-            ImagePair pair = loadImagePairPort.loadImagePair(job.getImagePairId()).orElse(null);
-            if (pair == null) {
-                return new ResultContext(null, null, null, null, null, job.getInputType(), job.getJobStatus());
-            }
-            inspectionId = pair.getInspectionId();
-            equipmentId = pair.getEquipmentId();
-            targetType = pair.getTargetType();
+        InspectionImage image = loadImagePort.loadImage(job.getImageId()).orElse(null);
+        if (image == null) {
+            return new ResultContext(null, null, null, null, null, job.getInputType(), job.getJobStatus());
         }
+        inspectionId = image.getInspectionId();
+        equipmentId = image.getEquipmentId();
+        targetType = image.getTargetType();
 
         Inspection inspection = inspectionId != null ? loadInspectionPort.loadInspection(inspectionId).orElse(null) : null;
         if (inspection == null) {

@@ -124,7 +124,6 @@ export function AdminPage() {
         (logCategoryFilter || undefined) as
           | 'AUTH'
           | 'IMAGE'
-          | 'PAIR'
           | 'ANALYSIS'
           | 'RESULT'
           | 'ADMIN'

@@ -34,6 +34,7 @@ class ModelManifest:
             runtime=self.runtime.lower(),
             inputSize=self.inputSize,
             threshold=self.confidenceThreshold,
+            classNames=self.classNames,
         )
 
 

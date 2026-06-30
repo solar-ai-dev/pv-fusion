@@ -47,7 +47,6 @@ public class OperationLogPersistenceAdapter
                         query.zoneId(),
                         query.inspectionId(),
                         query.imageId(),
-                        query.imagePairId(),
                         query.analysisJobId(),
                         query.analysisResultId(),
                         hasFrom(query.from()),

@@ -38,7 +38,7 @@ class AnalysisJobPersistenceAdapterTest {
     @Test
     void loadAnalysisJobMapsEntityToDomain() {
         AnalysisJobJpaEntity entity = new AnalysisJobJpaEntity(
-                1L, 10L, null, AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
+                1L, 10L, AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
                 AnalysisJobStatus.QUEUED, 1L, OffsetDateTime.now(), null, null, 0, "trace", null, null
         );
 
@@ -53,7 +53,7 @@ class AnalysisJobPersistenceAdapterTest {
     @Test
     void loadAnalysisJobsUsesRepositorySearch() {
         AnalysisJobJpaEntity entity = new AnalysisJobJpaEntity(
-                1L, 10L, null, AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
+                1L, 10L, AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
                 AnalysisJobStatus.QUEUED, 1L, OffsetDateTime.now(), null, null, 0, "trace", null, null
         );
         AnalysisJobListQuery query = new AnalysisJobListQuery(1L, null, null, 20L, AnalysisJobStatus.QUEUED, AnalysisInputType.RGB_SINGLE, AnalysisModelType.RGB_ONLY, 0, 20);

@@ -11,7 +11,6 @@ public final class AnalysisJobPersistenceMapper {
         return new AnalysisJobJpaEntity(
                 analysisJob.getId(),
                 analysisJob.getImageId(),
-                analysisJob.getImagePairId(),
                 analysisJob.getInputType(),
                 analysisJob.getRequestedModelType(),
                 analysisJob.getModelType(),
@@ -31,7 +30,6 @@ public final class AnalysisJobPersistenceMapper {
         return new AnalysisJob(
                 entity.getId(),
                 entity.getImageId(),
-                entity.getImagePairId(),
                 entity.getInputType(),
                 entity.getRequestedModelType(),
                 entity.getModelType(),

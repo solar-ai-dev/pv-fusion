@@ -23,7 +23,6 @@ public interface OperationLogJpaRepository extends JpaRepository<OperationLogJpa
                       and (:zoneId is null or o.zoneId = :zoneId)
                       and (:inspectionId is null or o.inspectionId = :inspectionId)
                       and (:imageId is null or o.imageId = :imageId)
-                      and (:imagePairId is null or o.imagePairId = :imagePairId)
                       and (:analysisJobId is null or o.analysisJobId = :analysisJobId)
                       and (:analysisResultId is null or o.analysisResultId = :analysisResultId)
                       and (:fromFilterEnabled = false or o.createdAt >= :from)
@@ -43,7 +42,6 @@ public interface OperationLogJpaRepository extends JpaRepository<OperationLogJpa
                       and (:zoneId is null or o.zoneId = :zoneId)
                       and (:inspectionId is null or o.inspectionId = :inspectionId)
                       and (:imageId is null or o.imageId = :imageId)
-                      and (:imagePairId is null or o.imagePairId = :imagePairId)
                       and (:analysisJobId is null or o.analysisJobId = :analysisJobId)
                       and (:analysisResultId is null or o.analysisResultId = :analysisResultId)
                       and (:fromFilterEnabled = false or o.createdAt >= :from)
@@ -62,7 +60,6 @@ public interface OperationLogJpaRepository extends JpaRepository<OperationLogJpa
             @Param("zoneId") Long zoneId,
             @Param("inspectionId") Long inspectionId,
             @Param("imageId") Long imageId,
-            @Param("imagePairId") Long imagePairId,
             @Param("analysisJobId") Long analysisJobId,
             @Param("analysisResultId") Long analysisResultId,
             @Param("fromFilterEnabled") boolean fromFilterEnabled,

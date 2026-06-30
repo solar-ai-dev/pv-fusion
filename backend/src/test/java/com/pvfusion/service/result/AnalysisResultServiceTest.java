@@ -22,7 +22,6 @@ import com.pvfusion.application.port.out.defect.LoadDetectedDefectPort;
 import com.pvfusion.application.port.out.defect.SaveDetectedDefectPort;
 import com.pvfusion.application.port.out.image.GenerateImageAccessUrlPort;
 import com.pvfusion.application.port.out.image.LoadImagePort;
-import com.pvfusion.application.port.out.imagepair.LoadImagePairPort;
 import com.pvfusion.application.port.out.inspection.LoadInspectionPort;
 import com.pvfusion.application.port.out.result.LoadAnalysisResultPort;
 import com.pvfusion.application.port.out.result.SaveAnalysisResultPort;
@@ -82,8 +81,6 @@ class AnalysisResultServiceTest {
     @Mock
     private LoadImagePort loadImagePort;
     @Mock
-    private LoadImagePairPort loadImagePairPort;
-    @Mock
     private LoadInspectionPort loadInspectionPort;
     @Mock
     private GenerateImageAccessUrlPort generateImageAccessUrlPort;
@@ -106,7 +103,6 @@ class AnalysisResultServiceTest {
                 saveResultReviewHistoryPort,
                 loadAnalysisJobPort,
                 loadImagePort,
-                loadImagePairPort,
                 loadInspectionPort,
                 generateImageAccessUrlPort,
                 accessChecker,
@@ -138,7 +134,7 @@ class AnalysisResultServiceTest {
                 BigDecimal.valueOf(0.88), SeverityLevel.HIGH, ActionCandidate.CLEANING, PriorityLevel.HIGH,
                 "bucket", "bbox-key", null, null, null, null, null, null, null, OffsetDateTime.now(),
                 List.of(new SaveDetectedDefectCommand(
-                        null, com.pvfusion.domain.defect.DefectType.HOTSPOT, com.pvfusion.domain.defect.DefectSource.FUSION,
+                        null, com.pvfusion.domain.defect.DefectType.HOTSPOT, com.pvfusion.domain.defect.DefectSource.RGB,
                         BigDecimal.valueOf(0.95), BigDecimal.valueOf(0.03), 1, 2, 3, 4,
                         null, null, null, BigDecimal.valueOf(0.7), SeverityLevel.HIGH, ActionCandidate.CLEANING
                 ))
@@ -341,7 +337,7 @@ class AnalysisResultServiceTest {
 
     private AnalysisJob analysisJob() {
         return new AnalysisJob(
-                10L, 20L, null, AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
+                10L, 20L, AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
                 AnalysisJobStatus.SUCCEEDED, 1L, OffsetDateTime.now(), null, null, 0, "trace", null, null,
                 OffsetDateTime.now(), OffsetDateTime.now()
         );

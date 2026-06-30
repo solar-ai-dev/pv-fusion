@@ -15,7 +15,7 @@ from app.application.ports import (
 )
 from app.domain.analysis_result import AnalysisResultDraft
 from app.domain.enums import ActionCandidate, InputType, JobStatus, ModelType, RequestedModelType, ResultStatus
-from app.domain.image_input import PairedImageInput, SingleImageInput
+from app.domain.image_input import SingleImageInput
 from app.domain.inference_result import InferenceResult, VisualizationPaths
 from app.domain.model import ModelInfo
 from app.domain.worker_message import WorkerMessage
@@ -155,15 +155,10 @@ class AnalysisJobProcessor:
             return self._fail_job(message.jobId, "UNKNOWN_WORKER_ERROR", "Unexpected worker processing error.")
 
     def _load_image_input(self, message: WorkerMessage):
-        if message.inputType in {InputType.RGB_SINGLE, InputType.THERMAL_SINGLE}:
-            image_input = self._image_metadata.get_single_image(message.imageId)
-            if image_input is None:
-                raise ProcessingError("IMAGE_METADATA_NOT_FOUND", "Image metadata was not found.")
-            return image_input
-
-        image_input = self._image_metadata.get_paired_image(message.imagePairId)
+        image_input = self._image_metadata.get_single_image(message.imageId)
         if image_input is None:
-            raise ProcessingError("PAIR_METADATA_NOT_FOUND", "Pair metadata was not found.")
+            raise ProcessingError("IMAGE_METADATA_NOT_FOUND", "Image metadata was not found.")
+        self._validate_image_type(message.inputType, image_input.imageType)
         return image_input
 
     def _build_model_info(
@@ -187,14 +182,8 @@ class AnalysisJobProcessor:
     def _run_inference(
         self,
         message: WorkerMessage,
-        image_input: SingleImageInput | PairedImageInput,
+        image_input: SingleImageInput,
     ) -> tuple[InferenceResult, dict[str, object]]:
-        if message.inputType is InputType.RGB_THERMAL_PAIR:
-            return self._run_fusion_inference(message, image_input)
-
-        if not isinstance(image_input, SingleImageInput):
-            raise ProcessingError("IMAGE_METADATA_INVALID", "Single-image metadata was invalid.")
-
         model_info = self._build_model_info(message.inputType, message.requestedModelType)
         image_bytes = self._storage.read_object(image_input.bucketName, image_input.objectKey)
         inference_result = self._model_runner.run(image_input, model_info, image_bytes)
@@ -204,41 +193,6 @@ class AnalysisJobProcessor:
             "input_type": message.inputType,
             "inference_result": inference_result,
         }
-
-    def _run_fusion_inference(
-        self,
-        message: WorkerMessage,
-        image_input: SingleImageInput | PairedImageInput,
-    ) -> tuple[InferenceResult, dict[str, object]]:
-        if not isinstance(image_input, PairedImageInput):
-            raise ProcessingError("PAIR_METADATA_INVALID", "Pair metadata was invalid.")
-
-        rgb_bytes = self._storage.read_object(image_input.rgbImage.bucketName, image_input.rgbImage.objectKey)
-        thermal_bytes = self._storage.read_object(
-            image_input.thermalImage.bucketName,
-            image_input.thermalImage.objectKey,
-        )
-
-        rgb_result = self._model_runner.run(
-            image_input.rgbImage,
-            self._build_model_info(InputType.RGB_SINGLE, RequestedModelType.RGB_ONLY),
-            rgb_bytes,
-        )
-        thermal_result = self._model_runner.run(
-            image_input.thermalImage,
-            self._build_model_info(InputType.THERMAL_SINGLE, RequestedModelType.THERMAL_ONLY),
-            thermal_bytes,
-        )
-        fusion_result = self._merge_fusion_results(message, rgb_result, thermal_result)
-        overlay_input = self._build_fusion_overlay_input(
-            rgb_image=image_input.rgbImage,
-            rgb_bytes=rgb_bytes,
-            rgb_result=rgb_result,
-            thermal_image=image_input.thermalImage,
-            thermal_bytes=thermal_bytes,
-            thermal_result=thermal_result,
-        )
-        return fusion_result, overlay_input
 
     def _store_bbox_overlay(
         self,
@@ -301,95 +255,19 @@ class AnalysisJobProcessor:
             return ModelType.RGB_ONLY
         if input_type is InputType.THERMAL_SINGLE:
             return ModelType.THERMAL_ONLY
-        return ModelType.FUSION
-
-    def _merge_fusion_results(
-        self,
-        message: WorkerMessage,
-        rgb_result: InferenceResult,
-        thermal_result: InferenceResult,
-    ) -> InferenceResult:
-        defects = [*rgb_result.defects, *thermal_result.defects]
-        max_confidence = self._max_decimal(rgb_result.maxConfidence, thermal_result.maxConfidence)
-        severity_score = self._max_decimal(rgb_result.severityScore, thermal_result.severityScore)
-        area_ratio = rgb_result.areaRatio if rgb_result.areaRatio is not None else thermal_result.areaRatio
-        action_candidate = self._select_fusion_action_candidate(rgb_result, thermal_result)
-
-        return InferenceResult(
-            modelInfo=ModelInfo(
-                modelPath="",
-                modelType=ModelType.FUSION,
-                requestedModelType=message.requestedModelType,
-                modelName=f"fusion:{rgb_result.modelInfo.modelName}+{thermal_result.modelInfo.modelName}",
-                modelVersion=f"{rgb_result.modelInfo.modelVersion}+{thermal_result.modelInfo.modelVersion}",
-                modelFormat=rgb_result.modelInfo.modelFormat,
-                runtime=rgb_result.modelInfo.runtime,
-                inputSize=max(rgb_result.modelInfo.inputSize, thermal_result.modelInfo.inputSize),
-                threshold=min(rgb_result.modelInfo.threshold, thermal_result.modelInfo.threshold),
-            ),
-            resultStatus=self._merge_result_status(rgb_result.resultStatus, thermal_result.resultStatus),
-            anomalyCount=len(defects),
-            maxConfidence=max_confidence,
-            areaRatio=area_ratio,
-            severityScore=severity_score,
-            actionCandidate=action_candidate,
-            defects=defects,
-            visualizationPaths=VisualizationPaths(),
-            restoredMasks=rgb_result.restoredMasks,
-        )
-
-    def _build_fusion_overlay_input(
-        self,
-        rgb_image: SingleImageInput,
-        rgb_bytes: bytes,
-        rgb_result: InferenceResult,
-        thermal_image: SingleImageInput,
-        thermal_bytes: bytes,
-        thermal_result: InferenceResult,
-    ) -> dict[str, object]:
-        if rgb_result.defects:
-            return {
-                "bucket_name": rgb_image.bucketName,
-                "image_bytes": rgb_bytes,
-                "input_type": InputType.RGB_SINGLE,
-                "inference_result": rgb_result,
-            }
-        return {
-            "bucket_name": thermal_image.bucketName,
-            "image_bytes": thermal_bytes,
-            "input_type": InputType.THERMAL_SINGLE,
-            "inference_result": thermal_result,
-        }
-
-    def _merge_result_status(
-        self,
-        rgb_status: ResultStatus,
-        thermal_status: ResultStatus,
-    ) -> ResultStatus:
-        if ResultStatus.ANOMALY in {rgb_status, thermal_status}:
-            return ResultStatus.ANOMALY
-        if ResultStatus.LOW_CONFIDENCE in {rgb_status, thermal_status}:
-            return ResultStatus.LOW_CONFIDENCE
-        return ResultStatus.NORMAL
-
-    def _select_fusion_action_candidate(
-        self,
-        rgb_result: InferenceResult,
-        thermal_result: InferenceResult,
-    ) -> ActionCandidate:
-        if rgb_result.defects:
-            return rgb_result.actionCandidate
-        if thermal_result.defects:
-            return thermal_result.actionCandidate
-        if rgb_result.actionCandidate is not ActionCandidate.CLEANING:
-            return rgb_result.actionCandidate
-        return thermal_result.actionCandidate
+        raise ProcessingError("UNSUPPORTED_INPUT_TYPE", f"Unsupported inputType: {input_type.value}")
 
     def _max_decimal(self, *values: Decimal | None) -> Decimal | None:
         available = [value for value in values if value is not None]
         if not available:
             return None
         return max(available)
+
+    def _validate_image_type(self, input_type: InputType, image_type: str) -> None:
+        if input_type is InputType.RGB_SINGLE and image_type != "RGB":
+            raise ProcessingError("IMAGE_TYPE_MISMATCH", "RGB inputType requires RGB image metadata.")
+        if input_type is InputType.THERMAL_SINGLE and image_type != "THERMAL":
+            raise ProcessingError("IMAGE_TYPE_MISMATCH", "THERMAL inputType requires THERMAL image metadata.")
 
     def _fail_job(self, job_id: int, failure_code: str, failure_message: str) -> ProcessingResult:
         try:

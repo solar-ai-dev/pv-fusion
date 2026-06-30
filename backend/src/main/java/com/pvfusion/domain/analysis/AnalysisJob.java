@@ -8,7 +8,6 @@ public class AnalysisJob {
 
     private final Long id;
     private final Long imageId;
-    private final Long imagePairId;
     private final AnalysisInputType inputType;
     private final RequestedModelType requestedModelType;
     private final AnalysisModelType modelType;
@@ -27,7 +26,6 @@ public class AnalysisJob {
     public AnalysisJob(
             Long id,
             Long imageId,
-            Long imagePairId,
             AnalysisInputType inputType,
             RequestedModelType requestedModelType,
             AnalysisModelType modelType,
@@ -45,7 +43,6 @@ public class AnalysisJob {
     ) {
         this.id = id;
         this.imageId = imageId;
-        this.imagePairId = imagePairId;
         this.inputType = inputType;
         this.requestedModelType = requestedModelType;
         this.modelType = modelType;

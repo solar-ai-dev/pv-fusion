@@ -86,3 +86,5 @@ scripts/aws/output/
 # Experiments
 experiments/
 experiments/**
+
+ai-worker/.pytest-tmp/

@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from app.config.settings import Settings
 from app.domain.enums import InputType, ModelType, RequestedModelType
 from app.infrastructure.model.model_manifest import load_model_manifest
@@ -65,15 +67,11 @@ def test_resolve_returns_thermal_model_for_thermal_single(tmp_path: Path):
     assert str(model_info.threshold) == "0.65"
 
 
-def test_resolve_raises_for_pair_input(tmp_path: Path):
+def test_resolve_rejects_mismatched_requested_model_type(tmp_path: Path):
     registry = ModelRegistry(_build_settings(tmp_path))
 
-    try:
-        registry.resolve(InputType.RGB_THERMAL_PAIR, RequestedModelType.FUSION_AUTO)
-    except NotImplementedError as exc:
-        assert str(exc) == "RGB_THERMAL_PAIR inference is not supported yet."
-    else:
-        raise AssertionError("Expected NotImplementedError for pair input.")
+    with pytest.raises(ValueError, match="Requested model type mismatch"):
+        registry.resolve(InputType.RGB_SINGLE, RequestedModelType.THERMAL_ONLY)
 
 
 def _build_settings(tmp_path: Path, thermal_overrides: dict | None = None) -> Settings:

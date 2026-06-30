@@ -33,7 +33,7 @@ class DetectedDefectPersistenceAdapterTest {
     void loadDetectedDefectsMapsEntitiesToDomain() {
         when(detectedDefectJpaRepository.findByAnalysisResultIdOrderByCreatedAtAscIdAsc(1L))
                 .thenReturn(List.of(new DetectedDefectJpaEntity(
-                        2L, 1L, DefectType.HOTSPOT, DefectSource.FUSION, BigDecimal.valueOf(0.9), BigDecimal.valueOf(0.1),
+                        2L, 1L, DefectType.HOTSPOT, DefectSource.RGB, BigDecimal.valueOf(0.9), BigDecimal.valueOf(0.1),
                         1, 2, 3, 4, null, null, null, BigDecimal.valueOf(0.8), SeverityLevel.HIGH, ActionCandidate.CLEANING
                 )));
 
