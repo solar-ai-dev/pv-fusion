@@ -93,7 +93,7 @@
 
 ### C. 모델 artifact와 manifest 준비 시에만 AI Worker 배포
 
-- `/models/rgb/model-manifest.yaml`, `/models/thermal/model-manifest.yaml`와 실제 모델 artifact 공급 방식이 확정된 경우에만 적용한다.
+- `/models/rgb/model-manifest.dev.yaml`, `/models/thermal/model-manifest.dev.yaml`와 실제 `v0-dev` 모델 artifact가 준비된 경우 적용한다.
 - 이 경우에도 추론 정확도나 최종 모델 검증은 별도 단계로 분리한다.
 
 `[충돌 가능성 있음]`

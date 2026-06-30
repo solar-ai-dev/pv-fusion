@@ -24,6 +24,11 @@ spec:
         app.kubernetes.io/part-of: pv-insight
     spec:
       terminationGracePeriodSeconds: 30
+      volumes:
+        - name: ai-worker-models
+          hostPath:
+            path: /opt/pv-insight/models/v0-dev
+            type: Directory
       containers:
         - name: ai-worker
           image: example.invalid/pv-insight-ai-worker:replace-me-git-sha
@@ -36,6 +41,10 @@ spec:
                 name: pv-insight-ai-worker-config
             - secretRef:
                 name: pv-insight-ai-worker-secret
+          volumeMounts:
+            - name: ai-worker-models
+              mountPath: /models
+              readOnly: true
           startupProbe:
             httpGet:
               path: /internal/health

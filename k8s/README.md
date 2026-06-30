@@ -46,14 +46,21 @@ Frontend currently uses `VITE_API_BASE_URL` at build time, not runtime.
 For K3s deployment, the frontend image must already be built with the intended production API base URL.
 If a single-domain Traefik route is used, `/api/v1` is the preferred build-time value.
 
-## Model bootstrap note
+## AI Worker v0-dev smoke note
 
 Current AI Worker code expects `RGB_MODEL_MANIFEST_PATH` and `THERMAL_MODEL_MANIFEST_PATH` to point to files that already exist in the container or mounted filesystem.
 
-The production contract says large model assets should not be baked into the image and should be prepared from S3 during worker startup, but that bootstrap mechanism is not implemented in the current codebase.
+For the current smoke deployment, `k8s/ai-worker.yaml` mounts a temporary hostPath:
 
-Because of that, `k8s/ai-worker.yaml` is only a structural deployment manifest at this stage.
-The actual S3 model download/init flow must be finalized in the next deployment step.
+- Host path: `/opt/pv-insight/models/v0-dev`
+- Container path: `/models`
+- Manifest paths:
+  - `/models/rgb/model-manifest.dev.yaml`
+  - `/models/thermal/model-manifest.dev.yaml`
+
+This `v0-dev` model set is temporary and is only for Pod startup, model loading, SQS worker execution, and Jenkins rollout smoke checks.
+
+Large model assets still must not be baked into the image or committed to Git. The final production model delivery path should move to an S3 download/initContainer or equivalent external artifact bootstrap flow in a later step.
 
 ## TLS and domain
 

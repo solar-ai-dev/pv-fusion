@@ -1,4 +1,4 @@
-pipeline {
+﻿pipeline {
     agent any
 
     options {
@@ -12,16 +12,23 @@ pipeline {
         booleanParam(
             name: 'ENABLE_ECR_PUSH',
             defaultValue: false,
-            description: '기본값은 false입니다. main 브랜치에서만 ECR push 경로를 허용합니다.'
+            description: '湲곕낯媛믪? false?낅땲?? main 釉뚮옖移섏뿉?쒕쭔 ECR push 寃쎈줈瑜??덉슜?⑸땲??'
         )
     }
 
     environment {
         AWS_REGION = 'ap-northeast-2'
         ECR_ALLOWED_BRANCH = 'main'
+        K8S_NAMESPACE = 'pv-insight'
         FRONTEND_REPOSITORY = 'pv-insight-frontend'
         BACKEND_REPOSITORY = 'pv-insight-backend'
         AI_WORKER_REPOSITORY = 'pv-insight-ai-worker'
+        FRONTEND_DEPLOYMENT = 'pv-insight-frontend'
+        BACKEND_DEPLOYMENT = 'pv-insight-backend'
+        AI_WORKER_DEPLOYMENT = 'pv-insight-ai-worker'
+        FRONTEND_CONTAINER = 'frontend'
+        BACKEND_CONTAINER = 'backend'
+        AI_WORKER_CONTAINER = 'ai-worker'
         FRONTEND_BUILD_ARG_API_BASE_URL = '/api/v1'
     }
 
@@ -62,6 +69,7 @@ pipeline {
                     env.AI_WORKER_LOCAL_IMAGE = "${env.AI_WORKER_REPOSITORY}:${env.GIT_COMMIT_SHA}"
                     env.ECR_PUSH_BRANCH_ALLOWED = (env.GIT_BRANCH_NAME == env.ECR_ALLOWED_BRANCH).toString()
                     env.ECR_PUSH_ACTIVE = (params.ENABLE_ECR_PUSH && env.GIT_BRANCH_NAME == env.ECR_ALLOWED_BRANCH).toString()
+                    env.K3S_ROLLOUT_ACTIVE = env.ECR_PUSH_ACTIVE
                 }
 
                 echo "Git Commit SHA: ${env.GIT_COMMIT_SHA}"
@@ -151,7 +159,7 @@ pipeline {
                 echo "AI Worker local image: ${env.AI_WORKER_LOCAL_IMAGE}"
                 echo "ECR repositories: ${env.FRONTEND_REPOSITORY}, ${env.BACKEND_REPOSITORY}, ${env.AI_WORKER_REPOSITORY}"
                 echo "ECR region: ${env.AWS_REGION}"
-                echo "K3s deployment stage included: false"
+                echo "K3s deployment stage included: ${env.K3S_ROLLOUT_ACTIVE}"
             }
         }
 
@@ -182,6 +190,54 @@ pipeline {
                     docker push "${ECR_REGISTRY}/${FRONTEND_REPOSITORY}:${GIT_COMMIT_SHA}"
                     docker push "${ECR_REGISTRY}/${BACKEND_REPOSITORY}:${GIT_COMMIT_SHA}"
                     docker push "${ECR_REGISTRY}/${AI_WORKER_REPOSITORY}:${GIT_COMMIT_SHA}"
+                '''
+            }
+        }
+
+        stage('K3s Rollout') {
+            when {
+                expression {
+                    return params.ENABLE_ECR_PUSH && env.GIT_BRANCH_NAME == env.ECR_ALLOWED_BRANCH
+                }
+            }
+            steps {
+                sh '''
+                    set -eu
+
+                    ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+                    ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+                    set +x
+                    ECR_LOGIN_PASSWORD="$(aws ecr get-login-password --region "${AWS_REGION}")"
+                    kubectl -n "${K8S_NAMESPACE}" create secret docker-registry ecr-pull-secret \
+                      --docker-server="${ECR_REGISTRY}" \
+                      --docker-username=AWS \
+                      --docker-password="${ECR_LOGIN_PASSWORD}" \
+                      --dry-run=client -o yaml | kubectl apply -f -
+                    unset ECR_LOGIN_PASSWORD
+
+                    kubectl -n "${K8S_NAMESPACE}" patch serviceaccount default \
+                      --type=merge \
+                      -p '{"imagePullSecrets":[{"name":"ecr-pull-secret"}]}'
+
+                    kubectl -n "${K8S_NAMESPACE}" set image deployment/"${FRONTEND_DEPLOYMENT}" \
+                      "${FRONTEND_CONTAINER}"="${ECR_REGISTRY}/${FRONTEND_REPOSITORY}:${GIT_COMMIT_SHA}"
+                    kubectl -n "${K8S_NAMESPACE}" set image deployment/"${BACKEND_DEPLOYMENT}" \
+                      "${BACKEND_CONTAINER}"="${ECR_REGISTRY}/${BACKEND_REPOSITORY}:${GIT_COMMIT_SHA}"
+                    kubectl -n "${K8S_NAMESPACE}" set image deployment/"${AI_WORKER_DEPLOYMENT}" \
+                      "${AI_WORKER_CONTAINER}"="${ECR_REGISTRY}/${AI_WORKER_REPOSITORY}:${GIT_COMMIT_SHA}"
+
+                    kubectl -n "${K8S_NAMESPACE}" rollout status deployment/"${FRONTEND_DEPLOYMENT}" --timeout=120s
+                    kubectl -n "${K8S_NAMESPACE}" rollout status deployment/"${BACKEND_DEPLOYMENT}" --timeout=120s
+                    kubectl -n "${K8S_NAMESPACE}" rollout status deployment/"${AI_WORKER_DEPLOYMENT}" --timeout=180s
+
+                    echo "K3s rollout summary"
+                    echo "Namespace: ${K8S_NAMESPACE}"
+                    echo "Branch: ${GIT_BRANCH_NAME}"
+                    echo "Git SHA: ${GIT_COMMIT_SHA}"
+                    echo "Frontend image: ${ECR_REGISTRY}/${FRONTEND_REPOSITORY}:${GIT_COMMIT_SHA}"
+                    echo "Backend image: ${ECR_REGISTRY}/${BACKEND_REPOSITORY}:${GIT_COMMIT_SHA}"
+                    echo "AI Worker image: ${ECR_REGISTRY}/${AI_WORKER_REPOSITORY}:${GIT_COMMIT_SHA}"
                 '''
             }
         }

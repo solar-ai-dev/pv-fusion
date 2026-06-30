@@ -80,8 +80,8 @@
 | `STORAGE_ACCESS_KEY` | AI Worker | local | Y | 없음 | `change_me_minio_root_user` | Y | Secret | `settings.py`, `runtime_clients.py` | prod 미사용 |
 | `STORAGE_SECRET_KEY` | AI Worker | local | Y | 없음 | `<set-in-secret>` | Y | Secret | `settings.py`, `runtime_clients.py` | prod 미사용 |
 | `STORAGE_PATH_STYLE_ENABLED` | AI Worker | local/prod | N | `false` | `true` | N | ConfigMap | `settings.py`, `runtime_clients.py` | local MinIO에서 주로 사용 |
-| `RGB_MODEL_MANIFEST_PATH` | AI Worker | local/prod | N | `models/rgb/model-manifest.dev.yaml` | `/models/rgb/model-manifest.yaml` | N | ConfigMap | `settings.py` | 모델 경로 |
-| `THERMAL_MODEL_MANIFEST_PATH` | AI Worker | local/prod | N | `models/thermal/model-manifest.dev.yaml` | `/models/thermal/model-manifest.yaml` | N | ConfigMap | `settings.py` | 모델 경로 |
+| `RGB_MODEL_MANIFEST_PATH` | AI Worker | local/prod | N | `models/rgb/model-manifest.dev.yaml` | `/models/rgb/model-manifest.dev.yaml` | N | ConfigMap | `settings.py` | 현재 운영 smoke는 `v0-dev` hostPath 기준 |
+| `THERMAL_MODEL_MANIFEST_PATH` | AI Worker | local/prod | N | `models/thermal/model-manifest.dev.yaml` | `/models/thermal/model-manifest.dev.yaml` | N | ConfigMap | `settings.py` | 현재 운영 smoke는 `v0-dev` hostPath 기준 |
 
 ## 6. Frontend 계약
 
