@@ -13,7 +13,6 @@ class InputType(StrEnum):
 class ModelType(StrEnum):
     RGB_ONLY = "RGB_ONLY"
     THERMAL_ONLY = "THERMAL_ONLY"
-    FUSION = "FUSION"
 
 
 class RequestedModelType(StrEnum):

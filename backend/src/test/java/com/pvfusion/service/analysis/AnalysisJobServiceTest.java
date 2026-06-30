@@ -19,7 +19,6 @@ import com.pvfusion.application.port.out.analysis.SaveAnalysisJobPort;
 import com.pvfusion.application.port.out.analysis.UpdateAnalysisJobPort;
 import com.pvfusion.application.port.out.auth.CurrentUserPort;
 import com.pvfusion.application.port.out.image.LoadImagePort;
-import com.pvfusion.application.port.out.imagepair.LoadImagePairPort;
 import com.pvfusion.application.port.out.inspection.LoadInspectionPort;
 import com.pvfusion.domain.analysis.AnalysisInputType;
 import com.pvfusion.domain.analysis.AnalysisJob;
@@ -58,8 +57,6 @@ class AnalysisJobServiceTest {
     @Mock
     private LoadImagePort loadImagePort;
     @Mock
-    private LoadImagePairPort loadImagePairPort;
-    @Mock
     private LoadInspectionPort loadInspectionPort;
     @Mock
     private AccessChecker accessChecker;
@@ -76,7 +73,6 @@ class AnalysisJobServiceTest {
                 updateAnalysisJobPort,
                 publishAnalysisJobPort,
                 loadImagePort,
-                loadImagePairPort,
                 loadInspectionPort,
                 accessChecker,
                 Optional.empty(),
@@ -92,7 +88,6 @@ class AnalysisJobServiceTest {
         AnalysisJob saved = analysisJob(
                 1L,
                 10L,
-                null,
                 AnalysisInputType.RGB_SINGLE,
                 RequestedModelType.RGB_ONLY,
                 AnalysisModelType.RGB_ONLY,
@@ -118,7 +113,6 @@ class AnalysisJobServiceTest {
         assertThat(response.requestedModelType()).isEqualTo(RequestedModelType.RGB_ONLY);
         assertThat(response.modelType()).isEqualTo(AnalysisModelType.RGB_ONLY);
         assertThat(messageCaptor.getValue().imageId()).isEqualTo(10L);
-        assertThat(messageCaptor.getValue().imagePairId()).isNull();
         assertThat(messageCaptor.getValue().inputType()).isEqualTo(AnalysisInputType.RGB_SINGLE);
         assertThat(messageCaptor.getValue().requestedModelType()).isEqualTo(RequestedModelType.RGB_ONLY);
     }
@@ -130,7 +124,6 @@ class AnalysisJobServiceTest {
         AnalysisJob saved = analysisJob(
                 2L,
                 20L,
-                null,
                 AnalysisInputType.THERMAL_SINGLE,
                 RequestedModelType.THERMAL_ONLY,
                 AnalysisModelType.THERMAL_ONLY,
@@ -155,7 +148,6 @@ class AnalysisJobServiceTest {
         assertThat(response.inputType()).isEqualTo(AnalysisInputType.THERMAL_SINGLE);
         assertThat(response.requestedModelType()).isEqualTo(RequestedModelType.THERMAL_ONLY);
         assertThat(response.modelType()).isEqualTo(AnalysisModelType.THERMAL_ONLY);
-        assertThat(messageCaptor.getValue().imagePairId()).isNull();
         assertThat(messageCaptor.getValue().requestedModelType()).isEqualTo(RequestedModelType.THERMAL_ONLY);
     }
 
@@ -196,7 +188,6 @@ class AnalysisJobServiceTest {
         AnalysisJob existing = analysisJob(
                 2L,
                 10L,
-                null,
                 AnalysisInputType.RGB_SINGLE,
                 RequestedModelType.RGB_ONLY,
                 AnalysisModelType.RGB_ONLY,
@@ -222,7 +213,6 @@ class AnalysisJobServiceTest {
         AnalysisJob saved = analysisJob(
                 1L,
                 10L,
-                null,
                 AnalysisInputType.RGB_SINGLE,
                 RequestedModelType.RGB_ONLY,
                 AnalysisModelType.RGB_ONLY,
@@ -251,7 +241,6 @@ class AnalysisJobServiceTest {
         AnalysisJob queued = analysisJob(
                 1L,
                 10L,
-                null,
                 AnalysisInputType.RGB_SINGLE,
                 RequestedModelType.RGB_ONLY,
                 AnalysisModelType.RGB_ONLY,
@@ -262,7 +251,6 @@ class AnalysisJobServiceTest {
         AnalysisJob failed = analysisJob(
                 1L,
                 10L,
-                null,
                 AnalysisInputType.RGB_SINGLE,
                 RequestedModelType.RGB_ONLY,
                 AnalysisModelType.RGB_ONLY,
@@ -290,7 +278,6 @@ class AnalysisJobServiceTest {
         AnalysisJob failed = analysisJob(
                 1L,
                 10L,
-                null,
                 AnalysisInputType.RGB_SINGLE,
                 RequestedModelType.RGB_ONLY,
                 AnalysisModelType.RGB_ONLY,
@@ -301,7 +288,6 @@ class AnalysisJobServiceTest {
         AnalysisJob retried = analysisJob(
                 1L,
                 10L,
-                null,
                 AnalysisInputType.RGB_SINGLE,
                 RequestedModelType.RGB_ONLY,
                 AnalysisModelType.RGB_ONLY,
@@ -356,7 +342,6 @@ class AnalysisJobServiceTest {
     private AnalysisJob analysisJob(
             Long id,
             Long imageId,
-            Long imagePairId,
             AnalysisInputType inputType,
             RequestedModelType requestedModelType,
             AnalysisModelType modelType,
@@ -367,7 +352,6 @@ class AnalysisJobServiceTest {
         return new AnalysisJob(
                 id,
                 imageId,
-                imagePairId,
                 inputType,
                 requestedModelType,
                 modelType,

@@ -1,8 +1,8 @@
 package com.pvfusion.adapter.out.persistence.tracking;
 
 import com.pvfusion.adapter.out.persistence.result.AnalysisResultJpaEntity;
-import java.time.LocalDate;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.Query;
@@ -18,8 +18,8 @@ public interface TrackingJpaRepository extends Repository<AnalysisResultJpaEntit
                            z.plant_id AS plantId,
                            i.zone_id AS zoneId,
                            i.id AS inspectionId,
-                           COALESCE(ii.equipment_id, ip.equipment_id) AS equipmentId,
-                           COALESCE(ii.target_type, ip.target_type) AS targetType,
+                           ii.equipment_id AS equipmentId,
+                           ii.target_type AS targetType,
                            aj.input_type AS inputType,
                            ar.model_type AS modelType,
                            ar.anomaly_count AS anomalyCount,
@@ -32,14 +32,13 @@ public interface TrackingJpaRepository extends Repository<AnalysisResultJpaEntit
                            COALESCE(ar.analyzed_at, ar.created_at) AS analyzedAt
                     FROM analysis_results ar
                     JOIN analysis_jobs aj ON aj.id = ar.analysis_job_id
-                    LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                    LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                    LEFT JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                    JOIN inspection_images ii ON ii.id = aj.image_id
+                    LEFT JOIN inspections i ON i.id = ii.inspection_id
                     LEFT JOIN zones z ON z.id = i.zone_id
                     WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                       AND (:zoneId IS NULL OR i.zone_id = :zoneId)
-                      AND (:equipmentId IS NULL OR COALESCE(ii.equipment_id, ip.equipment_id) = :equipmentId)
-                      AND (:targetType IS NULL OR COALESCE(ii.target_type, ip.target_type) = :targetType)
+                      AND (:equipmentId IS NULL OR ii.equipment_id = :equipmentId)
+                      AND (:targetType IS NULL OR ii.target_type = :targetType)
                       AND (:fromDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= :fromDate)
                       AND (:toDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= :toDate)
                       AND (:inputType IS NULL OR aj.input_type = :inputType)
@@ -72,8 +71,8 @@ public interface TrackingJpaRepository extends Repository<AnalysisResultJpaEntit
                            z.plant_id AS plantId,
                            i.zone_id AS zoneId,
                            i.id AS inspectionId,
-                           COALESCE(ii.equipment_id, ip.equipment_id) AS equipmentId,
-                           COALESCE(ii.target_type, ip.target_type) AS targetType,
+                           ii.equipment_id AS equipmentId,
+                           ii.target_type AS targetType,
                            aj.input_type AS inputType,
                            ar.model_type AS modelType,
                            ar.anomaly_count AS anomalyCount,
@@ -86,9 +85,8 @@ public interface TrackingJpaRepository extends Repository<AnalysisResultJpaEntit
                            COALESCE(ar.analyzed_at, ar.created_at) AS analyzedAt
                     FROM analysis_results ar
                     JOIN analysis_jobs aj ON aj.id = ar.analysis_job_id
-                    LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                    LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                    LEFT JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                    JOIN inspection_images ii ON ii.id = aj.image_id
+                    LEFT JOIN inspections i ON i.id = ii.inspection_id
                     LEFT JOIN zones z ON z.id = i.zone_id
                     WHERE ar.id = :resultId
                     """,
@@ -103,8 +101,8 @@ public interface TrackingJpaRepository extends Repository<AnalysisResultJpaEntit
                            z.plant_id AS plantId,
                            i.zone_id AS zoneId,
                            i.id AS inspectionId,
-                           COALESCE(ii.equipment_id, ip.equipment_id) AS equipmentId,
-                           COALESCE(ii.target_type, ip.target_type) AS targetType,
+                           ii.equipment_id AS equipmentId,
+                           ii.target_type AS targetType,
                            aj.input_type AS inputType,
                            ar.model_type AS modelType,
                            ar.anomaly_count AS anomalyCount,
@@ -117,14 +115,13 @@ public interface TrackingJpaRepository extends Repository<AnalysisResultJpaEntit
                            COALESCE(ar.analyzed_at, ar.created_at) AS analyzedAt
                     FROM analysis_results ar
                     JOIN analysis_jobs aj ON aj.id = ar.analysis_job_id
-                    LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                    LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                    LEFT JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                    JOIN inspection_images ii ON ii.id = aj.image_id
+                    LEFT JOIN inspections i ON i.id = ii.inspection_id
                     LEFT JOIN zones z ON z.id = i.zone_id
                     WHERE i.zone_id = :zoneId
-                      AND COALESCE(ii.target_type, ip.target_type) = :targetType
-                      AND ((:equipmentId IS NULL AND COALESCE(ii.equipment_id, ip.equipment_id) IS NULL)
-                        OR COALESCE(ii.equipment_id, ip.equipment_id) = :equipmentId)
+                      AND ii.target_type = :targetType
+                      AND ((:equipmentId IS NULL AND ii.equipment_id IS NULL)
+                        OR ii.equipment_id = :equipmentId)
                       AND aj.input_type = :inputType
                       AND (
                            COALESCE(ar.analyzed_at, ar.created_at) < :analyzedAt

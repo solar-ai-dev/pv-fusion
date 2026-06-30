@@ -4,7 +4,6 @@ import com.pvfusion.application.port.in.access.AccessChecker;
 import com.pvfusion.application.port.out.analysis.LoadAnalysisJobPort;
 import com.pvfusion.application.port.out.equipment.EquipmentRepositoryPort;
 import com.pvfusion.application.port.out.image.LoadImagePort;
-import com.pvfusion.application.port.out.imagepair.LoadImagePairPort;
 import com.pvfusion.application.port.out.inspection.LoadInspectionPort;
 import com.pvfusion.application.port.out.plant.PlantMemberRepositoryPort;
 import com.pvfusion.application.port.out.plant.PlantRepositoryPort;
@@ -28,7 +27,6 @@ public class AccessCheckerService implements AccessChecker {
     private final EquipmentRepositoryPort equipmentRepositoryPort;
     private final LoadInspectionPort loadInspectionPort;
     private final LoadImagePort loadImagePort;
-    private final LoadImagePairPort loadImagePairPort;
     private final Optional<LoadAnalysisJobPort> loadAnalysisJobPort;
     private final Optional<LoadAnalysisResultPort> loadAnalysisResultPort;
 
@@ -105,13 +103,7 @@ public class AccessCheckerService implements AccessChecker {
 
     @Override
     public boolean checkImagePairAccess(Long userId, Long imagePairId) {
-        if (userId == null || imagePairId == null) {
-            return false;
-        }
-
-        return loadImagePairPort.loadImagePair(imagePairId)
-                .map(imagePair -> checkInspectionAccess(userId, imagePair.getInspectionId()))
-                .orElse(false);
+        return false;
     }
 
     @Override
@@ -137,13 +129,7 @@ public class AccessCheckerService implements AccessChecker {
     }
 
     private boolean resolveAnalysisJobAccess(Long userId, AnalysisJob job) {
-        if (job.getImageId() != null) {
-            return checkImageAccess(userId, job.getImageId());
-        }
-        if (job.getImagePairId() != null) {
-            return checkImagePairAccess(userId, job.getImagePairId());
-        }
-        return false;
+        return job.getImageId() != null && checkImageAccess(userId, job.getImageId());
     }
 
     private Optional<User> getApprovedUser(Long userId) {

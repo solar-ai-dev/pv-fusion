@@ -18,7 +18,6 @@ import com.pvfusion.application.port.out.analysis.PublishAnalysisJobPort;
 import com.pvfusion.application.port.out.analysis.SaveAnalysisJobPort;
 import com.pvfusion.application.port.out.analysis.UpdateAnalysisJobPort;
 import com.pvfusion.application.port.out.image.LoadImagePort;
-import com.pvfusion.application.port.out.imagepair.LoadImagePairPort;
 import com.pvfusion.application.port.out.inspection.LoadInspectionPort;
 import com.pvfusion.application.port.out.zone.LoadZonePort;
 import com.pvfusion.domain.analysis.AnalysisInputType;
@@ -28,7 +27,6 @@ import com.pvfusion.domain.analysis.AnalysisModelType;
 import com.pvfusion.domain.analysis.RequestedModelType;
 import com.pvfusion.domain.image.ImageType;
 import com.pvfusion.domain.image.InspectionImage;
-import com.pvfusion.domain.imagepair.ImagePair;
 import com.pvfusion.domain.inspection.Inspection;
 import com.pvfusion.domain.common.ResourceStatus;
 import com.pvfusion.domain.zone.Zone;
@@ -65,7 +63,6 @@ public class AnalysisJobService implements
     private final UpdateAnalysisJobPort updateAnalysisJobPort;
     private final PublishAnalysisJobPort publishAnalysisJobPort;
     private final LoadImagePort loadImagePort;
-    private final LoadImagePairPort loadImagePairPort;
     private final LoadInspectionPort loadInspectionPort;
     private final AccessChecker accessChecker;
     private final Optional<LoadZonePort> loadZonePort;
@@ -85,7 +82,6 @@ public class AnalysisJobService implements
         AnalysisJob queued = saveAnalysisJobPort.saveAnalysisJob(new AnalysisJob(
                 null,
                 target.imageId(),
-                null,
                 inputType,
                 requestedModelType,
                 modelType,
@@ -105,29 +101,26 @@ public class AnalysisJobService implements
         try {
             publishAnalysisJobPort.publish(toMessage(queued));
             log.info(
-                    "Analysis job queued and published. jobId={}, traceId={}, inputType={}, imageId={}, imagePairId={}, requestedModelType={}",
+                    "Analysis job queued and published. jobId={}, traceId={}, inputType={}, imageId={}, requestedModelType={}",
                     queued.getId(),
                     queued.getTraceId(),
                     queued.getInputType(),
                     queued.getImageId(),
-                    queued.getImagePairId(),
                     queued.getRequestedModelType()
             );
             return toResponse(queued);
         } catch (BusinessException exception) {
             log.warn(
-                    "Analysis job queue publish failed. jobId={}, traceId={}, inputType={}, imageId={}, imagePairId={}, errorCode={}",
+                    "Analysis job queue publish failed. jobId={}, traceId={}, inputType={}, imageId={}, errorCode={}",
                     queued.getId(),
                     queued.getTraceId(),
                     queued.getInputType(),
                     queued.getImageId(),
-                    queued.getImagePairId(),
                     ErrorCode.QUEUE_UNAVAILABLE.getCode()
             );
             AnalysisJob failed = updateAnalysisJobPort.updateAnalysisJob(new AnalysisJob(
                     queued.getId(),
                     queued.getImageId(),
-                    queued.getImagePairId(),
                     queued.getInputType(),
                     queued.getRequestedModelType(),
                     queued.getModelType(),
@@ -199,7 +192,6 @@ public class AnalysisJobService implements
         AnalysisJob retried = updateAnalysisJobPort.updateAnalysisJob(new AnalysisJob(
                 existing.getId(),
                 existing.getImageId(),
-                existing.getImagePairId(),
                 existing.getInputType(),
                 existing.getRequestedModelType(),
                 existing.getModelType(),
@@ -219,30 +211,27 @@ public class AnalysisJobService implements
         try {
             publishAnalysisJobPort.publish(toMessage(retried));
             log.info(
-                    "Analysis job retried and published. jobId={}, traceId={}, inputType={}, imageId={}, imagePairId={}, retryCount={}",
+                    "Analysis job retried and published. jobId={}, traceId={}, inputType={}, imageId={}, retryCount={}",
                     retried.getId(),
                     retried.getTraceId(),
                     retried.getInputType(),
                     retried.getImageId(),
-                    retried.getImagePairId(),
                     retried.getRetryCount()
             );
             return toResponse(retried);
         } catch (BusinessException exception) {
             log.warn(
-                    "Analysis job retry publish failed. jobId={}, traceId={}, inputType={}, imageId={}, imagePairId={}, retryCount={}, errorCode={}",
+                    "Analysis job retry publish failed. jobId={}, traceId={}, inputType={}, imageId={}, retryCount={}, errorCode={}",
                     retried.getId(),
                     retried.getTraceId(),
                     retried.getInputType(),
                     retried.getImageId(),
-                    retried.getImagePairId(),
                     retried.getRetryCount(),
                     ErrorCode.QUEUE_UNAVAILABLE.getCode()
             );
             AnalysisJob failed = updateAnalysisJobPort.updateAnalysisJob(new AnalysisJob(
                     retried.getId(),
                     retried.getImageId(),
-                    retried.getImagePairId(),
                     retried.getInputType(),
                     retried.getRequestedModelType(),
                     retried.getModelType(),
@@ -313,7 +302,6 @@ public class AnalysisJobService implements
                 analysisJob.getId(),
                 analysisJob.getInputType(),
                 analysisJob.getImageId(),
-                analysisJob.getImagePairId(),
                 analysisJob.getRequestedModelType(),
                 analysisJob.getRequestedByUserId(),
                 analysisJob.getTraceId(),
@@ -329,7 +317,7 @@ public class AnalysisJobService implements
                 context.zoneId(),
                 context.inspectionId(),
                 analysisJob.getImageId(),
-                analysisJob.getImagePairId(),
+                null,
                 analysisJob.getInputType(),
                 analysisJob.getRequestedModelType(),
                 analysisJob.getModelType(),
@@ -354,7 +342,7 @@ public class AnalysisJobService implements
                 context.zoneId(),
                 context.inspectionId(),
                 analysisJob.getImageId(),
-                analysisJob.getImagePairId(),
+                null,
                 analysisJob.getInputType(),
                 analysisJob.getModelType(),
                 analysisJob.getJobStatus(),
@@ -365,22 +353,12 @@ public class AnalysisJobService implements
     }
 
     private void validateJobAccess(Long actorUserId, AnalysisJob analysisJob) {
-        if (analysisJob.getImageId() != null) {
-            ensureAllowed(accessChecker.checkImageAccess(actorUserId, analysisJob.getImageId()));
-            return;
-        }
-        ensureAllowed(accessChecker.checkImagePairAccess(actorUserId, analysisJob.getImagePairId()));
+        ensureAllowed(accessChecker.checkImageAccess(actorUserId, analysisJob.getImageId()));
     }
 
     private Context resolveContext(AnalysisJob analysisJob) {
-        Long inspectionId;
-        if (analysisJob.getImageId() != null) {
-            InspectionImage image = loadImagePort.loadImage(analysisJob.getImageId()).orElse(null);
-            inspectionId = image != null ? image.getInspectionId() : null;
-        } else {
-            ImagePair pair = loadImagePairPort.loadImagePair(analysisJob.getImagePairId()).orElse(null);
-            inspectionId = pair != null ? pair.getInspectionId() : null;
-        }
+        InspectionImage image = loadImagePort.loadImage(analysisJob.getImageId()).orElse(null);
+        Long inspectionId = image != null ? image.getInspectionId() : null;
         if (inspectionId == null) {
             return new Context(null, null, null);
         }

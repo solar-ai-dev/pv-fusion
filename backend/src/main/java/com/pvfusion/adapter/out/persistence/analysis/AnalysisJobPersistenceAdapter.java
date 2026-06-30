@@ -71,17 +71,6 @@ public class AnalysisJobPersistenceAdapter implements LoadAnalysisJobPort, SaveA
     }
 
     @Override
-    public List<AnalysisJob> loadAnalysisJobsByImagePairIdAndStatuses(Long imagePairId, List<AnalysisJobStatus> statuses) {
-        return analysisJobJpaRepository.findByImagePairIdAndJobStatusIn(
-                        imagePairId,
-                        statuses.stream().map(Enum::name).toList()
-                )
-                .stream()
-                .map(AnalysisJobPersistenceMapper::toDomain)
-                .toList();
-    }
-
-    @Override
     public AnalysisJob saveAnalysisJob(AnalysisJob analysisJob) {
         AnalysisJobJpaEntity saved = analysisJobJpaRepository.save(AnalysisJobPersistenceMapper.toEntity(analysisJob));
         return AnalysisJobPersistenceMapper.toDomain(saved);

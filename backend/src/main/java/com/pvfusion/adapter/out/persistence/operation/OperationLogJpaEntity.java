@@ -61,9 +61,6 @@ public class OperationLogJpaEntity {
     @Column(name = "image_id")
     private Long imageId;
 
-    @Column(name = "image_pair_id")
-    private Long imagePairId;
-
     @Column(name = "analysis_job_id")
     private Long analysisJobId;
 
@@ -109,7 +106,6 @@ public class OperationLogJpaEntity {
         this.zoneId = operationLog.getZoneId();
         this.inspectionId = operationLog.getInspectionId();
         this.imageId = operationLog.getImageId();
-        this.imagePairId = operationLog.getImagePairId();
         this.analysisJobId = operationLog.getAnalysisJobId();
         this.analysisResultId = operationLog.getAnalysisResultId();
         this.ipAddress = operationLog.getIpAddress();

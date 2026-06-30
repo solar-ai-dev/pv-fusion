@@ -16,15 +16,14 @@ public interface AnalysisResultJpaRepository extends JpaRepository<AnalysisResul
                     SELECT ar.*
                     FROM analysis_results ar
                     JOIN analysis_jobs aj ON aj.id = ar.analysis_job_id
-                    LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                    LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                    LEFT JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                    JOIN inspection_images ii ON ii.id = aj.image_id
+                    LEFT JOIN inspections i ON i.id = ii.inspection_id
                     LEFT JOIN zones z ON z.id = i.zone_id
                     WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                       AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                       AND (:inspectionId IS NULL OR i.id = :inspectionId)
-                      AND (:targetType IS NULL OR COALESCE(ii.target_type, ip.target_type) = :targetType)
-                      AND (:equipmentId IS NULL OR COALESCE(ii.equipment_id, ip.equipment_id) = :equipmentId)
+                      AND (:targetType IS NULL OR ii.target_type = :targetType)
+                      AND (:equipmentId IS NULL OR ii.equipment_id = :equipmentId)
                       AND (:inputType IS NULL OR aj.input_type = :inputType)
                       AND (:modelType IS NULL OR ar.model_type = :modelType)
                       AND (:jobStatus IS NULL OR aj.job_status = :jobStatus)
@@ -39,15 +38,14 @@ public interface AnalysisResultJpaRepository extends JpaRepository<AnalysisResul
                     SELECT COUNT(*)
                     FROM analysis_results ar
                     JOIN analysis_jobs aj ON aj.id = ar.analysis_job_id
-                    LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                    LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                    LEFT JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                    JOIN inspection_images ii ON ii.id = aj.image_id
+                    LEFT JOIN inspections i ON i.id = ii.inspection_id
                     LEFT JOIN zones z ON z.id = i.zone_id
                     WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                       AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                       AND (:inspectionId IS NULL OR i.id = :inspectionId)
-                      AND (:targetType IS NULL OR COALESCE(ii.target_type, ip.target_type) = :targetType)
-                      AND (:equipmentId IS NULL OR COALESCE(ii.equipment_id, ip.equipment_id) = :equipmentId)
+                      AND (:targetType IS NULL OR ii.target_type = :targetType)
+                      AND (:equipmentId IS NULL OR ii.equipment_id = :equipmentId)
                       AND (:inputType IS NULL OR aj.input_type = :inputType)
                       AND (:modelType IS NULL OR ar.model_type = :modelType)
                       AND (:jobStatus IS NULL OR aj.job_status = :jobStatus)

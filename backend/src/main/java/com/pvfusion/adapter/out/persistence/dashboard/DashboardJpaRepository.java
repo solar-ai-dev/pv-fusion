@@ -64,30 +64,21 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                            AND (:fromDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) >= :fromDate)
                            AND (:toDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) <= :toDate)
                         ) AS totalImageCount,
-                        (SELECT COUNT(*)
-                         FROM image_pairs ip
-                         JOIN inspections i ON i.id = ip.inspection_id
-                         JOIN zones z ON z.id = i.zone_id
-                         WHERE (:plantId IS NULL OR z.plant_id = :plantId)
-                           AND (:zoneId IS NULL OR i.zone_id = :zoneId)
-                           AND (:fromDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) <= :toDate)
-                        ) AS totalImagePairCount,
+                        0 AS totalImagePairCount,
                         (SELECT COUNT(*)
                          FROM analysis_jobs aj
-                         LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                         LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                         JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                         JOIN inspection_images ii ON ii.id = aj.image_id
+                         JOIN inspections i ON i.id = ii.inspection_id
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                            AND (:fromDate IS NULL OR CAST(aj.requested_at AS date) >= :fromDate)
                            AND (:toDate IS NULL OR CAST(aj.requested_at AS date) <= :toDate)
                         ) AS totalAnalysisJobCount,
-                        (SELECT COUNT(*) FROM analysis_jobs aj
-                         LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                         LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                         JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                        (SELECT COUNT(*)
+                         FROM analysis_jobs aj
+                         JOIN inspection_images ii ON ii.id = aj.image_id
+                         JOIN inspections i ON i.id = ii.inspection_id
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
@@ -95,10 +86,10 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                            AND (:fromDate IS NULL OR CAST(aj.requested_at AS date) >= :fromDate)
                            AND (:toDate IS NULL OR CAST(aj.requested_at AS date) <= :toDate)
                         ) AS queuedJobCount,
-                        (SELECT COUNT(*) FROM analysis_jobs aj
-                         LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                         LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                         JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                        (SELECT COUNT(*)
+                         FROM analysis_jobs aj
+                         JOIN inspection_images ii ON ii.id = aj.image_id
+                         JOIN inspections i ON i.id = ii.inspection_id
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
@@ -106,10 +97,10 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                            AND (:fromDate IS NULL OR CAST(aj.requested_at AS date) >= :fromDate)
                            AND (:toDate IS NULL OR CAST(aj.requested_at AS date) <= :toDate)
                         ) AS runningJobCount,
-                        (SELECT COUNT(*) FROM analysis_jobs aj
-                         LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                         LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                         JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                        (SELECT COUNT(*)
+                         FROM analysis_jobs aj
+                         JOIN inspection_images ii ON ii.id = aj.image_id
+                         JOIN inspections i ON i.id = ii.inspection_id
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
@@ -117,10 +108,10 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                            AND (:fromDate IS NULL OR CAST(aj.requested_at AS date) >= :fromDate)
                            AND (:toDate IS NULL OR CAST(aj.requested_at AS date) <= :toDate)
                         ) AS succeededJobCount,
-                        (SELECT COUNT(*) FROM analysis_jobs aj
-                         LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                         LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                         JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                        (SELECT COUNT(*)
+                         FROM analysis_jobs aj
+                         JOIN inspection_images ii ON ii.id = aj.image_id
+                         JOIN inspections i ON i.id = ii.inspection_id
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
@@ -131,20 +122,19 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                         (SELECT COUNT(*)
                          FROM analysis_results ar
                          JOIN analysis_jobs aj ON aj.id = ar.analysis_job_id
-                         LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                         LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                         JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                         JOIN inspection_images ii ON ii.id = aj.image_id
+                         JOIN inspections i ON i.id = ii.inspection_id
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                            AND (:fromDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= :fromDate)
                            AND (:toDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= :toDate)
                         ) AS totalAnalysisResultCount,
-                        (SELECT COUNT(*) FROM analysis_results ar
+                        (SELECT COUNT(*)
+                         FROM analysis_results ar
                          JOIN analysis_jobs aj ON aj.id = ar.analysis_job_id
-                         LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                         LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                         JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                         JOIN inspection_images ii ON ii.id = aj.image_id
+                         JOIN inspections i ON i.id = ii.inspection_id
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
@@ -152,11 +142,11 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                            AND (:fromDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= :fromDate)
                            AND (:toDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= :toDate)
                         ) AS normalResultCount,
-                        (SELECT COUNT(*) FROM analysis_results ar
+                        (SELECT COUNT(*)
+                         FROM analysis_results ar
                          JOIN analysis_jobs aj ON aj.id = ar.analysis_job_id
-                         LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                         LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                         JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                         JOIN inspection_images ii ON ii.id = aj.image_id
+                         JOIN inspections i ON i.id = ii.inspection_id
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
@@ -164,11 +154,11 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                            AND (:fromDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= :fromDate)
                            AND (:toDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= :toDate)
                         ) AS anomalyResultCount,
-                        (SELECT COUNT(*) FROM analysis_results ar
+                        (SELECT COUNT(*)
+                         FROM analysis_results ar
                          JOIN analysis_jobs aj ON aj.id = ar.analysis_job_id
-                         LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                         LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                         JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                         JOIN inspection_images ii ON ii.id = aj.image_id
+                         JOIN inspections i ON i.id = ii.inspection_id
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
@@ -179,9 +169,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                         (SELECT COUNT(DISTINCT i.zone_id)
                          FROM analysis_results ar
                          JOIN analysis_jobs aj ON aj.id = ar.analysis_job_id
-                         LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                         LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                         JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                         JOIN inspection_images ii ON ii.id = aj.image_id
+                         JOIN inspections i ON i.id = ii.inspection_id
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
@@ -192,9 +181,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                         (SELECT COUNT(*)
                          FROM analysis_results ar
                          JOIN analysis_jobs aj ON aj.id = ar.analysis_job_id
-                         LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                         LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                         JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                         JOIN inspection_images ii ON ii.id = aj.image_id
+                         JOIN inspections i ON i.id = ii.inspection_id
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
@@ -205,9 +193,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                         (SELECT COUNT(*)
                          FROM analysis_results ar
                          JOIN analysis_jobs aj ON aj.id = ar.analysis_job_id
-                         LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                         LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                         JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                         JOIN inspection_images ii ON ii.id = aj.image_id
+                         JOIN inspections i ON i.id = ii.inspection_id
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
@@ -231,7 +218,7 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                            i.id AS inspectionId,
                            p.id AS plantId,
                            z.id AS zoneId,
-                           COALESCE(ii.equipment_id, ip.equipment_id) AS equipmentId,
+                           ii.equipment_id AS equipmentId,
                            p.name AS plantName,
                            z.name AS zoneName,
                            i.name AS inspectionName,
@@ -241,9 +228,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                            COALESCE(ar.analyzed_at, ar.created_at) AS analyzedAt
                     FROM analysis_results ar
                     JOIN analysis_jobs aj ON aj.id = ar.analysis_job_id
-                    LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                    LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                    JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                    JOIN inspection_images ii ON ii.id = aj.image_id
+                    JOIN inspections i ON i.id = ii.inspection_id
                     JOIN zones z ON z.id = i.zone_id
                     JOIN plants p ON p.id = z.plant_id
                     WHERE (:plantId IS NULL OR p.id = :plantId)
@@ -267,9 +253,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                     SELECT ar.action_candidate AS category, COUNT(*) AS count
                     FROM analysis_results ar
                     JOIN analysis_jobs aj ON aj.id = ar.analysis_job_id
-                    LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                    LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                    JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                    JOIN inspection_images ii ON ii.id = aj.image_id
+                    JOIN inspections i ON i.id = ii.inspection_id
                     JOIN zones z ON z.id = i.zone_id
                     WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                       AND (:zoneId IS NULL OR i.zone_id = :zoneId)
@@ -291,9 +276,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                     SELECT ar.severity_level AS category, COUNT(*) AS count
                     FROM analysis_results ar
                     JOIN analysis_jobs aj ON aj.id = ar.analysis_job_id
-                    LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                    LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                    JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                    JOIN inspection_images ii ON ii.id = aj.image_id
+                    JOIN inspections i ON i.id = ii.inspection_id
                     JOIN zones z ON z.id = i.zone_id
                     WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                       AND (:zoneId IS NULL OR i.zone_id = :zoneId)
@@ -336,9 +320,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                     SELECT CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) AS trendDate, COUNT(*) AS count
                     FROM analysis_results ar
                     JOIN analysis_jobs aj ON aj.id = ar.analysis_job_id
-                    LEFT JOIN inspection_images ii ON ii.id = aj.image_id
-                    LEFT JOIN image_pairs ip ON ip.id = aj.image_pair_id
-                    JOIN inspections i ON i.id = COALESCE(ii.inspection_id, ip.inspection_id)
+                    JOIN inspection_images ii ON ii.id = aj.image_id
+                    JOIN inspections i ON i.id = ii.inspection_id
                     JOIN zones z ON z.id = i.zone_id
                     WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                       AND (:zoneId IS NULL OR i.zone_id = :zoneId)

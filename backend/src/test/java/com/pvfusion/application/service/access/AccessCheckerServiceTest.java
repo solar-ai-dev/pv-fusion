@@ -6,7 +6,6 @@ import static org.mockito.Mockito.when;
 import com.pvfusion.application.port.out.analysis.LoadAnalysisJobPort;
 import com.pvfusion.application.port.out.equipment.EquipmentRepositoryPort;
 import com.pvfusion.application.port.out.image.LoadImagePort;
-import com.pvfusion.application.port.out.imagepair.LoadImagePairPort;
 import com.pvfusion.application.port.out.inspection.LoadInspectionPort;
 import com.pvfusion.application.port.out.plant.PlantMemberRepositoryPort;
 import com.pvfusion.application.port.out.plant.PlantRepositoryPort;
@@ -25,7 +24,6 @@ import com.pvfusion.domain.equipment.EquipmentType;
 import com.pvfusion.domain.image.ImageType;
 import com.pvfusion.domain.image.InspectionImage;
 import com.pvfusion.domain.image.UploadStatus;
-import com.pvfusion.domain.imagepair.ImagePair;
 import com.pvfusion.domain.inspection.CaptureMethod;
 import com.pvfusion.domain.inspection.Inspection;
 import com.pvfusion.domain.inspection.InspectionStatus;
@@ -66,8 +64,6 @@ class AccessCheckerServiceTest {
     @Mock
     private LoadImagePort loadImagePort;
     @Mock
-    private LoadImagePairPort loadImagePairPort;
-    @Mock
     private LoadAnalysisJobPort loadAnalysisJobPort;
     @Mock
     private LoadAnalysisResultPort loadAnalysisResultPort;
@@ -84,7 +80,6 @@ class AccessCheckerServiceTest {
                 equipmentRepositoryPort,
                 loadInspectionPort,
                 loadImagePort,
-                loadImagePairPort,
                 Optional.of(loadAnalysisJobPort),
                 Optional.of(loadAnalysisResultPort)
         );
@@ -244,15 +239,8 @@ class AccessCheckerServiceTest {
     }
 
     @Test
-    void checkImagePairAccessReturnsTrueWhenInspectionAccessExists() {
-        when(loadImagePairPort.loadImagePair(60L)).thenReturn(Optional.of(imagePair(60L, 40L)));
-        when(loadInspectionPort.loadInspection(40L)).thenReturn(Optional.of(inspection(40L, 20L)));
-        when(zoneRepositoryPort.findById(20L)).thenReturn(Optional.of(zone(20L, 10L)));
-        when(userRepositoryPort.findById(2L)).thenReturn(Optional.of(user(2L, UserRole.USER, AccountStatus.APPROVED)));
-        when(plantRepositoryPort.findById(10L)).thenReturn(Optional.of(plant(10L)));
-        when(plantMemberRepositoryPort.existsActiveByPlantIdAndUserId(10L, 2L)).thenReturn(true);
-
-        assertThat(accessCheckerService.checkImagePairAccess(2L, 60L)).isTrue();
+    void checkImagePairAccessReturnsFalse() {
+        assertThat(accessCheckerService.checkImagePairAccess(2L, 60L)).isFalse();
     }
 
     @Test
@@ -269,16 +257,10 @@ class AccessCheckerServiceTest {
     }
 
     @Test
-    void checkAnalysisJobAccessReturnsTrueViaImagePairPath() {
-        when(loadAnalysisJobPort.loadAnalysisJob(71L)).thenReturn(Optional.of(analysisJobByImagePair(71L, 60L)));
-        when(loadImagePairPort.loadImagePair(60L)).thenReturn(Optional.of(imagePair(60L, 40L)));
-        when(loadInspectionPort.loadInspection(40L)).thenReturn(Optional.of(inspection(40L, 20L)));
-        when(zoneRepositoryPort.findById(20L)).thenReturn(Optional.of(zone(20L, 10L)));
-        when(userRepositoryPort.findById(2L)).thenReturn(Optional.of(user(2L, UserRole.USER, AccountStatus.APPROVED)));
-        when(plantRepositoryPort.findById(10L)).thenReturn(Optional.of(plant(10L)));
-        when(plantMemberRepositoryPort.existsActiveByPlantIdAndUserId(10L, 2L)).thenReturn(true);
+    void checkAnalysisJobAccessReturnsFalseWhenImageIdMissing() {
+        when(loadAnalysisJobPort.loadAnalysisJob(71L)).thenReturn(Optional.of(analysisJobWithoutImage(71L)));
 
-        assertThat(accessCheckerService.checkAnalysisJobAccess(2L, 71L)).isTrue();
+        assertThat(accessCheckerService.checkAnalysisJobAccess(2L, 71L)).isFalse();
     }
 
     @Test
@@ -305,7 +287,6 @@ class AccessCheckerServiceTest {
                 equipmentRepositoryPort,
                 loadInspectionPort,
                 loadImagePort,
-                loadImagePairPort,
                 Optional.empty(),
                 Optional.of(loadAnalysisResultPort)
         );
@@ -323,7 +304,6 @@ class AccessCheckerServiceTest {
                 equipmentRepositoryPort,
                 loadInspectionPort,
                 loadImagePort,
-                loadImagePairPort,
                 Optional.of(loadAnalysisJobPort),
                 Optional.empty()
         );
@@ -373,26 +353,21 @@ class AccessCheckerServiceTest {
                 "bucket", "object", "url", now.minusDays(1), UploadStatus.UPLOADED, ResourceStatus.ACTIVE, 1L, now.minusDays(5), now.minusDays(1));
     }
 
-    private ImagePair imagePair(Long id, Long inspectionId) {
-        OffsetDateTime now = now();
-        return new ImagePair(id, inspectionId, 30L, TargetType.PANEL, 50L, 51L, ResourceStatus.ACTIVE, 1L, now.minusDays(5), now.minusDays(1));
-    }
-
     private AnalysisJob analysisJobByImage(Long id, Long imageId) {
         OffsetDateTime now = now();
-        return new AnalysisJob(id, imageId, null, AnalysisInputType.RGB_SINGLE, RequestedModelType.EARLY_FUSION, AnalysisModelType.FUSION,
-                AnalysisJobStatus.QUEUED, 1L, now.minusDays(1), null, null, null, null, null, null, now.minusDays(5), now.minusDays(1));
+        return new AnalysisJob(id, imageId, AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
+                AnalysisJobStatus.QUEUED, 1L, now.minusDays(1), null, null, 0, null, null, null, now.minusDays(5), now.minusDays(1));
     }
 
-    private AnalysisJob analysisJobByImagePair(Long id, Long imagePairId) {
+    private AnalysisJob analysisJobWithoutImage(Long id) {
         OffsetDateTime now = now();
-        return new AnalysisJob(id, null, imagePairId, AnalysisInputType.RGB_THERMAL_PAIR, RequestedModelType.EARLY_FUSION, AnalysisModelType.FUSION,
-                AnalysisJobStatus.QUEUED, 1L, now.minusDays(1), null, null, null, null, null, null, now.minusDays(5), now.minusDays(1));
+        return new AnalysisJob(id, null, AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
+                AnalysisJobStatus.QUEUED, 1L, now.minusDays(1), null, null, 0, null, null, null, now.minusDays(5), now.minusDays(1));
     }
 
     private AnalysisResult result(Long id, Long analysisJobId) {
         OffsetDateTime now = now();
-        return new AnalysisResult(id, analysisJobId, AnalysisModelType.FUSION, "model", "v1", "onnx", "ort", 640,
+        return new AnalysisResult(id, analysisJobId, AnalysisModelType.RGB_ONLY, "model", "v1", "onnx", "ort", 640,
                 BigDecimal.valueOf(0.5), AnalysisResultStatus.ANOMALY, 1, BigDecimal.valueOf(0.9), BigDecimal.valueOf(0.1),
                 BigDecimal.valueOf(0.7), SeverityLevel.HIGH, com.pvfusion.domain.result.ActionCandidate.FIELD_INSPECTION,
                 PriorityLevel.HIGH, ReviewStatus.UNCHECKED, null, null, null, null, null, null, null, null, null,
