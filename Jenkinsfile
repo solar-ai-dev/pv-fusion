@@ -36,8 +36,27 @@ pipeline {
             steps {
                 script {
                     env.GIT_COMMIT_SHA = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
-                    env.GIT_BRANCH_NAME = (env.BRANCH_NAME?.trim())
-                        ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+
+                    def rawBranchName = (env.BRANCH_NAME?.trim())
+                        ?: (env.GIT_BRANCH?.trim())
+                        ?: sh(
+                            script: '''
+                                git branch -r --contains HEAD \
+                                  | sed 's#^[ *]*origin/##' \
+                                  | grep -E '^(main|develop)$' \
+                                  | head -1
+                            ''',
+                            returnStdout: true
+                        ).trim()
+
+                    env.GIT_BRANCH_NAME = rawBranchName
+                        .replaceFirst(/^origin\//, '')
+                        .replaceFirst(/^refs\/heads\//, '')
+
+                    if (!env.GIT_BRANCH_NAME?.trim()) {
+                        env.GIT_BRANCH_NAME = 'HEAD'
+                    }
+
                     env.FRONTEND_LOCAL_IMAGE = "${env.FRONTEND_REPOSITORY}:${env.GIT_COMMIT_SHA}"
                     env.BACKEND_LOCAL_IMAGE = "${env.BACKEND_REPOSITORY}:${env.GIT_COMMIT_SHA}"
                     env.AI_WORKER_LOCAL_IMAGE = "${env.AI_WORKER_REPOSITORY}:${env.GIT_COMMIT_SHA}"
@@ -51,6 +70,7 @@ pipeline {
                 echo "Backend Image: ${env.BACKEND_LOCAL_IMAGE}"
                 echo "AI Worker Image: ${env.AI_WORKER_LOCAL_IMAGE}"
                 echo "ECR Push Requested: ${params.ENABLE_ECR_PUSH}"
+                echo "ECR Push Branch Allowed: ${env.ECR_PUSH_BRANCH_ALLOWED}"
                 echo "ECR Push Active: ${env.ECR_PUSH_ACTIVE}"
             }
         }
