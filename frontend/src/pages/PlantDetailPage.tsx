@@ -19,6 +19,7 @@ import type { CreateZoneRequest } from '../features/zones/types'
 import { ConfirmModal } from '../shared/components/feedback/ConfirmModal'
 import { FormField } from '../shared/components/form/FormField'
 import { PageHeader } from '../shared/components/layout/PageHeader'
+import { EmptyState } from '../shared/components/state/EmptyState'
 import { ErrorState } from '../shared/components/state/ErrorState'
 import { LoadingState } from '../shared/components/state/LoadingState'
 import { StatusBadge } from '../shared/components/state/StatusBadge'
@@ -31,13 +32,13 @@ import {
 } from '../shared/utils'
 
 const plantFormSchema = z.object({
-  name: z.string().trim().min(1, '발전소 이름은 필수입니다.'),
+  name: z.string().trim().min(1, '발전소 이름을 입력해 주세요.'),
   location: z.string().trim().optional(),
   description: z.string().trim().optional(),
 })
 
 const zoneFormSchema = z.object({
-  name: z.string().trim().min(1, '구역 이름은 필수입니다.'),
+  name: z.string().trim().min(1, '점검 영역 이름을 입력해 주세요.'),
   location: z.string().trim().optional(),
   description: z.string().trim().optional(),
 })
@@ -92,8 +93,8 @@ export function PlantDetailPage() {
   if (!plantId) {
     return (
       <ErrorState
-        title="잘못된 발전소 ID입니다."
-        description="URL의 plantId가 숫자인지 확인해 주세요."
+        title="올바르지 않은 발전소 ID입니다."
+        description="주소의 발전소 정보가 올바른지 확인해 주세요."
       />
     )
   }
@@ -107,7 +108,7 @@ export function PlantDetailPage() {
 
     try {
       const response = await updatePlantMutation.mutateAsync(payload)
-      toast.push(response.message || '발전소 정보를 수정했습니다.')
+      toast.push(response.message || '발전소 정보가 수정되었습니다.')
       setIsEditModalOpen(false)
     } catch (error) {
       toast.push(getApiErrorMessage(error, '발전소 수정에 실패했습니다.'))
@@ -123,18 +124,18 @@ export function PlantDetailPage() {
 
     try {
       const response = await createZoneMutation.mutateAsync(payload)
-      toast.push(response.message || '구역을 등록했습니다.')
+      toast.push(response.message || '점검 영역이 등록되었습니다.')
       zoneForm.reset()
       setIsCreateZoneModalOpen(false)
     } catch (error) {
-      toast.push(getApiErrorMessage(error, '구역 등록에 실패했습니다.'))
+      toast.push(getApiErrorMessage(error, '점검 영역 등록에 실패했습니다.'))
     }
   })
 
   const handleDeactivatePlant = async () => {
     try {
       const response = await deactivatePlantMutation.mutateAsync()
-      toast.push(response.message || '발전소를 비활성화했습니다.')
+      toast.push(response.message || '발전소가 비활성화되었습니다.')
       setIsDeactivateModalOpen(false)
       navigate('/plants')
     } catch (error) {
@@ -142,29 +143,35 @@ export function PlantDetailPage() {
     }
   }
 
+  const plant = plantQuery.data?.data
+  const zones = zonesQuery.data?.data ?? []
+
   return (
     <section className="space-y-6">
       <PageHeader
-        title="발전소 상세"
-        description="발전소 기본 정보와 구역 목록을 backend 실제 응답 기준으로 보여줍니다."
+        title={plant?.name ?? '발전소 상세'}
+        description="점검 영역을 관리하고 이 발전소의 새 점검을 시작할 수 있습니다."
         actions={
           <>
+            <Link className="btn btn-primary" to={`/inspections?plantId=${plantId}`}>
+              이 발전소 점검 시작
+            </Link>
             <button
               className="btn btn-secondary"
-              type="button"
-              onClick={() => setIsEditModalOpen(true)}
-            >
-              정보 수정
-            </button>
-            <button
-              className="btn btn-primary"
               type="button"
               onClick={() => {
                 zoneForm.reset()
                 setIsCreateZoneModalOpen(true)
               }}
             >
-              구역 등록
+              점검 영역 설정
+            </button>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => setIsEditModalOpen(true)}
+            >
+              정보 수정
             </button>
             <button
               className="btn btn-secondary"
@@ -185,37 +192,32 @@ export function PlantDetailPage() {
         />
       ) : null}
 
-      {plantQuery.data ? (
+      {plant ? (
         <section className="panel stack-md">
           <div className="toolbar">
             <div className="stack-sm">
               <div className="inline-actions">
                 <StatusBadge
-                  label={getResourceStatusLabel(plantQuery.data.data.status)}
-                  tone={getResourceStatusTone(plantQuery.data.data.status)}
+                  label={getResourceStatusLabel(plant.status)}
+                  tone={getResourceStatusTone(plant.status)}
                 />
-                <StatusBadge label={`구역 ${plantQuery.data.data.zoneCount}개`} />
+                <StatusBadge label={`점검 영역 ${plant.zoneCount}개`} />
               </div>
               <div>
-                <h2 className="panel-title">{plantQuery.data.data.name}</h2>
-                <p className="panel-description">
-                  {plantQuery.data.data.location || '위치 정보 없음'}
-                </p>
+                <h2 className="panel-title">{plant.name}</h2>
+                <p className="panel-description">{plant.location || '위치 정보가 없습니다.'}</p>
               </div>
             </div>
             <div className="inline-actions text-sm text-slate-500">
-              <span>생성 {formatDateTime(plantQuery.data.data.createdAt)}</span>
-              <span>수정 {formatDateTime(plantQuery.data.data.updatedAt)}</span>
+              <span>생성 {formatDateTime(plant.createdAt)}</span>
+              <span>수정 {formatDateTime(plant.updatedAt)}</span>
             </div>
           </div>
           <div className="detail-grid">
-            <DetailItem label="설명" value={plantQuery.data.data.description || '-'} />
-            <DetailItem
-              label="최근 점검"
-              value={formatDateTime(plantQuery.data.data.latestInspectionAt)}
-            />
-            <DetailItem label="생성자" value={String(plantQuery.data.data.createdByUserId)} />
-            <DetailItem label="발전소 ID" value={String(plantQuery.data.data.plantId)} />
+            <DetailItem label="설명" value={plant.description || '-'} />
+            <DetailItem label="최근 점검" value={formatDateTime(plant.latestInspectionAt)} />
+            <DetailItem label="생성자" value={String(plant.createdByUserId)} />
+            <DetailItem label="발전소 ID" value={String(plant.plantId)} />
           </div>
         </section>
       ) : null}
@@ -223,113 +225,145 @@ export function PlantDetailPage() {
       <section className="panel stack-md">
         <div className="toolbar">
           <div>
-            <h2 className="panel-title">구역 목록</h2>
+            <h2 className="panel-title">점검 영역 목록</h2>
             <p className="panel-description">
-              `GET /api/v1/plants/{'{plantId}'}/zones` 결과를 그대로 표시합니다.
+              점검할 영역을 확인하고 상세 정보나 점검 시작으로 이어갈 수 있습니다.
             </p>
           </div>
-          <Link className="btn btn-secondary" to="/inspections">
-            점검 목록 이동
+          <Link className="btn btn-secondary" to={`/inspections?plantId=${plantId}`}>
+            이 발전소 점검 시작
           </Link>
         </div>
 
-        {zonesQuery.isLoading ? <LoadingState message="구역 목록을 불러오는 중입니다." /> : null}
+        {zonesQuery.isLoading ? <LoadingState message="점검 영역 목록을 불러오는 중입니다." /> : null}
         {zonesQuery.isError ? (
           <ErrorState
-            title="구역 목록 조회에 실패했습니다."
+            title="점검 영역 목록 조회에 실패했습니다."
             description={getApiErrorMessage(zonesQuery.error)}
           />
         ) : null}
 
         {zonesQuery.data ? (
-          <DataTable
-            columns={[
-              {
-                key: 'name',
-                header: '구역',
-                render: (zone) => (
-                  <div className="stack-sm">
+          zones.length > 0 ? (
+            <DataTable
+              columns={[
+                {
+                  key: 'name',
+                  header: '점검 영역',
+                  render: (zone) => (
+                    <div className="stack-sm">
+                      <Link
+                        className="text-base font-semibold text-sky-700"
+                        to={`/zones/${zone.zoneId}`}
+                      >
+                        {zone.name}
+                      </Link>
+                      <span className="text-xs text-slate-500">ID {zone.zoneId}</span>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'stats',
+                  header: '설비 현황',
+                  render: (zone) => (
+                    <div className="stack-sm text-sm">
+                      <span>Array {zone.arrayCount}개</span>
+                      <span>Panel {zone.panelCount}개</span>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'anomaly',
+                  header: '이상 후보',
+                  render: (zone) => `${zone.anomalyCandidateCount}건`,
+                },
+                {
+                  key: 'priority',
+                  header: '우선순위',
+                  render: (zone) => zone.priorityLevel || '-',
+                },
+                {
+                  key: 'latestInspectionAt',
+                  header: '최근 점검',
+                  render: (zone) => formatDateTime(zone.latestInspectionAt),
+                },
+                {
+                  key: 'actions',
+                  header: '동작',
+                  render: (zone) => (
                     <Link
-                      className="text-base font-semibold text-sky-700"
-                      to={`/zones/${zone.zoneId}`}
+                      className="text-button"
+                      to={`/inspections?plantId=${plantId}&zoneId=${zone.zoneId}`}
                     >
-                      {zone.name}
+                      이 영역 점검 시작
                     </Link>
-                    <span className="text-xs text-slate-500">ID {zone.zoneId}</span>
-                  </div>
-                ),
-              },
-              {
-                key: 'stats',
-                header: '장비 현황',
-                render: (zone) => (
-                  <div className="stack-sm text-sm">
-                    <span>Array {zone.arrayCount}개</span>
-                    <span>Panel {zone.panelCount}개</span>
-                  </div>
-                ),
-              },
-              {
-                key: 'anomaly',
-                header: '후보 이상',
-                render: (zone) => `${zone.anomalyCandidateCount}건`,
-              },
-              {
-                key: 'priority',
-                header: '우선순위',
-                render: (zone) => zone.priorityLevel || '-',
-              },
-              {
-                key: 'latestInspectionAt',
-                header: '최근 점검',
-                render: (zone) => formatDateTime(zone.latestInspectionAt),
-              },
-            ]}
-            rows={zonesQuery.data.data}
-            rowKey={(zone) => zone.zoneId}
-            emptyTitle="등록된 구역이 없습니다."
-            emptyDescription="이 발전소에 첫 번째 구역을 추가해 보세요."
-          />
+                  ),
+                },
+              ]}
+              rows={zones}
+              rowKey={(zone) => zone.zoneId}
+            />
+          ) : (
+            <div className="state-card space-y-4">
+              <EmptyState
+                title="등록된 점검 영역이 없습니다."
+                description="점검을 시작하려면 먼저 이 발전소의 점검 영역을 설정하세요."
+              />
+              <div className="flex justify-center">
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  onClick={() => {
+                    zoneForm.reset()
+                    setIsCreateZoneModalOpen(true)
+                  }}
+                >
+                  점검 영역 설정
+                </button>
+              </div>
+            </div>
+          )
         ) : null}
       </section>
 
       <EntityModal
         isOpen={isEditModalOpen}
         title="발전소 정보 수정"
-        description="PATCH /api/v1/plants/{plantId} 요청 형식입니다."
+        description="점검에 필요한 발전소 기본 정보를 수정하세요."
         onClose={() => setIsEditModalOpen(false)}
       >
         <form className="stack-md" onSubmit={handleUpdatePlant}>
           <FormField
-            label="이름"
+            label="발전소 이름 *"
+            placeholder="예: 부천 발전소"
             error={plantForm.formState.errors.name?.message}
             {...plantForm.register('name')}
           />
           <FormField
             label="위치"
+            placeholder="예: 경기도 부천시"
             error={plantForm.formState.errors.location?.message}
             {...plantForm.register('location')}
           />
-          <FormField
-            label="설명"
-            error={plantForm.formState.errors.description?.message}
-          >
+          <FormField label="설명" error={plantForm.formState.errors.description?.message}>
             <textarea
               className="input-field textarea-field"
+              placeholder="예: 지붕형 발전소, 1구역과 2구역으로 나누어 점검"
               {...plantForm.register('description')}
             />
           </FormField>
           <ModalActions
             isSubmitting={updatePlantMutation.isPending}
             onCancel={() => setIsEditModalOpen(false)}
+            submitText="저장"
           />
         </form>
       </EntityModal>
 
       <EntityModal
         isOpen={isCreateZoneModalOpen}
-        title="구역 등록"
-        description="POST /api/v1/plants/{plantId}/zones 요청 형식입니다."
+        title="점검 영역 설정"
+        description="이 발전소에서 점검할 영역 정보를 입력하세요."
         onClose={() => {
           zoneForm.reset()
           setIsCreateZoneModalOpen(false)
@@ -337,21 +371,21 @@ export function PlantDetailPage() {
       >
         <form className="stack-md" onSubmit={handleCreateZone}>
           <FormField
-            label="이름"
+            label="점검 영역 이름 *"
+            placeholder="예: 1구역 옥상 동측"
             error={zoneForm.formState.errors.name?.message}
             {...zoneForm.register('name')}
           />
           <FormField
             label="위치"
+            placeholder="예: 본관 옥상 동측"
             error={zoneForm.formState.errors.location?.message}
             {...zoneForm.register('location')}
           />
-          <FormField
-            label="설명"
-            error={zoneForm.formState.errors.description?.message}
-          >
+          <FormField label="설명" error={zoneForm.formState.errors.description?.message}>
             <textarea
               className="input-field textarea-field"
+              placeholder="예: 열화상 촬영 우선, 출입 전 안전장비 확인"
               {...zoneForm.register('description')}
             />
           </FormField>
@@ -361,6 +395,7 @@ export function PlantDetailPage() {
               zoneForm.reset()
               setIsCreateZoneModalOpen(false)
             }}
+            submitText="설정 저장"
           />
         </form>
       </EntityModal>
@@ -368,7 +403,7 @@ export function PlantDetailPage() {
       <ConfirmModal
         isOpen={isDeactivateModalOpen}
         title="발전소 비활성화"
-        description="실제 backend는 204가 아니라 200 본문을 반환합니다. 이 호출은 plant detail과 list를 함께 갱신합니다."
+        description="이 발전소를 비활성화하면 새 점검 시작 전에 다시 상태를 확인해야 합니다. 계속할까요?"
         confirmText="비활성화"
         cancelText="취소"
         isConfirming={deactivatePlantMutation.isPending}
@@ -407,7 +442,10 @@ function EntityModal({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <section className="modal-card" onClick={(event) => event.stopPropagation()}>
+      <section
+        className="modal-card max-h-[calc(100vh-3rem)] overflow-y-auto"
+        onClick={(event) => event.stopPropagation()}
+      >
         <h2 className="panel-title">{title}</h2>
         <p className="panel-description">{description}</p>
         <div className="mt-6">{children}</div>
@@ -419,9 +457,11 @@ function EntityModal({
 function ModalActions({
   isSubmitting,
   onCancel,
+  submitText = '저장',
 }: {
   isSubmitting: boolean
   onCancel: () => void
+  submitText?: string
 }) {
   return (
     <div className="flex justify-end gap-3">
@@ -429,7 +469,7 @@ function ModalActions({
         취소
       </button>
       <button className="btn btn-primary" type="submit" disabled={isSubmitting}>
-        저장
+        {submitText}
       </button>
     </div>
   )

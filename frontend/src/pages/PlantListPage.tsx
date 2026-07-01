@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { z } from 'zod'
 import { useCreatePlant, usePlants } from '../features/plants/hooks/usePlants'
 import {
@@ -15,6 +15,7 @@ import {
 } from '../features/plants/types'
 import { FormField } from '../shared/components/form/FormField'
 import { PageHeader } from '../shared/components/layout/PageHeader'
+import { EmptyState } from '../shared/components/state/EmptyState'
 import { ErrorState } from '../shared/components/state/ErrorState'
 import { LoadingState } from '../shared/components/state/LoadingState'
 import { StatusBadge } from '../shared/components/state/StatusBadge'
@@ -28,7 +29,7 @@ import {
 } from '../shared/utils'
 
 const plantFormSchema = z.object({
-  name: z.string().trim().min(1, '발전소 이름은 필수입니다.'),
+  name: z.string().trim().min(1, '발전소 이름을 입력해 주세요.'),
   location: z.string().trim().optional(),
   description: z.string().trim().optional(),
 })
@@ -37,6 +38,7 @@ type PlantFormValues = z.infer<typeof plantFormSchema>
 
 export function PlantListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const toast = useToast()
 
@@ -120,16 +122,19 @@ export function PlantListPage() {
       toast.push(response.message || '발전소가 등록되었습니다.')
       reset()
       setIsCreateModalOpen(false)
+      navigate(`/plants/${response.data.plantId}`)
     } catch (error) {
       toast.push(getApiErrorMessage(error, '발전소 등록에 실패했습니다.'))
     }
   })
 
+  const plants = plantsQuery.data?.data.content ?? []
+
   return (
     <section className="space-y-6">
       <PageHeader
         title="발전소 관리"
-        description="실제 backend의 발전소 목록, 생성, 상세 진입 흐름을 확인하는 화면입니다."
+        description="점검할 발전소를 등록하고 상태를 확인하세요."
         actions={
           <button
             className="btn btn-primary"
@@ -146,7 +151,7 @@ export function PlantListPage() {
           <div>
             <h2 className="panel-title">검색 및 필터</h2>
             <p className="panel-description">
-              keyword, status, page, size 파라미터를 backend와 동일하게 사용합니다.
+              이름과 상태로 발전소를 빠르게 찾을 수 있습니다.
             </p>
           </div>
           <button className="btn btn-secondary" type="button" onClick={submitFilters}>
@@ -156,6 +161,7 @@ export function PlantListPage() {
         <div className="filter-grid">
           <FormField
             label="검색어"
+            placeholder="예: 부천 발전소"
             value={filters.keyword}
             onChange={(event) =>
               setFilters((current) => ({ ...current, keyword: event.target.value }))
@@ -199,76 +205,89 @@ export function PlantListPage() {
       {plantsQuery.isError ? (
         <ErrorState
           title="발전소 목록 조회에 실패했습니다."
-          description={getApiErrorMessage(
-            plantsQuery.error,
-            'backend 없이도 화면은 유지되지만 목록은 비어 있을 수 있습니다.',
-          )}
+          description={getApiErrorMessage(plantsQuery.error, '잠시 후 다시 시도해 주세요.')}
         />
       ) : null}
 
       {plantsQuery.data ? (
-        <>
-          <DataTable
-            columns={[
-              {
-                key: 'name',
-                header: '발전소',
-                render: (plant) => (
-                  <div className="stack-sm">
-                    <Link
-                      className="text-base font-semibold text-sky-700"
-                      to={`/plants/${plant.plantId}`}
-                    >
-                      {plant.name}
-                    </Link>
-                    <span className="text-xs text-slate-500">ID {plant.plantId}</span>
-                  </div>
-                ),
-              },
-              {
-                key: 'location',
-                header: '위치',
-                render: (plant) => plant.location || '-',
-              },
-              {
-                key: 'status',
-                header: '상태',
-                render: (plant) => (
-                  <StatusBadge
-                    label={getResourceStatusLabel(plant.status)}
-                    tone={getResourceStatusTone(plant.status)}
-                  />
-                ),
-              },
-              {
-                key: 'zones',
-                header: '구역 수',
-                render: (plant) => `${plant.zoneCount}개`,
-              },
-              {
-                key: 'latestInspectionAt',
-                header: '최근 점검',
-                render: (plant) => formatDateTime(plant.latestInspectionAt),
-              },
-            ]}
-            rows={plantsQuery.data.data.content}
-            rowKey={(plant) => plant.plantId}
-            emptyTitle="등록된 발전소가 없습니다."
-            emptyDescription="검색 조건에 맞는 발전소가 없거나 backend 데이터가 아직 없습니다."
-          />
-          <Pagination
-            page={(plantsQuery.data.data.page ?? 0) + 1}
-            totalPages={plantsQuery.data.data.totalPages}
-            totalElements={plantsQuery.data.data.totalElements}
-            onPageChange={handlePageChange}
-          />
-        </>
+        plants.length > 0 ? (
+          <>
+            <DataTable
+              columns={[
+                {
+                  key: 'name',
+                  header: '발전소',
+                  render: (plant) => (
+                    <div className="stack-sm">
+                      <Link
+                        className="text-base font-semibold text-sky-700"
+                        to={`/plants/${plant.plantId}`}
+                      >
+                        {plant.name}
+                      </Link>
+                      <span className="text-xs text-slate-500">ID {plant.plantId}</span>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'location',
+                  header: '위치',
+                  render: (plant) => plant.location || '-',
+                },
+                {
+                  key: 'status',
+                  header: '상태',
+                  render: (plant) => (
+                    <StatusBadge
+                      label={getResourceStatusLabel(plant.status)}
+                      tone={getResourceStatusTone(plant.status)}
+                    />
+                  ),
+                },
+                {
+                  key: 'zones',
+                  header: '점검 영역 수',
+                  render: (plant) => `${plant.zoneCount}개`,
+                },
+                {
+                  key: 'latestInspectionAt',
+                  header: '최근 점검',
+                  render: (plant) => formatDateTime(plant.latestInspectionAt),
+                },
+              ]}
+              rows={plants}
+              rowKey={(plant) => plant.plantId}
+            />
+            <Pagination
+              page={(plantsQuery.data.data.page ?? 0) + 1}
+              totalPages={plantsQuery.data.data.totalPages}
+              totalElements={plantsQuery.data.data.totalElements}
+              onPageChange={handlePageChange}
+            />
+          </>
+        ) : (
+          <div className="state-card space-y-4">
+            <EmptyState
+              title="등록된 발전소가 없습니다."
+              description="첫 점검을 시작하려면 발전소를 먼저 등록하세요."
+            />
+            <div className="flex justify-center">
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+              >
+                발전소 등록
+              </button>
+            </div>
+          </div>
+        )
       ) : null}
 
       <EntityModal
         isOpen={isCreateModalOpen}
         title="발전소 등록"
-        description="PlantController의 CreatePlantRequest 형식으로 저장합니다."
+        description="점검할 태양광 발전소 정보를 입력하세요."
         onClose={() => {
           reset()
           setIsCreateModalOpen(false)
@@ -276,21 +295,21 @@ export function PlantListPage() {
       >
         <form className="mt-6 stack-md" onSubmit={handleCreatePlant}>
           <FormField
-            label="이름"
-            placeholder="발전소 이름"
+            label="발전소 이름 *"
+            placeholder="예: 부천 발전소"
             error={errors.name?.message}
             {...register('name')}
           />
           <FormField
             label="위치"
-            placeholder="예: 전북 익산시"
+            placeholder="예: 경기도 부천시"
             error={errors.location?.message}
             {...register('location')}
           />
           <FormField label="설명" error={errors.description?.message}>
             <textarea
               className="input-field textarea-field"
-              placeholder="발전소 설명"
+              placeholder="예: 지붕형 발전소, 1구역과 2구역으로 나누어 점검"
               {...register('description')}
             />
           </FormField>
@@ -338,7 +357,10 @@ function EntityModal({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <section className="modal-card" onClick={(event) => event.stopPropagation()}>
+      <section
+        className="modal-card max-h-[calc(100vh-3rem)] overflow-y-auto"
+        onClick={(event) => event.stopPropagation()}
+      >
         <h2 className="panel-title">{title}</h2>
         <p className="panel-description">{description}</p>
         <div className="mt-6">{children}</div>

@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMemo, useState } from 'react'
+import dayjs from 'dayjs'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { z } from 'zod'
+import { useAuth } from '../features/auth/hooks/useAuth'
 import {
   CAPTURE_METHOD_OPTIONS,
   INSPECTION_STATUS_OPTIONS,
@@ -38,7 +40,7 @@ import {
 
 const createInspectionSchema = z.object({
   plantId: z.string().min(1, '발전소를 선택해 주세요.'),
-  zoneId: z.string().min(1, '구역을 선택해 주세요.'),
+  zoneId: z.string().min(1, '점검 영역을 선택해 주세요.'),
   name: z.string().trim().min(1, '점검명을 입력해 주세요.'),
   capturedAt: z.string().optional(),
   captureMethod: z.enum(CAPTURE_METHOD_OPTIONS),
@@ -53,7 +55,9 @@ const DEFAULT_SIZE = 20
 
 export function InspectionListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const toast = useToast()
+  const { user } = useAuth()
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
   const plantId = parsePositiveNumber(searchParams.get('plantId') ?? undefined)
@@ -95,33 +99,97 @@ export function InspectionListPage() {
 
   const createForm = useForm<CreateInspectionFormValues>({
     resolver: zodResolver(createInspectionSchema),
-    defaultValues: {
-      plantId: plantId ? String(plantId) : '',
-      zoneId: zoneId ? String(zoneId) : '',
-      name: '',
-      capturedAt: '',
-      captureMethod: 'DRONE',
-      inspectorName: '',
-      memo: '',
-    },
+    defaultValues: getCreateFormDefaults({
+      plantId,
+      zoneId,
+      inspectorName: user?.name,
+    }),
   })
 
   const createPlantId = parsePositiveNumber(createForm.watch('plantId'))
+  const createZoneId = parsePositiveNumber(createForm.watch('zoneId'))
   const createZonesQuery = useZonesByPlantId(createPlantId ?? 0)
+  const selectedPlant = plantsQuery.data?.data.content.find(
+    (plant) => plant.plantId === createPlantId,
+  )
+  const selectedZone = createZonesQuery.data?.data.find((zone) => zone.zoneId === createZoneId)
+
+  useEffect(() => {
+    if (!isCreateModalOpen) {
+      return
+    }
+
+    const currentPlantId = createForm.getValues('plantId')
+
+    if (!currentPlantId && plantsQuery.data?.data.content.length === 1) {
+      createForm.setValue('plantId', String(plantsQuery.data.data.content[0].plantId), {
+        shouldDirty: false,
+        shouldTouch: false,
+      })
+    }
+  }, [createForm, isCreateModalOpen, plantsQuery.data])
+
+  useEffect(() => {
+    if (!isCreateModalOpen) {
+      return
+    }
+
+    const zones = createZonesQuery.data?.data ?? []
+    const currentZoneId = createForm.getValues('zoneId')
+
+    if (
+      createPlantId &&
+      zones.length === 1 &&
+      !currentZoneId &&
+      !createForm.formState.dirtyFields.zoneId
+    ) {
+      createForm.setValue('zoneId', String(zones[0].zoneId), {
+        shouldDirty: false,
+        shouldTouch: false,
+      })
+    }
+  }, [
+    createForm,
+    createForm.formState.dirtyFields.zoneId,
+    createPlantId,
+    createZonesQuery.data,
+    isCreateModalOpen,
+  ])
+
+  useEffect(() => {
+    if (!isCreateModalOpen) {
+      return
+    }
+
+    const hasManualName = createForm.formState.dirtyFields.name
+    const currentName = createForm.getValues('name').trim()
+
+    if (hasManualName && currentName) {
+      return
+    }
+
+    createForm.setValue(
+      'name',
+      buildInspectionName(selectedPlant?.name, selectedZone?.name),
+      { shouldDirty: false, shouldTouch: false },
+    )
+  }, [
+    createForm,
+    createForm.formState.dirtyFields.name,
+    isCreateModalOpen,
+    selectedPlant?.name,
+    selectedZone?.name,
+  ])
 
   if (inspectionsQuery.isError && !inspectionsQuery.data) {
     return (
       <section className="space-y-6">
         <PageHeader
           title="점검 관리"
-          description="실제 backend 점검 목록 API를 기준으로 필터와 등록 흐름을 구성했습니다."
+          description="등록된 점검을 확인하고 이미지 업로드와 분석을 이어서 진행하세요."
           actions={
-            <button
-              className="btn btn-primary"
-              type="button"
-              onClick={() => openCreateModal()}
-            >
-              점검 등록
+            <button className="btn btn-primary" type="button" onClick={() => openCreateModal()}>
+              새 점검 시작
             </button>
           }
         />
@@ -145,51 +213,39 @@ export function InspectionListPage() {
 
     try {
       const response = await createInspectionMutation.mutateAsync(payload)
-      toast.push(response.message || '점검을 등록했습니다.')
+
+      toast.push(
+        response.message || '점검이 생성되었습니다. 이미지를 업로드해 분석을 시작하세요.',
+      )
       setIsCreateModalOpen(false)
-      createForm.reset({
-        plantId: values.plantId,
-        zoneId: values.zoneId,
-        name: '',
-        capturedAt: '',
-        captureMethod: values.captureMethod,
-        inspectorName: '',
-        memo: '',
-      })
-      setSearchParams((current) => {
-        const next = new URLSearchParams(current)
-        next.set('zoneId', String(response.data.zoneId))
-        next.set('page', String(DEFAULT_PAGE))
-        return next
-      })
+      navigate(`/inspections/${response.data.inspectionId}`)
     } catch (error) {
-      toast.push(getApiErrorMessage(error, '점검 등록에 실패했습니다.'))
+      toast.push(getApiErrorMessage(error, '점검 생성에 실패했습니다.'))
     }
   })
 
   const rows = inspectionsQuery.data?.data.content ?? []
+  const createZones = createZonesQuery.data?.data ?? []
+  const hasPlants = (plantsQuery.data?.data.content.length ?? 0) > 0
+  const hasCreateZones = createZones.length > 0
 
   return (
     <section className="space-y-6">
       <PageHeader
         title="점검 관리"
-        description="GET /api/v1/inspections와 POST /api/v1/inspections를 기준으로 목록과 생성 흐름을 연결했습니다."
+        description="등록된 점검을 확인하고 이미지 업로드와 분석을 이어서 진행하세요."
         actions={
-          <button
-            className="btn btn-primary"
-            type="button"
-            onClick={() => openCreateModal()}
-          >
-            점검 등록
+          <button className="btn btn-primary" type="button" onClick={() => openCreateModal()}>
+            새 점검 시작
           </button>
         }
       />
 
       <section className="panel stack-md">
         <div>
-          <h2 className="panel-title">조회 필터</h2>
+          <h2 className="panel-title">조회 조건</h2>
           <p className="panel-description">
-            비관리자 계정은 backend 정책상 zoneId가 있어야 점검 목록을 조회할 수 있습니다.
+            점검 목록을 보려면 발전소와 점검 영역을 선택하세요.
           </p>
         </div>
         <div className="filter-grid">
@@ -214,7 +270,7 @@ export function InspectionListPage() {
               ))}
             </select>
           </FormField>
-          <FormField label="구역">
+          <FormField label="점검 영역">
             <select
               className="input-field"
               value={zoneId ? String(zoneId) : ''}
@@ -226,7 +282,7 @@ export function InspectionListPage() {
               }
               disabled={!plantId}
             >
-              <option value="">{plantId ? '전체' : '발전소를 먼저 선택하세요'}</option>
+              <option value="">{plantId ? '전체' : '발전소를 먼저 선택하세요.'}</option>
               {filterZonesQuery.data?.data.map((zone) => (
                 <option key={zone.zoneId} value={zone.zoneId}>
                   {zone.name}
@@ -286,7 +342,7 @@ export function InspectionListPage() {
             >
               {[10, 20, 50].map((option) => (
                 <option key={option} value={option}>
-                  {option}건
+                  {option}개
                 </option>
               ))}
             </select>
@@ -308,11 +364,11 @@ export function InspectionListPage() {
           <div>
             <h2 className="panel-title">점검 목록</h2>
             <p className="panel-description">
-              plantId, zoneId, 상태, 기간 조건으로 backend 페이지네이션 결과를 그대로 표시합니다.
+              진행 중인 점검을 열어 이미지 업로드와 분석을 계속할 수 있습니다.
             </p>
           </div>
           {inspectionsQuery.isLoading ? (
-            <span className="text-sm text-slate-500">목록을 불러오는 중입니다.</span>
+            <span className="text-sm text-slate-500">점검 목록을 불러오는 중입니다.</span>
           ) : null}
         </div>
 
@@ -347,8 +403,8 @@ export function InspectionListPage() {
                     header: '대상',
                     render: (inspection) => (
                       <div className="stack-sm text-sm">
-                        <span>발전소 {inspection.plantId ?? '-'}</span>
-                        <span>구역 {inspection.zoneId}</span>
+                        <span>발전소 ID {inspection.plantId ?? '-'}</span>
+                        <span>점검 영역 ID {inspection.zoneId}</span>
                       </div>
                     ),
                   },
@@ -377,6 +433,15 @@ export function InspectionListPage() {
                     header: '등록 시각',
                     render: (inspection) => formatDateTime(inspection.createdAt),
                   },
+                  {
+                    key: 'actions',
+                    header: '동작',
+                    render: (inspection) => (
+                      <Link className="text-button" to={`/inspections/${inspection.inspectionId}`}>
+                        이어하기
+                      </Link>
+                    ),
+                  },
                 ]}
                 rows={rows}
                 rowKey={(inspection) => inspection.inspectionId}
@@ -391,88 +456,154 @@ export function InspectionListPage() {
               />
             </>
           ) : (
-            <EmptyState
-              title="조회된 점검이 없습니다."
-              description="필터를 조정하거나 새 점검을 등록해 주세요."
-            />
+            <div className="state-card space-y-4">
+              <EmptyState
+                title="아직 등록된 점검이 없습니다."
+                description="새 점검을 시작하고 이미지를 업로드해 분석을 요청하세요."
+              />
+              <div className="flex justify-center">
+                <button className="btn btn-primary" type="button" onClick={() => openCreateModal()}>
+                  새 점검 시작
+                </button>
+              </div>
+            </div>
           )
         ) : null}
       </section>
 
       <EntityModal
         isOpen={isCreateModalOpen}
-        title="점검 등록"
-        description="구역을 선택한 뒤 점검 기본 정보를 입력하면 READY 상태로 생성됩니다."
+        title="새 점검 시작"
+        description="점검할 발전소와 점검 영역을 선택한 뒤 기본 정보를 입력하세요. 등록 후 이미지 업로드 화면으로 이동합니다."
         onClose={() => setIsCreateModalOpen(false)}
       >
-        <form className="stack-md" onSubmit={handleCreateInspection}>
-          <FormField label="발전소" error={createForm.formState.errors.plantId?.message}>
-            <select className="input-field" {...createForm.register('plantId')}>
-              <option value="">발전소를 선택하세요</option>
-              {plantsQuery.data?.data.content.map((plant) => (
-                <option key={plant.plantId} value={plant.plantId}>
-                  {plant.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="구역" error={createForm.formState.errors.zoneId?.message}>
-            <select
-              className="input-field"
-              {...createForm.register('zoneId')}
-              disabled={!createPlantId}
-            >
-              <option value="">
-                {createPlantId ? '구역을 선택하세요' : '발전소를 먼저 선택하세요'}
-              </option>
-              {createZonesQuery.data?.data.map((zone) => (
-                <option key={zone.zoneId} value={zone.zoneId}>
-                  {zone.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="점검명" error={createForm.formState.errors.name?.message}>
-            <input className="input-field" {...createForm.register('name')} />
-          </FormField>
-          <FormField
-            label="촬영 방식"
-            error={createForm.formState.errors.captureMethod?.message}
-          >
-            <select className="input-field" {...createForm.register('captureMethod')}>
-              {CAPTURE_METHOD_OPTIONS.map((method) => (
-                <option key={method} value={method}>
-                  {getCaptureMethodLabel(method)}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField
-            label="촬영 시각"
-            hint="비워 두면 backend에 null로 전달됩니다."
-            error={createForm.formState.errors.capturedAt?.message}
-          >
-            <input
-              className="input-field"
-              type="datetime-local"
-              {...createForm.register('capturedAt')}
+        {!hasPlants ? (
+          <div className="space-y-4">
+            <EmptyState
+              title="등록된 발전소가 없습니다."
+              description="첫 점검을 시작하려면 발전소를 먼저 등록하세요."
             />
-          </FormField>
-          <FormField
-            label="점검자"
-            error={createForm.formState.errors.inspectorName?.message}
-          >
-            <input className="input-field" {...createForm.register('inspectorName')} />
-          </FormField>
-          <FormField label="메모" error={createForm.formState.errors.memo?.message}>
-            <textarea className="input-field textarea-field" {...createForm.register('memo')} />
-          </FormField>
-          <ModalActions
-            isSubmitting={createInspectionMutation.isPending}
-            onCancel={() => setIsCreateModalOpen(false)}
-            submitText="등록"
-          />
-        </form>
+            <div className="flex justify-end">
+              <Link className="btn btn-primary" to="/plants">
+                발전소 등록
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <form className="stack-md" onSubmit={handleCreateInspection}>
+            <FormField label="발전소 *" error={createForm.formState.errors.plantId?.message}>
+              <select className="input-field" {...createForm.register('plantId')}>
+                <option value="">발전소를 선택하세요.</option>
+                {plantsQuery.data?.data.content.map((plant) => (
+                  <option key={plant.plantId} value={plant.plantId}>
+                    {plant.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+
+            <FormField
+              label="점검 영역 *"
+              hint={
+                createPlantId
+                  ? '점검할 영역을 선택하세요.'
+                  : '발전소를 먼저 선택하면 점검 영역을 고를 수 있습니다.'
+              }
+              error={createForm.formState.errors.zoneId?.message}
+            >
+              <select
+                className="input-field"
+                {...createForm.register('zoneId')}
+                disabled={!createPlantId || !hasCreateZones}
+              >
+                <option value="">
+                  {!createPlantId
+                    ? '발전소를 먼저 선택하세요.'
+                    : hasCreateZones
+                      ? '점검 영역을 선택하세요.'
+                      : '등록된 점검 영역이 없습니다.'}
+                </option>
+                {createZones.map((zone) => (
+                  <option key={zone.zoneId} value={zone.zoneId}>
+                    {zone.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+
+            {createPlantId && !createZonesQuery.isLoading && !createZonesQuery.isError && !hasCreateZones ? (
+              <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <p>
+                  등록된 점검 영역이 없습니다. 먼저 발전소 상세에서 점검 영역을 설정하세요.
+                </p>
+                <div className="mt-3 flex justify-end">
+                  <Link className="btn btn-secondary" to={`/plants/${createPlantId}`}>
+                    발전소 상세로 이동
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+
+            <FormField
+              label="점검명 *"
+              hint="발전소명 또는 점검 영역명을 기준으로 기본 점검명을 미리 채워드립니다."
+              error={createForm.formState.errors.name?.message}
+            >
+              <input
+                className="input-field"
+                placeholder="예: 부천 발전소 정기 점검"
+                {...createForm.register('name')}
+              />
+            </FormField>
+
+            <FormField
+              label="촬영 방식 *"
+              error={createForm.formState.errors.captureMethod?.message}
+            >
+              <select className="input-field" {...createForm.register('captureMethod')}>
+                {CAPTURE_METHOD_OPTIONS.map((method) => (
+                  <option key={method} value={method}>
+                    {getCaptureMethodLabel(method)}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+
+            <FormField
+              label="촬영 시각"
+              hint="촬영 시각을 모르면 비워둘 수 있습니다."
+              error={createForm.formState.errors.capturedAt?.message}
+            >
+              <input
+                className="input-field"
+                type="datetime-local"
+                {...createForm.register('capturedAt')}
+              />
+            </FormField>
+
+            <FormField label="점검자" error={createForm.formState.errors.inspectorName?.message}>
+              <input
+                className="input-field"
+                placeholder="예: 홍길동"
+                {...createForm.register('inspectorName')}
+              />
+            </FormField>
+
+            <FormField label="메모" error={createForm.formState.errors.memo?.message}>
+              <textarea
+                className="input-field textarea-field"
+                placeholder="예: 특이사항, 날씨, 촬영 조건 등을 입력하세요."
+                {...createForm.register('memo')}
+              />
+            </FormField>
+
+            <ModalActions
+              isSubmitting={createInspectionMutation.isPending}
+              onCancel={() => setIsCreateModalOpen(false)}
+              submitText="점검 시작"
+            />
+          </form>
+        )}
       </EntityModal>
     </section>
   )
@@ -492,15 +623,13 @@ export function InspectionListPage() {
   }
 
   function openCreateModal() {
-    createForm.reset({
-      plantId: plantId ? String(plantId) : '',
-      zoneId: zoneId ? String(zoneId) : '',
-      name: '',
-      capturedAt: '',
-      captureMethod: 'DRONE',
-      inspectorName: '',
-      memo: '',
-    })
+    createForm.reset(
+      getCreateFormDefaults({
+        plantId,
+        zoneId,
+        inspectorName: user?.name,
+      }),
+    )
     setIsCreateModalOpen(true)
   }
 }
@@ -524,7 +653,10 @@ function EntityModal({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <section className="modal-card" onClick={(event) => event.stopPropagation()}>
+      <section
+        className="modal-card max-h-[calc(100vh-3rem)] overflow-y-auto"
+        onClick={(event) => event.stopPropagation()}
+      >
         <h2 className="panel-title">{title}</h2>
         <p className="panel-description">{description}</p>
         <div className="mt-6">{children}</div>
@@ -536,7 +668,7 @@ function EntityModal({
 function ModalActions({
   isSubmitting,
   onCancel,
-  submitText = '저장',
+  submitText = '등록',
 }: {
   isSubmitting: boolean
   onCancel: () => void
@@ -552,4 +684,29 @@ function ModalActions({
       </button>
     </div>
   )
+}
+
+function getCreateFormDefaults({
+  plantId,
+  zoneId,
+  inspectorName,
+}: {
+  plantId: number | null
+  zoneId: number | null
+  inspectorName?: string
+}): CreateInspectionFormValues {
+  return {
+    plantId: plantId ? String(plantId) : '',
+    zoneId: zoneId ? String(zoneId) : '',
+    name: '',
+    capturedAt: dayjs().format('YYYY-MM-DDTHH:mm'),
+    captureMethod: 'DRONE',
+    inspectorName: inspectorName ?? '',
+    memo: '',
+  }
+}
+
+function buildInspectionName(plantName?: string | null, zoneName?: string | null) {
+  const baseName = zoneName || plantName || '새 점검'
+  return `${baseName} 점검 - ${dayjs().format('YYYY.MM.DD')}`
 }
