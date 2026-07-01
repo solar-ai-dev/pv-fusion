@@ -21,10 +21,11 @@ export const inspectionQueryKeys = {
     [...inspectionQueryKeys.details(), inspectionId] as const,
 }
 
-export function useInspections(params: InspectionListParams) {
+export function useInspections(params: InspectionListParams, enabled = true) {
   return useQuery({
     queryKey: inspectionQueryKeys.list(params),
     queryFn: () => inspectionApi.fetchInspections(params),
+    enabled,
   })
 }
 
