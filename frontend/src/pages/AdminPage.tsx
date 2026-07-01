@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { useDashboardSummary } from '../features/dashboard/hooks/useDashboard'
 import {
   useAdminUser,
@@ -22,6 +22,7 @@ import {
   getResourceStatusLabel,
   getUserRoleLabel,
   getUserRoleTone,
+  type AdminUser,
   type AdminUserSummary,
   type OperationLogSummary,
 } from '../features/admin/types'
@@ -29,7 +30,6 @@ import { useAuth } from '../features/auth/hooks/useAuth'
 import { ConfirmModal } from '../shared/components/feedback/ConfirmModal'
 import { FormField } from '../shared/components/form/FormField'
 import { PageHeader } from '../shared/components/layout/PageHeader'
-import { EmptyState } from '../shared/components/state/EmptyState'
 import { ErrorState } from '../shared/components/state/ErrorState'
 import { LoadingState } from '../shared/components/state/LoadingState'
 import { StatusBadge } from '../shared/components/state/StatusBadge'
@@ -40,13 +40,21 @@ import {
   formatCount,
   formatDateTime,
   getApiErrorMessage,
-  parsePositiveNumber,
   toOffsetDateTime,
 } from '../shared/utils'
+
+type AdminTab = 'pending' | 'users' | 'logs' | 'status'
 
 const PENDING_PAGE_SIZE = 5
 const USER_PAGE_SIZE = 10
 const LOG_PAGE_SIZE = 10
+
+const ADMIN_TABS: Array<{ id: AdminTab; label: string }> = [
+  { id: 'pending', label: '승인 대기' },
+  { id: 'users', label: '사용자 관리' },
+  { id: 'logs', label: '운영 로그' },
+  { id: 'status', label: '시스템 상태' },
+]
 
 function KpiCard({
   label,
@@ -58,27 +66,172 @@ function KpiCard({
   tone?: 'default' | 'warning' | 'danger'
 }) {
   return (
-    <article className={`kpi-card ${tone === 'warning' ? 'kpi-card-warning' : ''} ${tone === 'danger' ? 'kpi-card-danger' : ''}`}>
-      <span className="text-sm text-slate-500">{label}</span>
-      <strong className="mt-3 block text-3xl font-semibold text-slate-950">{value}</strong>
+    <article className={`kpi-card kpi-card-${tone}`}>
+      <div className="text-sm font-medium text-slate-500">{label}</div>
+      <div className="mt-3 text-2xl font-semibold text-slate-900">{value}</div>
     </article>
   )
 }
 
-function buildDetailSummary(log: OperationLogSummary) {
-  const items = [
-    log.targetTable ? `table=${log.targetTable}` : null,
-    log.targetId != null ? `targetId=${log.targetId}` : null,
-    log.actorUserId != null ? `actor=${log.actorUserId}` : null,
-  ]
+function CompactState({
+  title,
+  description,
+}: {
+  title: string
+  description: string
+}) {
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+      <div className="text-base font-semibold text-slate-900">{title}</div>
+      <p className="mt-2 text-sm text-slate-600">{description}</p>
+    </div>
+  )
+}
 
-  return items.filter(Boolean).join(' · ') || '-'
+function TabButton({
+  active,
+  label,
+  count,
+  onClick,
+}: {
+  active: boolean
+  label: string
+  count?: number
+  onClick: () => void
+}) {
+  return (
+    <button
+      className={active ? 'btn btn-primary' : 'btn btn-secondary'}
+      type="button"
+      onClick={onClick}
+    >
+      {label}
+      {typeof count === 'number' ? ` ${formatCount(count)}건` : ''}
+    </button>
+  )
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="detail-item">
+      <span className="detail-label">{label}</span>
+      <span className="detail-value">{value}</span>
+    </div>
+  )
+}
+
+function buildMembershipSummary(user: AdminUser) {
+  if (user.plantMembers.length === 0) {
+    return '할당된 발전소 권한이 없습니다.'
+  }
+
+  const roleCounts = user.plantMembers.reduce<Record<string, number>>((acc, member) => {
+    const key = getPlantMemberRoleLabel(member.memberRole)
+    acc[key] = (acc[key] ?? 0) + 1
+    return acc
+  }, {})
+
+  const statusCounts = user.plantMembers.reduce<Record<string, number>>((acc, member) => {
+    const key = getResourceStatusLabel(member.status)
+    acc[key] = (acc[key] ?? 0) + 1
+    return acc
+  }, {})
+
+  const roleText = Object.entries(roleCounts)
+    .map(([label, count]) => `${label} ${formatCount(count)}건`)
+    .join(' · ')
+  const statusText = Object.entries(statusCounts)
+    .map(([label, count]) => `${label} ${formatCount(count)}건`)
+    .join(' · ')
+
+  return `운영 대상 권한 ${formatCount(user.plantMembers.length)}건 · ${roleText}${statusText ? ` · ${statusText}` : ''}`
+}
+
+function buildOperationTargetLabel(log: OperationLogSummary) {
+  switch (log.eventCategory) {
+    case 'AUTH':
+      return '인증 활동'
+    case 'IMAGE':
+      return '이미지 작업'
+    case 'ANALYSIS':
+      return '분석 작업'
+    case 'RESULT':
+      return '결과 검토'
+    case 'ADMIN':
+      return '관리 작업'
+  }
+}
+
+function buildOperationMessage(log: OperationLogSummary) {
+  switch (log.eventType) {
+    case 'LOGIN':
+      return '사용자가 로그인했습니다.'
+    case 'LOGOUT':
+      return '사용자가 로그아웃했습니다.'
+    case 'USER_APPROVED':
+      return '사용자 승인이 처리되었습니다.'
+    case 'USER_ROLE_CHANGED':
+      return '사용자 권한이 변경되었습니다.'
+    case 'USER_DEACTIVATED':
+      return '사용자 계정이 비활성화되었습니다.'
+    case 'PLANT_CREATED':
+      return '발전소가 등록되었습니다.'
+    case 'PLANT_UPDATED':
+      return '발전소 정보가 수정되었습니다.'
+    case 'PLANT_DEACTIVATED':
+      return '발전소가 비활성화되었습니다.'
+    case 'PLANT_ACCESS_GRANTED':
+      return '발전소 접근 권한이 부여되었습니다.'
+    case 'PLANT_MEMBER_ROLE_CHANGED':
+      return '발전소 멤버 권한이 변경되었습니다.'
+    case 'PLANT_MEMBER_DEACTIVATED':
+      return '발전소 멤버가 비활성화되었습니다.'
+    case 'ZONE_CREATED':
+      return '점검 영역이 등록되었습니다.'
+    case 'ZONE_UPDATED':
+      return '점검 영역 정보가 수정되었습니다.'
+    case 'ZONE_DEACTIVATED':
+      return '점검 영역이 비활성화되었습니다.'
+    case 'EQUIPMENT_CREATED':
+      return '설비가 등록되었습니다.'
+    case 'EQUIPMENT_UPDATED':
+      return '설비 정보가 수정되었습니다.'
+    case 'EQUIPMENT_DEACTIVATED':
+      return '설비가 비활성화되었습니다.'
+    case 'IMAGE_UPLOADED':
+      return '이미지가 업로드되었습니다.'
+    case 'ANALYSIS_REQUESTED':
+      return '분석 요청이 접수되었습니다.'
+    case 'RESULT_REVIEW_STATUS_CHANGED':
+      return '결과 검토 상태가 변경되었습니다.'
+    case 'RESULT_ACTION_CANDIDATE_CHANGED':
+      return '조치 후보가 변경되었습니다.'
+    case 'SYSTEM_ERROR':
+      return '처리 중 오류가 발생했습니다.'
+  }
+}
+
+function getLogResultLabel(log: OperationLogSummary) {
+  return log.eventType === 'SYSTEM_ERROR' ? '오류' : '처리됨'
+}
+
+function getLogResultTone(log: OperationLogSummary) {
+  return log.eventType === 'SYSTEM_ERROR' ? 'danger' : 'default'
+}
+
+function getActorRoleLabel(role?: string | null) {
+  if (role === 'ADMIN' || role === 'USER') {
+    return getUserRoleLabel(role)
+  }
+
+  return '-'
 }
 
 export function AdminPage() {
   const toast = useToast()
   const currentUserId = useAuth((state) => state.user?.userId ?? null)
 
+  const [activeTab, setActiveTab] = useState<AdminTab>('pending')
   const [pendingPage, setPendingPage] = useState(1)
   const [userPage, setUserPage] = useState(1)
   const [logPage, setLogPage] = useState(1)
@@ -88,7 +241,6 @@ export function AdminPage() {
   const [statusFilter, setStatusFilter] = useState('')
 
   const [logKeywordInput, setLogKeywordInput] = useState('')
-  const [actorUserIdInput, setActorUserIdInput] = useState('')
   const [logCategoryFilter, setLogCategoryFilter] = useState('')
   const [logTypeFilter, setLogTypeFilter] = useState('')
   const [logFromInput, setLogFromInput] = useState('')
@@ -106,6 +258,7 @@ export function AdminPage() {
     }),
     [pendingPage],
   )
+
   const userParams = useMemo(
     () => ({
       keyword: keywordInput.trim() || undefined,
@@ -117,9 +270,9 @@ export function AdminPage() {
     }),
     [keywordInput, roleFilter, statusFilter, userPage],
   )
+
   const logParams = useMemo(
     () => ({
-      actorUserId: parsePositiveNumber(actorUserIdInput) ?? undefined,
       eventCategory:
         (logCategoryFilter || undefined) as
           | 'AUTH'
@@ -159,15 +312,7 @@ export function AdminPage() {
       size: LOG_PAGE_SIZE,
       sort: 'createdAt,DESC',
     }),
-    [
-      actorUserIdInput,
-      logCategoryFilter,
-      logFromInput,
-      logKeywordInput,
-      logPage,
-      logToInput,
-      logTypeFilter,
-    ],
+    [logCategoryFilter, logFromInput, logKeywordInput, logPage, logToInput, logTypeFilter],
   )
 
   const dashboardQuery = useDashboardSummary({})
@@ -187,6 +332,12 @@ export function AdminPage() {
   }, [selectedUserQuery.data?.data.role])
 
   const selectedUser = selectedUserQuery.data?.data ?? null
+  const summary = dashboardQuery.data?.data.summary
+  const pendingCount = pendingUsersQuery.data?.data.totalElements ?? 0
+  const totalUserCount = usersQuery.data?.data.totalElements ?? 0
+  const logCount = operationLogsQuery.data?.data.totalElements ?? 0
+  const attentionCount = (summary?.failedJobCount ?? 0) + (summary?.pendingReviewCount ?? 0)
+  const trackingAttentionCount = (summary?.worsenedCount ?? 0) + (summary?.repeatedAnomalyCount ?? 0)
 
   const handleApprove = async () => {
     if (!approveTarget) {
@@ -198,6 +349,7 @@ export function AdminPage() {
       toast.push(response.message || '사용자 승인을 완료했습니다.')
       setApproveTarget(null)
       setSelectedUserId(approveTarget.userId)
+      setActiveTab('users')
     } catch (error) {
       toast.push(getApiErrorMessage(error, '사용자 승인에 실패했습니다.'))
     }
@@ -239,7 +391,6 @@ export function AdminPage() {
   }
 
   const handleLogSearchReset = () => {
-    setActorUserIdInput('')
     setLogKeywordInput('')
     setLogCategoryFilter('')
     setLogTypeFilter('')
@@ -252,7 +403,7 @@ export function AdminPage() {
     <section className="space-y-6">
       <PageHeader
         title="관리자"
-        description="실제 backend 관리자 계약 기준으로 승인 대기 사용자, 전체 사용자, 권한 변경, 비활성화, 운영 로그 조회를 연결했습니다."
+        description="사용자 승인, 권한 관리, 운영 로그를 확인합니다."
         actions={
           <button
             className="btn btn-secondary"
@@ -272,83 +423,46 @@ export function AdminPage() {
         }
       />
 
-      <section className="kpi-grid">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <KpiCard
-          label="승인 대기 사용자"
-          value={formatCount(pendingUsersQuery.data?.data.totalElements ?? 0)}
-          tone="warning"
+          label="승인 대기"
+          value={`${formatCount(pendingCount)}건`}
+          tone={pendingCount > 0 ? 'warning' : 'default'}
         />
+        <KpiCard label="전체 사용자" value={`${formatCount(totalUserCount)}명`} />
+        <KpiCard label="운영 로그" value={`${formatCount(logCount)}건`} />
         <KpiCard
-          label="전체 사용자 조회 결과"
-          value={formatCount(usersQuery.data?.data.totalElements ?? 0)}
-        />
-        <KpiCard
-          label="검토 대기 결과"
-          value={formatCount(dashboardQuery.data?.data.summary.pendingReviewCount ?? 0)}
-          tone="warning"
-        />
-        <KpiCard
-          label="실패 분석 작업"
-          value={formatCount(dashboardQuery.data?.data.summary.failedJobCount ?? 0)}
-          tone="danger"
+          label="확인 필요"
+          value={`${formatCount(attentionCount)}건`}
+          tone={attentionCount > 0 ? 'danger' : 'default'}
         />
       </section>
 
-      <section className="panel stack-md">
+      <section className="panel space-y-5">
         <div>
-          <h2 className="panel-title">관리자 개요</h2>
+          <h2 className="panel-title">관리 업무</h2>
           <p className="panel-description">
-            `GET /api/v1/dashboard` 요약 값을 관리자 화면 상단 카드에 재사용합니다.
+            승인 대기, 사용자 관리, 운영 로그, 시스템 상태를 목적별 탭으로 나눠 확인하세요.
           </p>
         </div>
-        {dashboardQuery.isLoading && !dashboardQuery.data ? (
-          <LoadingState message="관리자 개요를 불러오는 중입니다." />
-        ) : null}
-        {dashboardQuery.isError ? (
-          <ErrorState
-            title="관리자 개요를 불러오지 못했습니다."
-            description={getApiErrorMessage(dashboardQuery.error)}
-          />
-        ) : null}
-        {dashboardQuery.data ? (
-          <div className="detail-grid">
-            <div className="detail-item">
-              <span className="detail-label">발전소 수</span>
-              <span className="detail-value">
-                {formatCount(dashboardQuery.data.data.summary.totalPlantCount)}
-              </span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">이미지 수</span>
-              <span className="detail-value">
-                {formatCount(dashboardQuery.data.data.summary.totalImageCount)}
-              </span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">분석 작업 수</span>
-              <span className="detail-value">
-                {formatCount(dashboardQuery.data.data.summary.totalAnalysisJobCount)}
-              </span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">분석 결과 수</span>
-              <span className="detail-value">
-                {formatCount(dashboardQuery.data.data.summary.totalAnalysisResultCount)}
-              </span>
-            </div>
-          </div>
-        ) : null}
+        <div className="flex flex-wrap gap-3">
+          {ADMIN_TABS.map((tab) => (
+            <TabButton
+              key={tab.id}
+              active={activeTab === tab.id}
+              label={tab.label}
+              count={tab.id === 'pending' ? pendingCount : tab.id === 'users' ? totalUserCount : tab.id === 'logs' ? logCount : undefined}
+              onClick={() => setActiveTab(tab.id)}
+            />
+          ))}
+        </div>
       </section>
 
-      <section className="dashboard-split">
-        <section className="panel stack-md">
-          <div className="toolbar">
-            <div>
-              <h2 className="panel-title">승인 대기 사용자</h2>
-              <p className="panel-description">
-                실제 backend `GET /api/v1/admin/users/pending` 목록입니다.
-              </p>
-            </div>
+      {activeTab === 'pending' ? (
+        <section className="panel space-y-5">
+          <div>
+            <h2 className="panel-title">승인 대기</h2>
+            <p className="panel-description">새로 가입한 사용자의 접근 권한을 확인하세요.</p>
           </div>
 
           {pendingUsersQuery.isLoading && !pendingUsersQuery.data ? (
@@ -357,7 +471,7 @@ export function AdminPage() {
 
           {pendingUsersQuery.isError ? (
             <ErrorState
-              title="승인 대기 사용자 목록을 불러오지 못했습니다."
+              title="승인 대기 사용자를 불러오지 못했습니다."
               description={getApiErrorMessage(pendingUsersQuery.error)}
             />
           ) : null}
@@ -368,7 +482,7 @@ export function AdminPage() {
                 columns={[
                   {
                     key: 'user',
-                    header: '사용자',
+                    header: '이름',
                     render: (row) => (
                       <div className="stack-sm">
                         <strong className="text-slate-900">{row.name}</strong>
@@ -377,43 +491,43 @@ export function AdminPage() {
                     ),
                   },
                   {
-                    key: 'status',
-                    header: '상태',
+                    key: 'role',
+                    header: '권한',
                     render: (row) => (
-                      <div className="stack-sm">
-                        <StatusBadge
-                          label={getUserRoleLabel(row.role)}
-                          tone={getUserRoleTone(row.role)}
-                        />
-                        <StatusBadge
-                          label={getAccountStatusLabel(row.accountStatus)}
-                          tone={getAccountStatusTone(row.accountStatus)}
-                        />
-                      </div>
+                      <StatusBadge label={getUserRoleLabel(row.role)} tone={getUserRoleTone(row.role)} />
+                    ),
+                  },
+                  {
+                    key: 'status',
+                    header: '현재 상태',
+                    render: (row) => (
+                      <StatusBadge
+                        label={getAccountStatusLabel(row.accountStatus)}
+                        tone={getAccountStatusTone(row.accountStatus)}
+                      />
                     ),
                   },
                   {
                     key: 'lastLoginAt',
-                    header: '마지막 로그인',
+                    header: '최근 로그인',
                     render: (row) => formatDateTime(row.lastLoginAt),
                   },
                   {
                     key: 'actions',
-                    header: '동작',
+                    header: '작업',
                     render: (row) => (
                       <div className="inline-actions">
                         <button
                           className="text-button"
                           type="button"
-                          onClick={() => setSelectedUserId(row.userId)}
+                          onClick={() => {
+                            setSelectedUserId(row.userId)
+                            setActiveTab('users')
+                          }}
                         >
                           상세 보기
                         </button>
-                        <button
-                          className="text-button"
-                          type="button"
-                          onClick={() => setApproveTarget(row)}
-                        >
+                        <button className="text-button" type="button" onClick={() => setApproveTarget(row)}>
                           승인
                         </button>
                       </div>
@@ -423,7 +537,7 @@ export function AdminPage() {
                 rows={pendingUsersQuery.data.data.content}
                 rowKey={(row) => row.userId}
                 emptyTitle="승인 대기 사용자가 없습니다."
-                emptyDescription="현재 대기 중인 계정이 없으면 이 영역은 비어 있습니다."
+                emptyDescription="새 가입 요청이 생기면 이 영역에서 바로 확인할 수 있습니다."
               />
               <Pagination
                 page={(pendingUsersQuery.data.data.page ?? 0) + 1}
@@ -434,69 +548,188 @@ export function AdminPage() {
             </>
           ) : null}
         </section>
+      ) : null}
 
-        <section className="panel stack-md">
-          <div>
-            <h2 className="panel-title">선택 사용자 상세</h2>
-            <p className="panel-description">
-              실제 backend `GET /api/v1/admin/users/{'{userId}'}` 응답을 기준으로 표시합니다.
-            </p>
-          </div>
+      {activeTab === 'users' ? (
+        <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+          <section className="panel space-y-5">
+            <div>
+              <h2 className="panel-title">사용자 관리</h2>
+              <p className="panel-description">사용자 권한과 계정 상태를 확인하고 필요한 조치를 진행하세요.</p>
+            </div>
 
-          {!selectedUserId ? (
-            <EmptyState
-              title="사용자를 먼저 선택해 주세요."
-              description="승인 대기 목록 또는 전체 사용자 목록에서 상세 보기를 누르면 이 영역이 채워집니다."
-            />
-          ) : null}
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <FormField label="검색어" hint="이름 또는 이메일">
+                <input
+                  className="input-field"
+                  value={keywordInput}
+                  onChange={(event) => {
+                    setKeywordInput(event.target.value)
+                    setUserPage(1)
+                  }}
+                />
+              </FormField>
+              <FormField label="권한">
+                <select
+                  className="input-field"
+                  value={roleFilter}
+                  onChange={(event) => {
+                    setRoleFilter(event.target.value)
+                    setUserPage(1)
+                  }}
+                >
+                  <option value="">전체</option>
+                  {USER_ROLE_OPTIONS.map((role) => (
+                    <option key={role} value={role}>
+                      {getUserRoleLabel(role)}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+              <FormField label="계정 상태">
+                <select
+                  className="input-field"
+                  value={statusFilter}
+                  onChange={(event) => {
+                    setStatusFilter(event.target.value)
+                    setUserPage(1)
+                  }}
+                >
+                  <option value="">전체</option>
+                  {ACCOUNT_STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>
+                      {getAccountStatusLabel(status)}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+            </div>
 
-          {selectedUserId && selectedUserQuery.isLoading && !selectedUserQuery.data ? (
-            <LoadingState message="사용자 상세를 불러오는 중입니다." />
-          ) : null}
+            <div className="inline-actions">
+              <button className="btn btn-secondary" type="button" onClick={handleUserSearchReset}>
+                필터 초기화
+              </button>
+            </div>
 
-          {selectedUserId && selectedUserQuery.isError ? (
-            <ErrorState
-              title="사용자 상세를 불러오지 못했습니다."
-              description={getApiErrorMessage(selectedUserQuery.error)}
-            />
-          ) : null}
+            {usersQuery.isLoading && !usersQuery.data ? (
+              <LoadingState message="사용자 목록을 불러오는 중입니다." />
+            ) : null}
 
-          {selectedUser ? (
-            <>
-              <div className="detail-grid">
-                <div className="detail-item">
-                  <span className="detail-label">이름</span>
-                  <span className="detail-value">{selectedUser.name}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">이메일</span>
-                  <span className="detail-value">{selectedUser.email}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">권한</span>
-                  <span className="detail-value">{getUserRoleLabel(selectedUser.role)}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">계정 상태</span>
-                  <span className="detail-value">
-                    {getAccountStatusLabel(selectedUser.accountStatus)}
-                  </span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">마지막 로그인</span>
-                  <span className="detail-value">
-                    {formatDateTime(selectedUser.lastLoginAt)}
-                  </span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">생성 시각</span>
-                  <span className="detail-value">
-                    {formatDateTime(selectedUser.createdAt)}
-                  </span>
-                </div>
-              </div>
+            {usersQuery.isError ? (
+              <ErrorState
+                title="사용자 목록을 불러오지 못했습니다."
+                description={getApiErrorMessage(usersQuery.error)}
+              />
+            ) : null}
 
-              <div className="stack-md">
+            {usersQuery.data ? (
+              <>
+                <DataTable
+                  columns={[
+                    {
+                      key: 'user',
+                      header: '이름',
+                      render: (row) => (
+                        <div className="stack-sm">
+                          <strong className="text-slate-900">{row.name}</strong>
+                          <span className="text-xs text-slate-500">{row.email}</span>
+                        </div>
+                      ),
+                    },
+                    {
+                      key: 'role',
+                      header: '권한',
+                      render: (row) => (
+                        <StatusBadge label={getUserRoleLabel(row.role)} tone={getUserRoleTone(row.role)} />
+                      ),
+                    },
+                    {
+                      key: 'status',
+                      header: '계정 상태',
+                      render: (row) => (
+                        <StatusBadge
+                          label={getAccountStatusLabel(row.accountStatus)}
+                          tone={getAccountStatusTone(row.accountStatus)}
+                        />
+                      ),
+                    },
+                    {
+                      key: 'lastLoginAt',
+                      header: '최근 로그인',
+                      render: (row) => formatDateTime(row.lastLoginAt),
+                    },
+                    {
+                      key: 'actions',
+                      header: '작업',
+                      render: (row) => (
+                        <div className="inline-actions">
+                          <button className="text-button" type="button" onClick={() => setSelectedUserId(row.userId)}>
+                            상세 보기
+                          </button>
+                          {row.accountStatus === 'PENDING' ? (
+                            <button className="text-button" type="button" onClick={() => setApproveTarget(row)}>
+                              승인
+                            </button>
+                          ) : null}
+                        </div>
+                      ),
+                    },
+                  ]}
+                  rows={usersQuery.data.data.content}
+                  rowKey={(row) => row.userId}
+                  emptyTitle="조건에 맞는 사용자가 없습니다."
+                  emptyDescription="검색어나 필터를 조정해 보세요."
+                />
+                <Pagination
+                  page={(usersQuery.data.data.page ?? 0) + 1}
+                  totalPages={usersQuery.data.data.totalPages}
+                  totalElements={usersQuery.data.data.totalElements}
+                  onPageChange={setUserPage}
+                />
+              </>
+            ) : null}
+          </section>
+
+          <section className="panel space-y-5">
+            <div>
+              <h2 className="panel-title">사용자 상세</h2>
+              <p className="panel-description">선택한 사용자의 상태와 권한을 확인하고 필요한 조치를 진행하세요.</p>
+            </div>
+
+            {!selectedUserId ? (
+              <CompactState
+                title="사용자를 선택하세요."
+                description="왼쪽 목록에서 상세 보기를 누르면 이 영역에 정보가 표시됩니다."
+              />
+            ) : null}
+
+            {selectedUserId && selectedUserQuery.isLoading && !selectedUserQuery.data ? (
+              <LoadingState message="사용자 상세를 불러오는 중입니다." />
+            ) : null}
+
+            {selectedUserId && selectedUserQuery.isError ? (
+              <ErrorState
+                title="사용자 상세를 불러오지 못했습니다."
+                description={getApiErrorMessage(selectedUserQuery.error)}
+              />
+            ) : null}
+
+            {selectedUser ? (
+              <>
+                <div className="detail-grid">
+                  <SummaryRow label="이름" value={selectedUser.name} />
+                  <SummaryRow label="이메일" value={selectedUser.email} />
+                  <SummaryRow label="권한" value={getUserRoleLabel(selectedUser.role)} />
+                  <SummaryRow label="계정 상태" value={getAccountStatusLabel(selectedUser.accountStatus)} />
+                  <SummaryRow label="등록 시각" value={formatDateTime(selectedUser.createdAt)} />
+                  <SummaryRow label="최근 로그인" value={formatDateTime(selectedUser.lastLoginAt)} />
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-sm font-medium text-slate-700">운영 대상 권한</div>
+                  <p className="mt-2 text-sm text-slate-600">{buildMembershipSummary(selectedUser)}</p>
+                </div>
+
                 <FormField label="권한 변경">
                   <select
                     className="input-field"
@@ -510,9 +743,15 @@ export function AdminPage() {
                     ))}
                   </select>
                 </FormField>
-                <div className="inline-actions">
+
+                <div className="flex flex-wrap gap-3">
+                  {selectedUser.accountStatus === 'PENDING' ? (
+                    <button className="btn btn-primary" type="button" onClick={() => setApproveTarget(selectedUser)}>
+                      승인
+                    </button>
+                  ) : null}
                   <button
-                    className="btn btn-primary"
+                    className="btn btn-secondary"
                     type="button"
                     disabled={
                       changeRoleMutation.isPending ||
@@ -521,7 +760,7 @@ export function AdminPage() {
                     }
                     onClick={() => void handleRoleChange()}
                   >
-                    권한 저장
+                    권한 변경
                   </button>
                   <button
                     className="btn btn-secondary"
@@ -541,364 +780,244 @@ export function AdminPage() {
                       })
                     }
                   >
-                    사용자 비활성화
+                    비활성화
                   </button>
                 </div>
-              </div>
+              </>
+            ) : null}
+          </section>
+        </section>
+      ) : null}
 
-              <div className="stack-sm rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                <h3 className="font-semibold text-slate-900">발전소 멤버 정보</h3>
-                {selectedUser.plantMembers.length === 0 ? (
-                  <p className="text-sm text-slate-600">
-                    현재 backend 관리자 사용자 상세 응답은 `plantMembers`를 비워서 반환합니다.
-                  </p>
-                ) : (
-                  <ul className="marker-list">
-                    {selectedUser.plantMembers.map((member) => (
-                      <li key={member.plantMemberId}>
-                        {`Plant #${member.plantId} · ${getPlantMemberRoleLabel(member.memberRole)} · ${getResourceStatusLabel(member.status)}`}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+      {activeTab === 'logs' ? (
+        <section className="panel space-y-5">
+          <div>
+            <h2 className="panel-title">운영 로그</h2>
+            <p className="panel-description">사용자 활동과 주요 작업 이력을 확인합니다.</p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <FormField label="작업 분류">
+              <select
+                className="input-field"
+                value={logCategoryFilter}
+                onChange={(event) => {
+                  setLogCategoryFilter(event.target.value)
+                  setLogPage(1)
+                }}
+              >
+                <option value="">전체</option>
+                {OPERATION_EVENT_CATEGORY_OPTIONS.map((category) => (
+                  <option key={category} value={category}>
+                    {getOperationEventCategoryLabel(category)}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="작업 유형">
+              <select
+                className="input-field"
+                value={logTypeFilter}
+                onChange={(event) => {
+                  setLogTypeFilter(event.target.value)
+                  setLogPage(1)
+                }}
+              >
+                <option value="">전체</option>
+                {OPERATION_EVENT_TYPE_OPTIONS.map((type) => (
+                  <option key={type} value={type}>
+                    {getOperationEventTypeLabel(type)}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="시작 시각">
+              <input
+                className="input-field"
+                type="datetime-local"
+                value={logFromInput}
+                onChange={(event) => {
+                  setLogFromInput(event.target.value)
+                  setLogPage(1)
+                }}
+              />
+            </FormField>
+            <FormField label="종료 시각">
+              <input
+                className="input-field"
+                type="datetime-local"
+                value={logToInput}
+                onChange={(event) => {
+                  setLogToInput(event.target.value)
+                  setLogPage(1)
+                }}
+              />
+            </FormField>
+            <FormField label="검색어" hint="이메일 또는 작업 관련 키워드">
+              <input
+                className="input-field"
+                value={logKeywordInput}
+                onChange={(event) => {
+                  setLogKeywordInput(event.target.value)
+                  setLogPage(1)
+                }}
+              />
+            </FormField>
+          </div>
+
+          <div className="inline-actions">
+            <button className="btn btn-secondary" type="button" onClick={handleLogSearchReset}>
+              필터 초기화
+            </button>
+          </div>
+
+          {operationLogsQuery.isLoading && !operationLogsQuery.data ? (
+            <LoadingState message="운영 로그를 불러오는 중입니다." />
+          ) : null}
+
+          {operationLogsQuery.isError ? (
+            <ErrorState
+              title="운영 로그를 불러오지 못했습니다."
+              description={getApiErrorMessage(operationLogsQuery.error)}
+            />
+          ) : null}
+
+          {operationLogsQuery.data ? (
+            <>
+              <DataTable
+                columns={[
+                  {
+                    key: 'createdAt',
+                    header: '발생 시각',
+                    render: (row) => formatDateTime(row.createdAt),
+                  },
+                  {
+                    key: 'actor',
+                    header: '사용자',
+                    render: (row) => (
+                      <div className="stack-sm">
+                        <span>{row.actorEmail ?? '시스템'}</span>
+                        <span className="text-xs text-slate-500">{getActorRoleLabel(row.actorRole)}</span>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'type',
+                    header: '작업 유형',
+                    render: (row) => (
+                      <div className="stack-sm">
+                        <span>{getOperationEventTypeLabel(row.eventType)}</span>
+                        <span className="text-xs text-slate-500">{getOperationEventCategoryLabel(row.eventCategory)}</span>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'target',
+                    header: '대상',
+                    render: (row) => buildOperationTargetLabel(row),
+                  },
+                  {
+                    key: 'result',
+                    header: '결과',
+                    render: (row) => <StatusBadge label={getLogResultLabel(row)} tone={getLogResultTone(row)} />,
+                  },
+                  {
+                    key: 'message',
+                    header: '메시지',
+                    render: (row) => buildOperationMessage(row),
+                  },
+                ]}
+                rows={operationLogsQuery.data.data.content}
+                rowKey={(row) => row.operationLogId}
+                emptyTitle="아직 운영 로그가 없습니다."
+                emptyDescription="주요 작업 이력이 쌓이면 이 영역에서 확인할 수 있습니다."
+              />
+              <Pagination
+                page={(operationLogsQuery.data.data.page ?? 0) + 1}
+                totalPages={operationLogsQuery.data.data.totalPages}
+                totalElements={operationLogsQuery.data.data.totalElements}
+                onPageChange={setLogPage}
+              />
             </>
           ) : null}
         </section>
-      </section>
+      ) : null}
 
-      <section className="panel stack-md">
-        <div className="toolbar">
-          <div>
-            <h2 className="panel-title">전체 사용자</h2>
-            <p className="panel-description">
-              실제 backend `GET /api/v1/admin/users` 필터와 페이지네이션을 사용합니다.
-            </p>
-          </div>
-        </div>
-
-        <div className="filter-grid">
-          <FormField label="검색어" hint="이름 또는 이메일">
-            <input
-              className="input-field"
-              value={keywordInput}
-              onChange={(event) => {
-                setKeywordInput(event.target.value)
-                setUserPage(1)
-              }}
+      {activeTab === 'status' ? (
+        <section className="space-y-6">
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              label="분석 실패"
+              value={`${formatCount(summary?.failedJobCount ?? 0)}건`}
+              tone={(summary?.failedJobCount ?? 0) > 0 ? 'danger' : 'default'}
             />
-          </FormField>
-          <FormField label="권한">
-            <select
-              className="input-field"
-              value={roleFilter}
-              onChange={(event) => {
-                setRoleFilter(event.target.value)
-                setUserPage(1)
-              }}
-            >
-              <option value="">전체</option>
-              {USER_ROLE_OPTIONS.map((role) => (
-                <option key={role} value={role}>
-                  {getUserRoleLabel(role)}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="계정 상태">
-            <select
-              className="input-field"
-              value={statusFilter}
-              onChange={(event) => {
-                setStatusFilter(event.target.value)
-                setUserPage(1)
-              }}
-            >
-              <option value="">전체</option>
-              {ACCOUNT_STATUS_OPTIONS.map((status) => (
-                <option key={status} value={status}>
-                  {getAccountStatusLabel(status)}
-                </option>
-              ))}
-            </select>
-          </FormField>
-        </div>
-
-        <div className="inline-actions">
-          <button className="btn btn-secondary" type="button" onClick={handleUserSearchReset}>
-            필터 초기화
-          </button>
-        </div>
-
-        {usersQuery.isLoading && !usersQuery.data ? (
-          <LoadingState message="전체 사용자 목록을 불러오는 중입니다." />
-        ) : null}
-
-        {usersQuery.isError ? (
-          <ErrorState
-            title="전체 사용자 목록을 불러오지 못했습니다."
-            description={getApiErrorMessage(usersQuery.error)}
-          />
-        ) : null}
-
-        {usersQuery.data ? (
-          <>
-            <DataTable
-              columns={[
-                {
-                  key: 'user',
-                  header: '사용자',
-                  render: (row) => (
-                    <div className="stack-sm">
-                      <strong className="text-slate-900">{row.name}</strong>
-                      <span className="text-xs text-slate-500">{row.email}</span>
-                    </div>
-                  ),
-                },
-                {
-                  key: 'role',
-                  header: '권한',
-                  render: (row) => (
-                    <StatusBadge
-                      label={getUserRoleLabel(row.role)}
-                      tone={getUserRoleTone(row.role)}
-                    />
-                  ),
-                },
-                {
-                  key: 'status',
-                  header: '계정 상태',
-                  render: (row) => (
-                    <StatusBadge
-                      label={getAccountStatusLabel(row.accountStatus)}
-                      tone={getAccountStatusTone(row.accountStatus)}
-                    />
-                  ),
-                },
-                {
-                  key: 'lastLoginAt',
-                  header: '마지막 로그인',
-                  render: (row) => formatDateTime(row.lastLoginAt),
-                },
-                {
-                  key: 'actions',
-                  header: '동작',
-                  render: (row) => (
-                    <div className="inline-actions">
-                      <button
-                        className="text-button"
-                        type="button"
-                        onClick={() => setSelectedUserId(row.userId)}
-                      >
-                        상세 보기
-                      </button>
-                      {row.accountStatus === 'PENDING' ? (
-                        <button
-                          className="text-button"
-                          type="button"
-                          onClick={() => setApproveTarget(row)}
-                        >
-                          승인
-                        </button>
-                      ) : null}
-                    </div>
-                  ),
-                },
-              ]}
-              rows={usersQuery.data.data.content}
-              rowKey={(row) => row.userId}
-              emptyTitle="검색 조건에 맞는 사용자가 없습니다."
-              emptyDescription="검색어 또는 상태 필터를 조정해 주세요."
+            <KpiCard
+              label="검토 대기"
+              value={`${formatCount(summary?.pendingReviewCount ?? 0)}건`}
+              tone={(summary?.pendingReviewCount ?? 0) > 0 ? 'warning' : 'default'}
             />
-            <Pagination
-              page={(usersQuery.data.data.page ?? 0) + 1}
-              totalPages={usersQuery.data.data.totalPages}
-              totalElements={usersQuery.data.data.totalElements}
-              onPageChange={setUserPage}
+            <KpiCard
+              label="진행 중 분석"
+              value={`${formatCount((summary?.queuedJobCount ?? 0) + (summary?.runningJobCount ?? 0))}건`}
             />
-          </>
-        ) : null}
-      </section>
-
-      <section className="panel stack-md">
-        <div>
-          <h2 className="panel-title">운영 로그</h2>
-          <p className="panel-description">
-            실제 backend `GET /api/v1/admin/operation-logs` 필터를 그대로 사용합니다.
-          </p>
-        </div>
-
-        <div className="filter-grid">
-          <FormField label="행위 사용자 ID">
-            <input
-              className="input-field"
-              value={actorUserIdInput}
-              onChange={(event) => {
-                setActorUserIdInput(event.target.value)
-                setLogPage(1)
-              }}
+            <KpiCard
+              label="추적 필요"
+              value={`${formatCount(trackingAttentionCount)}건`}
+              tone={trackingAttentionCount > 0 ? 'warning' : 'default'}
             />
-          </FormField>
-          <FormField label="이벤트 분류">
-            <select
-              className="input-field"
-              value={logCategoryFilter}
-              onChange={(event) => {
-                setLogCategoryFilter(event.target.value)
-                setLogPage(1)
-              }}
-            >
-              <option value="">전체</option>
-              {OPERATION_EVENT_CATEGORY_OPTIONS.map((category) => (
-                <option key={category} value={category}>
-                  {getOperationEventCategoryLabel(category)}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="이벤트 타입">
-            <select
-              className="input-field"
-              value={logTypeFilter}
-              onChange={(event) => {
-                setLogTypeFilter(event.target.value)
-                setLogPage(1)
-              }}
-            >
-              <option value="">전체</option>
-              {OPERATION_EVENT_TYPE_OPTIONS.map((type) => (
-                <option key={type} value={type}>
-                  {getOperationEventTypeLabel(type)}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="시작 시각">
-            <input
-              className="input-field"
-              type="datetime-local"
-              value={logFromInput}
-              onChange={(event) => {
-                setLogFromInput(event.target.value)
-                setLogPage(1)
-              }}
-            />
-          </FormField>
-          <FormField label="종료 시각">
-            <input
-              className="input-field"
-              type="datetime-local"
-              value={logToInput}
-              onChange={(event) => {
-                setLogToInput(event.target.value)
-                setLogPage(1)
-              }}
-            />
-          </FormField>
-          <FormField label="키워드">
-            <input
-              className="input-field"
-              value={logKeywordInput}
-              onChange={(event) => {
-                setLogKeywordInput(event.target.value)
-                setLogPage(1)
-              }}
-            />
-          </FormField>
-        </div>
+          </section>
 
-        <div className="inline-actions">
-          <button className="btn btn-secondary" type="button" onClick={handleLogSearchReset}>
-            필터 초기화
-          </button>
-        </div>
+          <section className="panel space-y-5">
+            <div>
+              <h2 className="panel-title">시스템 상태</h2>
+              <p className="panel-description">현재 운영 중 확인이 필요한 항목을 요약했습니다.</p>
+            </div>
 
-        {operationLogsQuery.isLoading && !operationLogsQuery.data ? (
-          <LoadingState message="운영 로그를 불러오는 중입니다." />
-        ) : null}
+            {dashboardQuery.isLoading && !dashboardQuery.data ? (
+              <LoadingState message="시스템 상태를 불러오는 중입니다." />
+            ) : null}
 
-        {operationLogsQuery.isError ? (
-          <ErrorState
-            title="운영 로그를 불러오지 못했습니다."
-            description={getApiErrorMessage(operationLogsQuery.error)}
-          />
-        ) : null}
+            {dashboardQuery.isError ? (
+              <ErrorState
+                title="시스템 상태를 불러오지 못했습니다."
+                description={getApiErrorMessage(dashboardQuery.error)}
+              />
+            ) : null}
 
-        {operationLogsQuery.data ? (
-          <>
-            <DataTable
-              columns={[
-                {
-                  key: 'createdAt',
-                  header: '시각',
-                  render: (row) => formatDateTime(row.createdAt),
-                },
-                {
-                  key: 'actor',
-                  header: '행위자',
-                  render: (row) => (
-                    <div className="stack-sm">
-                      <span>{row.actorEmail ?? '시스템'}</span>
-                      <span className="text-xs text-slate-500">
-                        {row.actorRole ?? '-'}
-                      </span>
-                    </div>
-                  ),
-                },
-                {
-                  key: 'category',
-                  header: '분류',
-                  render: (row) => (
-                    <div className="stack-sm">
-                      <StatusBadge label={getOperationEventCategoryLabel(row.eventCategory)} />
-                      <span className="text-xs text-slate-500">
-                        {getOperationEventTypeLabel(row.eventType)}
-                      </span>
-                    </div>
-                  ),
-                },
-                {
-                  key: 'message',
-                  header: '메시지',
-                  render: (row) => (
-                    <div className="stack-sm">
-                      <span>{row.message ?? '-'}</span>
-                      <span className="text-xs text-slate-500">
-                        {buildDetailSummary(row)}
-                      </span>
-                    </div>
-                  ),
-                },
-              ]}
-              rows={operationLogsQuery.data.data.content}
-              rowKey={(row) => row.operationLogId}
-              emptyTitle="조건에 맞는 운영 로그가 없습니다."
-              emptyDescription="시간 범위 또는 이벤트 필터를 조정해 주세요."
-            />
-            <Pagination
-              page={(operationLogsQuery.data.data.page ?? 0) + 1}
-              totalPages={operationLogsQuery.data.data.totalPages}
-              totalElements={operationLogsQuery.data.data.totalElements}
-              onPageChange={setLogPage}
-            />
-          </>
-        ) : null}
-      </section>
-
-      <section className="panel stack-md">
-        <div>
-          <h2 className="panel-title">확인 필요 API</h2>
-          <p className="panel-description">
-            아래 관리자 전용 목록 API는 현재 실제 backend controller에서 확인되지 않아 연결하지 않았습니다.
-          </p>
-        </div>
-        <ul className="marker-list">
-          <li>`GET /api/v1/admin/plants`</li>
-          <li>`GET /api/v1/admin/images`</li>
-          <li>`GET /api/v1/admin/analysis-jobs`</li>
-          <li>`GET /api/v1/admin/results`</li>
-        </ul>
-      </section>
+            {dashboardQuery.data ? (
+              attentionCount === 0 && trackingAttentionCount === 0 ? (
+                <CompactState
+                  title="현재 확인이 필요한 시스템 알림이 없습니다."
+                  description="분석 실패, 검토 대기, 변화 추적 주의 항목이 생기면 이곳에서 먼저 확인할 수 있습니다."
+                />
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="text-sm font-medium text-slate-500">분석 실패</div>
+                    <div className="mt-3 text-xl font-semibold text-slate-900">{formatCount(summary?.failedJobCount ?? 0)}건</div>
+                    <p className="mt-2 text-sm text-slate-600">실패한 분석 작업이 남아 있으면 원인 확인이 필요합니다.</p>
+                  </div>
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="text-sm font-medium text-slate-500">검토 대기</div>
+                    <div className="mt-3 text-xl font-semibold text-slate-900">{formatCount(summary?.pendingReviewCount ?? 0)}건</div>
+                    <p className="mt-2 text-sm text-slate-600">분석 결과 검토가 남아 있는 항목입니다.</p>
+                  </div>
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="text-sm font-medium text-slate-500">높은 우선순위</div>
+                    <div className="mt-3 text-xl font-semibold text-slate-900">{formatCount(summary?.highPriorityCount ?? 0)}건</div>
+                    <p className="mt-2 text-sm text-slate-600">우선 확인이 필요한 결과 수입니다.</p>
+                  </div>
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="text-sm font-medium text-slate-500">변화 추적 주의</div>
+                    <div className="mt-3 text-xl font-semibold text-slate-900">{formatCount(trackingAttentionCount)}건</div>
+                    <p className="mt-2 text-sm text-slate-600">악화 또는 반복 이상으로 분류된 대상입니다.</p>
+                  </div>
+                </div>
+              )
+            ) : null}
+          </section>
+        </section>
+      ) : null}
 
       <ConfirmModal
         isOpen={Boolean(approveTarget)}
