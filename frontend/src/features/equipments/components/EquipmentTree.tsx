@@ -1,4 +1,4 @@
-import { StatusBadge } from '../../../shared/components/state/StatusBadge'
+﻿import { StatusBadge } from '../../../shared/components/state/StatusBadge'
 import {
   getResourceStatusLabel,
   getResourceStatusTone,
@@ -55,8 +55,7 @@ function EquipmentTreeCard({
           <div>
             <h3 className="text-lg font-semibold text-slate-950">{node.name}</h3>
             <p className="text-sm text-slate-600">
-              장비 ID {node.equipmentId}
-              {node.positionCode ? ` · 위치 코드 ${node.positionCode}` : ''}
+              {node.positionCode ? `위치 코드 ${node.positionCode}` : '위치 코드 없음'}
             </p>
           </div>
         </div>
