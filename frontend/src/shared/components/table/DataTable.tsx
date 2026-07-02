@@ -37,7 +37,7 @@ export function DataTable<T>({
         <thead className="bg-slate-50 text-slate-600">
           <tr>
             {columns.map((column) => (
-              <th key={column.key} className="px-4 py-2.5 font-medium">
+              <th key={column.key} className="px-4 py-2.5 font-medium whitespace-nowrap">
                 {column.header}
               </th>
             ))}
@@ -52,7 +52,7 @@ export function DataTable<T>({
               {columns.map((column) => (
                 <td
                   key={column.key}
-                  className={`px-4 py-2.5 text-slate-700 ${column.className ?? ''}`}
+                  className={`px-4 py-2.5 text-slate-700 break-keep ${column.className ?? ''}`}
                 >
                   {column.render(row)}
                 </td>

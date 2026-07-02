@@ -158,11 +158,9 @@ export function DashboardPage() {
         title="대시보드"
         description="오늘 확인할 점검과 분석 결과를 한눈에 확인하세요."
         actions={
-          <div className="flex flex-wrap items-center justify-end gap-3">
+          <div className="page-actions">
             <Link className="btn btn-primary" to="/inspections">새 점검 시작</Link>
-            <Link className="btn btn-secondary" to="/inspections">점검 목록</Link>
             <Link className="btn btn-secondary" to="/results">결과 검토</Link>
-            <Link className="btn btn-secondary" to="/plants">발전소 보기</Link>
             <button className="btn btn-secondary" type="button" onClick={handleRefresh}>새로고침</button>
           </div>
         }
@@ -404,7 +402,7 @@ function MiniMetric({ label, value }: { label: string; value: number }) {
 }
 
 function CompactEmptyState({ title, description, action, compact = false }: { title: string; description: string; action?: ReactNode; compact?: boolean }) {
-  return <div className={`rounded-3xl border border-slate-200 bg-slate-50 ${compact ? 'p-4' : 'p-5'}`}><div className="text-base font-semibold text-slate-900">{title}</div><p className="mt-2 text-sm text-slate-600">{description}</p>{action ? <div className="mt-4">{action}</div> : null}</div>
+  return <div className={`compact-empty ${compact ? 'p-4' : ''}`}><div className="text-base font-semibold text-slate-900">{title}</div><p className="mt-2 text-sm text-slate-600">{description}</p>{action ? <div className="mt-4">{action}</div> : null}</div>
 }
 
 function DashboardChartSection({ title, description, isLoading, error, isEmpty, emptyTitle, emptyDescription, emptyAction, compactWhenEmpty = false, children }: { title: string; description: string; isLoading: boolean; error: string | null; isEmpty: boolean; emptyTitle: string; emptyDescription: string; emptyAction?: ReactNode; compactWhenEmpty?: boolean; children: ReactNode }) {

@@ -30,7 +30,7 @@ export function TopNavbar() {
         <h1 className="text-lg font-semibold text-slate-900">태양광 점검 운영 화면</h1>
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600">
+        <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 whitespace-nowrap">
           {user ? `${user.name} / ${user.role}` : '사용자 정보를 확인하는 중'}
         </div>
         <button

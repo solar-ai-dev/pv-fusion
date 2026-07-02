@@ -19,7 +19,7 @@ export function Sidebar() {
           발전소, 점검, 분석 결과를 한 흐름으로 확인하는 운영 화면입니다.
         </p>
       </div>
-      <nav className="mt-8 space-y-2">
+      <nav className="mt-6 space-y-2">
         {menus.map((menu) => (
           <NavLink
             key={menu.to}

@@ -141,7 +141,7 @@ export function ResultListPage() {
         title="분석 결과"
         description="분석이 완료된 결과를 확인하고 조치 후보와 검토 상태를 관리하세요."
         actions={
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="page-actions">
             <button className="btn btn-secondary" type="button" onClick={() => handleSelectFilter('reviewStatus', 'UNCHECKED')}>
               검토 대기 결과
             </button>
@@ -156,7 +156,7 @@ export function ResultListPage() {
           <h2 className="panel-title">조회 조건</h2>
           <p className="panel-description">발전소, 점검 영역, 기간, 조치 후보, 검토 상태를 기준으로 필요한 분석 결과를 찾으세요.</p>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="filter-grid">
           <FormField label="발전소">
             <select className="input-field" value={plantIdInput} onChange={(event) => { setPlantIdInput(event.target.value); setZoneIdInput('') }}>
               <option value="">전체</option>
@@ -186,7 +186,7 @@ export function ResultListPage() {
         </div>
         <details className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <summary className="cursor-pointer text-sm font-medium text-slate-700">상세 필터</summary>
-          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-4 filter-grid">
             <FormField label="입력 유형">
               <select className="input-field" value={searchParams.get('inputType') ?? ''} onChange={(event) => handleSelectFilter('inputType', event.target.value)}>
                 <option value="">전체</option>
@@ -300,7 +300,7 @@ function SummaryCard({ label, value, tone = 'default' }: { label: string; value:
 }
 
 function CompactEmptyState({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
-  return <section className="panel"><div className="rounded-3xl border border-slate-200 bg-slate-50 p-5"><div className="text-base font-semibold text-slate-900">{title}</div><p className="mt-2 text-sm text-slate-600">{description}</p>{action ? <div className="mt-4">{action}</div> : null}</div></section>
+  return <section className="panel"><div className="compact-empty"><div className="text-base font-semibold text-slate-900">{title}</div><p className="mt-2 text-sm text-slate-600">{description}</p>{action ? <div className="mt-4">{action}</div> : null}</div></section>
 }
 
 function InfoBlock({ label, value }: { label: string; value: string }) {

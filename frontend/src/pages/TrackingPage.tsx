@@ -101,8 +101,7 @@ export function TrackingPage() {
         title="변화 추적"
         description="같은 점검 영역의 이전 결과와 비교해 반복 이상과 악화 여부를 확인하세요."
         actions={
-          <div className="flex flex-wrap items-center gap-3">
-            <Link className="btn btn-secondary" to="/plants">점검 영역 선택</Link>
+          <div className="page-actions">
             <Link className="btn btn-secondary" to="/results">결과 목록 보기</Link>
             <Link className="btn btn-primary" to="/inspections">새 점검 시작</Link>
           </div>
@@ -114,7 +113,7 @@ export function TrackingPage() {
           <h2 className="panel-title">조회 조건</h2>
           <p className="panel-description">발전소, 점검 영역, 기간, 조치 후보, 심각도를 기준으로 반복 이상과 악화 여부를 좁혀 보세요.</p>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="filter-grid">
           <FormField label="발전소">
             <select className="input-field" value={plantIdInput} onChange={(event) => { setPlantIdInput(event.target.value); setZoneIdInput('') }}>
               <option value="">전체</option>
@@ -144,7 +143,7 @@ export function TrackingPage() {
         </div>
         <details className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <summary className="cursor-pointer text-sm font-medium text-slate-700">상세 필터</summary>
-          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-4 filter-grid">
             <FormField label="우선순위">
               <select className="input-field" value={searchParams.get('priorityLevel') ?? ''} onChange={(event) => handleSelectFilter('priorityLevel', event.target.value)}>
                 <option value="">전체</option>
@@ -159,7 +158,7 @@ export function TrackingPage() {
         </div>
       </section>
 
-      {!canQuery ? <CompactEmptyState title="먼저 점검 영역을 선택하세요." description="변화 추적은 같은 점검 영역의 결과가 누적되어야 의미가 있습니다. 범위를 먼저 선택해 주세요." action={<div className="flex flex-wrap gap-3"><Link className="btn btn-secondary" to="/plants">점검 영역 선택</Link><Link className="btn btn-secondary" to="/results">결과 목록 보기</Link></div>} /> : null}
+      {!canQuery ? <CompactEmptyState title="먼저 점검 영역을 선택하세요." description="변화 추적은 같은 점검 영역의 결과가 누적되어야 의미가 있습니다. 범위를 먼저 선택해 주세요." action={<Link className="btn btn-secondary" to="/plants">점검 영역 선택</Link>} /> : null}
       {canQuery && trackingQuery.isLoading && items.length === 0 ? <LoadingState message="변화 추적 데이터를 불러오는 중입니다." /> : null}
       {canQuery && trackingQuery.isError ? <ErrorState title="변화 추적 데이터를 불러오지 못했습니다." description={getApiErrorMessage(trackingQuery.error)} /> : null}
 
@@ -199,7 +198,7 @@ export function TrackingPage() {
         </>
       ) : null}
 
-      {canQuery && trackingQuery.data && items.length === 0 ? <CompactEmptyState title="아직 비교할 이전 점검 결과가 없습니다." description="같은 점검 영역의 결과가 2회 이상 누적되면 반복 이상과 악화 여부를 확인할 수 있습니다." action={<div className="flex flex-wrap gap-3"><Link className="btn btn-primary" to="/inspections">새 점검 시작</Link><Link className="btn btn-secondary" to="/results">결과 목록 보기</Link></div>} /> : null}
+      {canQuery && trackingQuery.data && items.length === 0 ? <CompactEmptyState title="아직 비교할 이전 점검 결과가 없습니다." description="같은 점검 영역의 결과가 2회 이상 누적되면 반복 이상과 악화 여부를 확인할 수 있습니다." action={<Link className="btn btn-secondary" to="/results">결과 목록 보기</Link>} /> : null}
     </section>
   )
 }
@@ -259,7 +258,7 @@ function SummaryCard({ label, value, description, tone = 'default' }: { label: s
 }
 
 function CompactEmptyState({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
-  return <section className="panel"><div className="rounded-3xl border border-slate-200 bg-slate-50 p-5"><div className="text-base font-semibold text-slate-900">{title}</div><p className="mt-2 text-sm text-slate-600">{description}</p>{action ? <div className="mt-4">{action}</div> : null}</div></section>
+  return <section className="panel"><div className="compact-empty"><div className="text-base font-semibold text-slate-900">{title}</div><p className="mt-2 text-sm text-slate-600">{description}</p>{action ? <div className="mt-4">{action}</div> : null}</div></section>
 }
 
 function InfoBlock({ label, value }: { label: string; value: string }) {

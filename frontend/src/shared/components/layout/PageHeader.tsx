@@ -17,7 +17,7 @@ export function PageHeader({
         <h1 className="text-3xl font-semibold text-slate-950">{title}</h1>
         <p className="mt-2 text-sm text-slate-600">{description}</p>
       </div>
-      {actions ? <div className="flex flex-wrap items-center gap-3 md:justify-end">{actions}</div> : null}
+      {actions ? <div className="page-actions">{actions}</div> : null}
     </header>
   )
 }

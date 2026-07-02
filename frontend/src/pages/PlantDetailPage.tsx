@@ -166,26 +166,16 @@ export function PlantDetailPage() {
         title={plant?.name ?? '발전소 상세'}
         description="이 발전소의 점검 영역을 확인하고 자연스럽게 점검과 결과 검토로 이어가세요."
         actions={
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="page-actions">
             <Link className="btn btn-primary" to={plantInspectionLink}>
               이 발전소 점검 시작
             </Link>
-            <button
-              className="btn btn-secondary"
-              type="button"
-              onClick={() => {
-                zoneForm.reset()
-                setIsCreateZoneModalOpen(true)
-              }}
-            >
-              점검 영역 설정
-            </button>
-            <button className="btn btn-secondary" type="button" onClick={() => setIsEditModalOpen(true)}>
-              정보 수정
-            </button>
-            <button className="btn btn-secondary" type="button" onClick={() => setIsDeactivateModalOpen(true)}>
-              비활성화
-            </button>
+            <Link className="btn btn-secondary" to="/results">
+              결과 보기
+            </Link>
+            <Link className="btn btn-secondary" to="/inspections">
+              점검 목록
+            </Link>
           </div>
         }
       />
@@ -209,14 +199,6 @@ export function PlantDetailPage() {
                 <p className="panel-description">{plant.location || '위치 정보가 없습니다.'}</p>
               </div>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Link className="btn btn-secondary" to="/results">
-                결과 보기
-              </Link>
-              <Link className="btn btn-secondary" to="/inspections">
-                점검 목록
-              </Link>
-            </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SummaryCard label="상태" value={getResourceStatusLabel(plant.status)} />
@@ -230,22 +212,40 @@ export function PlantDetailPage() {
           </div>
         </section>
       ) : null}
+
+      {plant ? (
+        <section className="panel space-y-4">
+          <div>
+            <h2 className="panel-title">관리</h2>
+            <p className="panel-description">설정 변경이나 비활성화처럼 관리성 작업은 이 영역에서 진행하세요.</p>
+          </div>
+          <div className="management-actions">
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => {
+                zoneForm.reset()
+                setIsCreateZoneModalOpen(true)
+              }}
+            >
+              점검 영역 설정
+            </button>
+            <button className="btn btn-secondary" type="button" onClick={() => setIsEditModalOpen(true)}>
+              정보 수정
+            </button>
+            <button className="btn btn-secondary" type="button" onClick={() => setIsDeactivateModalOpen(true)}>
+              비활성화
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       <section className="panel space-y-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="panel-title">점검 영역</h2>
             <p className="panel-description">이 발전소에서 점검할 영역을 확인하고 바로 점검을 시작하세요.</p>
           </div>
-          <button
-            className="btn btn-secondary"
-            type="button"
-            onClick={() => {
-              zoneForm.reset()
-              setIsCreateZoneModalOpen(true)
-            }}
-          >
-            점검 영역 설정
-          </button>
         </div>
 
         {zonesQuery.isLoading ? <LoadingState message="점검 영역 목록을 불러오는 중입니다." /> : null}
@@ -342,7 +342,7 @@ export function PlantDetailPage() {
 
 function ZoneEntryCard({ zone, plantId }: { zone: ZoneSummary; plantId: number }) {
   return (
-    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-slate-950">{zone.name}</h3>

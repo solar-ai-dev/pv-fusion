@@ -224,7 +224,7 @@ export function ZoneDetailPage() {
         title={zone?.name ?? '점검 영역 상세'}
         description="이 영역의 최근 상태를 확인하고 바로 점검, 결과 검토, 변화 추적으로 이어가세요."
         actions={
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="page-actions">
             <Link className="btn btn-primary" to={`/inspections?plantId=${zone?.plantId ?? ''}&zoneId=${zoneId}`}>
               이 영역 점검 시작
             </Link>
@@ -234,15 +234,6 @@ export function ZoneDetailPage() {
             <Link className="btn btn-secondary" to={`/tracking?zoneId=${zoneId}`}>
               변화 추적
             </Link>
-            <button className="btn btn-secondary" type="button" onClick={() => setIsEditZoneModalOpen(true)}>
-              점검 영역 수정
-            </button>
-            <button className="btn btn-secondary" type="button" onClick={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(true) }}>
-              설비 위치 등록
-            </button>
-            <button className="btn btn-secondary" type="button" onClick={() => setIsDeactivateZoneModalOpen(true)}>
-              점검 영역 비활성화
-            </button>
           </div>
         }
       />
@@ -264,10 +255,7 @@ export function ZoneDetailPage() {
                 <p className="panel-description">{zone.location || '위치 정보가 없습니다.'}</p>
               </div>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Link className="btn btn-secondary" to={`/plants/${zone.plantId}`}>상위 발전소 보기</Link>
-              <Link className="btn btn-secondary" to="/inspections">점검 목록</Link>
-            </div>
+            <Link className="btn btn-secondary" to={`/plants/${zone.plantId}`}>상위 발전소 보기</Link>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SummaryCard label="발전소" value={plantName} />
@@ -278,6 +266,26 @@ export function ZoneDetailPage() {
             <SummaryCard label="변화 추적 대상" value={`${trackingItems.length}건`} />
             <SummaryCard label="설비 위치 수" value={`${equipmentCount}개`} />
             <SummaryCard label="설명" value={zone.description || '-'} />
+          </div>
+        </section>
+      ) : null}
+
+      {zone ? (
+        <section className="panel space-y-4">
+          <div>
+            <h2 className="panel-title">관리</h2>
+            <p className="panel-description">설정 변경과 설비 위치 등록 같은 관리성 작업은 이 영역에서 진행하세요.</p>
+          </div>
+          <div className="management-actions">
+            <button className="btn btn-secondary" type="button" onClick={() => setIsEditZoneModalOpen(true)}>
+              점검 영역 수정
+            </button>
+            <button className="btn btn-secondary" type="button" onClick={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(true) }}>
+              설비 위치 등록
+            </button>
+            <button className="btn btn-secondary" type="button" onClick={() => setIsDeactivateZoneModalOpen(true)}>
+              비활성화
+            </button>
           </div>
         </section>
       ) : null}
@@ -310,8 +318,8 @@ export function ZoneDetailPage() {
           ) : (
             <CompactEmptyState
               title="아직 비교할 이전 점검 결과가 없습니다."
-              description="같은 점검 영역의 결과가 2회 이상 누적되면 반복 이상, 악화 여부, 우선 관리 대상을 확인할 수 있습니다."
-              action={<div className="flex flex-wrap gap-3"><Link className="btn btn-secondary" to={`/tracking?zoneId=${zoneId}`}>변화 추적 보기</Link><Link className="btn btn-secondary" to={`/results?zoneId=${zoneId}`}>결과 보기</Link><Link className="btn btn-secondary" to={`/inspections?plantId=${zone?.plantId ?? ''}&zoneId=${zoneId}`}>이 영역 점검 시작</Link></div>}
+              description="같은 점검 영역의 결과가 2회 이상 누적되면 반복 이상과 악화 여부를 확인할 수 있습니다."
+              action={<Link className="btn btn-secondary" to={`/results?zoneId=${zoneId}`}>결과 보기</Link>}
             />
           )
         ) : null}
@@ -358,7 +366,7 @@ export function ZoneDetailPage() {
             equipmentsQuery.data.data.length > 0 ? (
               <EquipmentTree nodes={equipmentsQuery.data.data} onEdit={(node) => setSelectedEquipment(node)} onDeactivate={(node) => setEquipmentToDeactivate(node)} />
             ) : (
-              <CompactEmptyState title="아직 설비 위치가 없습니다." description="Array, Panel, Module 단위로 더 세밀하게 관리할 때만 추가하면 됩니다." action={<button className="btn btn-secondary" type="button" onClick={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(true) }}>설비 위치 등록</button>} />
+              <CompactEmptyState title="등록된 설비 위치가 없습니다." description="더 세밀한 관리가 필요할 때만 설비 위치를 추가하세요." action={<button className="btn btn-secondary" type="button" onClick={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(true) }}>설비 위치 등록</button>} />
             )
           ) : null}
         </div>
@@ -424,7 +432,7 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 }
 
 function CompactEmptyState({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
-  return <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5"><div className="text-base font-semibold text-slate-900">{title}</div><p className="mt-2 text-sm text-slate-600">{description}</p>{action ? <div className="mt-4">{action}</div> : null}</div>
+  return <div className="compact-empty"><div className="text-base font-semibold text-slate-900">{title}</div><p className="mt-2 text-sm text-slate-600">{description}</p>{action ? <div className="mt-4">{action}</div> : null}</div>
 }
 
 function EntityModal({ isOpen, title, description, children, onClose }: { isOpen: boolean; title: string; description: string; children: ReactNode; onClose: () => void }) {

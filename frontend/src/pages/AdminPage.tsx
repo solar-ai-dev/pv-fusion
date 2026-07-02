@@ -81,7 +81,7 @@ function CompactState({
   description: string
 }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+    <div className="compact-empty">
       <div className="text-base font-semibold text-slate-900">{title}</div>
       <p className="mt-2 text-sm text-slate-600">{description}</p>
     </div>
@@ -101,7 +101,7 @@ function TabButton({
 }) {
   return (
     <button
-      className={active ? 'btn btn-primary' : 'btn btn-secondary'}
+      className={`tab-button ${active ? 'btn btn-primary' : 'btn btn-secondary'}`}
       type="button"
       onClick={onClick}
     >
@@ -445,7 +445,7 @@ export function AdminPage() {
             승인 대기, 사용자 관리, 운영 로그, 시스템 상태를 목적별 탭으로 나눠 확인하세요.
           </p>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="tab-strip">
           {ADMIN_TABS.map((tab) => (
             <TabButton
               key={tab.id}
