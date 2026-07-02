@@ -1,4 +1,4 @@
-@tailwind base;
+﻿@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -83,8 +83,8 @@ textarea {
 
 .sidebar-link {
   display: block;
-  border-radius: 1rem;
-  padding: 0.875rem 1rem;
+  border-radius: 0.875rem;
+  padding: 0.75rem 0.875rem;
   color: #cbd5e1;
   transition:
     background-color 0.2s ease,
@@ -101,6 +101,7 @@ textarea {
 
 .app-content {
   min-width: 0;
+  overflow-x: hidden;
 }
 
 .top-navbar {
@@ -113,6 +114,7 @@ textarea {
 
 .app-body {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   gap: 1.25rem;
   padding: 0 2rem 2rem;
@@ -141,10 +143,10 @@ textarea {
 
 .panel {
   border: 1px solid rgba(148, 163, 184, 0.25);
-  border-radius: 1.75rem;
+  border-radius: 1rem;
   background: rgba(255, 255, 255, 0.86);
-  padding: 1.5rem;
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+  padding: 1.25rem;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.07);
   backdrop-filter: blur(10px);
 }
 
@@ -174,10 +176,10 @@ textarea {
 
 .kpi-card {
   border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 1.5rem;
+  border-radius: 1rem;
   background: rgba(255, 255, 255, 0.92);
-  padding: 1.25rem;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
+  padding: 1rem;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
 }
 
 .kpi-card-warning {
@@ -214,12 +216,15 @@ textarea {
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
   border: 0;
-  border-radius: 9999px;
-  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  padding: 0.7rem 0.95rem;
   font-weight: 600;
   cursor: pointer;
+  text-align: center;
+  white-space: normal;
 }
 
 .btn:disabled {
@@ -241,9 +246,9 @@ textarea {
   display: grid;
   justify-items: center;
   gap: 0.75rem;
-  border-radius: 1.5rem;
+  border-radius: 1rem;
   border: 1px dashed rgba(148, 163, 184, 0.55);
-  padding: 2rem;
+  padding: 1.25rem;
   text-align: center;
   color: #475569;
 }
@@ -305,9 +310,9 @@ textarea {
 
 .modal-card {
   width: min(100%, 32rem);
-  border-radius: 1.75rem;
+  border-radius: 1.5rem;
   background: white;
-  padding: 1.5rem;
+  padding: 1.25rem;
 }
 
 .toast-stack {
@@ -328,9 +333,9 @@ textarea {
 
 .input-field {
   border: 1px solid #cbd5e1;
-  border-radius: 1rem;
+  border-radius: 0.75rem;
   background: white;
-  padding: 0.8rem 1rem;
+  padding: 0.75rem 0.9rem;
   width: 100%;
 }
 
@@ -357,9 +362,9 @@ textarea {
 }
 
 .detail-item {
-  border-radius: 1.25rem;
+  border-radius: 0.875rem;
   background: rgba(248, 250, 252, 0.95);
-  padding: 1rem;
+  padding: 0.875rem;
 }
 
 .detail-label {
@@ -393,9 +398,9 @@ textarea {
 
 .tree-node {
   border: 1px solid rgba(148, 163, 184, 0.24);
-  border-radius: 1.25rem;
+  border-radius: 0.875rem;
   background: rgba(255, 255, 255, 0.92);
-  padding: 1rem;
+  padding: 0.875rem;
 }
 
 .tree-node-header {
@@ -448,7 +453,7 @@ textarea {
   min-height: 240px;
   place-items: center;
   border: 1px dashed rgba(148, 163, 184, 0.55);
-  border-radius: 1.5rem;
+  border-radius: 0.875rem;
   background:
     linear-gradient(135deg, rgba(226, 232, 240, 0.8), rgba(248, 250, 252, 0.95));
   color: #64748b;
@@ -458,9 +463,9 @@ textarea {
   display: grid;
   gap: 1rem;
   border: 1px solid rgba(148, 163, 184, 0.24);
-  border-radius: 1.5rem;
+  border-radius: 1rem;
   background: rgba(255, 255, 255, 0.92);
-  padding: 1rem;
+  padding: 0.875rem;
 }
 
 .compare-pane-header {
@@ -473,7 +478,7 @@ textarea {
   min-height: 280px;
   max-height: 70vh;
   border: 1px solid rgba(148, 163, 184, 0.24);
-  border-radius: 1.25rem;
+  border-radius: 0.875rem;
   background: rgba(248, 250, 252, 0.95);
   object-fit: contain;
 }
@@ -497,6 +502,18 @@ textarea {
 
   .sidebar {
     gap: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .sidebar nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .sidebar-link {
+    display: inline-flex;
+    align-items: center;
   }
 }
 
@@ -511,5 +528,21 @@ textarea {
   .page-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .panel {
+    padding: 1rem;
+  }
+
+  .state-card {
+    padding: 1rem;
+  }
+
+  .btn {
+    width: 100%;
+  }
+
+  .top-navbar > div:last-child {
+    width: 100%;
   }
 }

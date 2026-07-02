@@ -1,11 +1,11 @@
-import { NavLink } from 'react-router-dom'
+﻿import { NavLink } from 'react-router-dom'
 
 const menus = [
   { to: '/dashboard', label: '대시보드' },
-  { to: '/plants', label: '발전소 관리' },
-  { to: '/inspections', label: '점검 관리' },
-  { to: '/results', label: '점검 결과' },
-  { to: '/tracking', label: '변경 추적' },
+  { to: '/plants', label: '발전소' },
+  { to: '/inspections', label: '점검' },
+  { to: '/results', label: '분석 결과' },
+  { to: '/tracking', label: '변화 추적' },
   { to: '/admin', label: '관리자' },
 ]
 

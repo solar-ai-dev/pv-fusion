@@ -1,11 +1,11 @@
-type EmptyStateProps = {
+﻿type EmptyStateProps = {
   title?: string
   description?: string
 }
 
 export function EmptyState({
-  title = '표시할 데이터가 없습니다.',
-  description = '필터 조건을 조정하거나 데이터를 등록한 뒤 다시 확인해 주세요.',
+  title = '표시할 내용이 없습니다.',
+  description = '조건을 바꾸거나 데이터를 추가한 뒤 다시 확인해 주세요.',
 }: EmptyStateProps) {
   return (
     <div className="state-card">

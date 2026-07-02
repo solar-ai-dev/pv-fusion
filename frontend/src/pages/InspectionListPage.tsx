@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+﻿import type { ReactNode } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useState } from 'react'
@@ -185,8 +185,8 @@ export function InspectionListPage() {
     return (
       <section className="space-y-6">
         <PageHeader
-          title="점검 관리"
-          description="등록된 점검을 확인하고 이미지 업로드와 분석을 이어서 진행하세요."
+          title="점검"
+          description="등록된 점검을 확인하고 이미지 업로드와 분석 흐름을 이어서 진행하세요."
           actions={
             <button className="btn btn-primary" type="button" onClick={() => openCreateModal()}>
               새 점검 시작
@@ -213,10 +213,7 @@ export function InspectionListPage() {
 
     try {
       const response = await createInspectionMutation.mutateAsync(payload)
-
-      toast.push(
-        response.message || '점검이 생성되었습니다. 이미지를 업로드해 분석을 시작하세요.',
-      )
+      toast.push(response.message || '점검을 생성했습니다. 이미지 업로드 화면으로 이동합니다.')
       setIsCreateModalOpen(false)
       navigate(`/inspections/${response.data.inspectionId}`)
     } catch (error) {
@@ -232,8 +229,8 @@ export function InspectionListPage() {
   return (
     <section className="space-y-6">
       <PageHeader
-        title="점검 관리"
-        description="등록된 점검을 확인하고 이미지 업로드와 분석을 이어서 진행하세요."
+        title="점검"
+        description="점검을 시작하고 업로드, 분석, 결과 확인까지 한 흐름으로 이어서 관리하세요."
         actions={
           <button className="btn btn-primary" type="button" onClick={() => openCreateModal()}>
             새 점검 시작
@@ -242,11 +239,22 @@ export function InspectionListPage() {
       />
 
       <section className="panel stack-md">
-        <div>
-          <h2 className="panel-title">조회 조건</h2>
-          <p className="panel-description">
-            점검 목록을 보려면 발전소와 점검 영역을 선택하세요.
-          </p>
+        <div className="toolbar">
+          <div>
+            <h2 className="panel-title">조회 조건</h2>
+            <p className="panel-description">
+              기본 조건만 노출하고, 범위나 기간은 필요할 때만 조정할 수 있게 유지했습니다.
+            </p>
+          </div>
+          <div className="inline-actions">
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => setSearchParams(new URLSearchParams())}
+            >
+              초기화
+            </button>
+          </div>
         </div>
         <div className="filter-grid">
           <FormField label="발전소">
@@ -282,7 +290,7 @@ export function InspectionListPage() {
               }
               disabled={!plantId}
             >
-              <option value="">{plantId ? '전체' : '발전소를 먼저 선택하세요.'}</option>
+              <option value="">{plantId ? '전체' : '발전소를 먼저 선택해 주세요.'}</option>
               {filterZonesQuery.data?.data.map((zone) => (
                 <option key={zone.zoneId} value={zone.zoneId}>
                   {zone.name}
@@ -348,15 +356,6 @@ export function InspectionListPage() {
             </select>
           </FormField>
         </div>
-        <div className="inline-actions">
-          <button
-            className="btn btn-secondary"
-            type="button"
-            onClick={() => setSearchParams(new URLSearchParams())}
-          >
-            필터 초기화
-          </button>
-        </div>
       </section>
 
       <section className="panel stack-md">
@@ -364,7 +363,7 @@ export function InspectionListPage() {
           <div>
             <h2 className="panel-title">점검 목록</h2>
             <p className="panel-description">
-              진행 중인 점검을 열어 이미지 업로드와 분석을 계속할 수 있습니다.
+              진행 중인 점검을 이어가거나 완료된 점검의 촬영 시각과 상태를 빠르게 확인할 수 있습니다.
             </p>
           </div>
           {inspectionsQuery.isLoading ? (
@@ -392,26 +391,21 @@ export function InspectionListPage() {
                         >
                           {inspection.name}
                         </Link>
-                        <span className="text-xs text-slate-500">
-                          점검 ID {inspection.inspectionId}
+                        <span className="text-sm text-slate-500">
+                          {getCaptureMethodLabel(inspection.captureMethod)} 촬영
                         </span>
                       </div>
                     ),
                   },
                   {
                     key: 'scope',
-                    header: '대상',
+                    header: '연결 대상',
                     render: (inspection) => (
-                      <div className="stack-sm text-sm">
-                        <span>발전소 ID {inspection.plantId ?? '-'}</span>
-                        <span>점검 영역 ID {inspection.zoneId}</span>
+                      <div className="stack-sm text-sm text-slate-600">
+                        <span>{inspection.plantId ? '발전소 연결됨' : '발전소 정보 없음'}</span>
+                        <span>점검 영역 연결됨</span>
                       </div>
                     ),
-                  },
-                  {
-                    key: 'captureMethod',
-                    header: '촬영 방식',
-                    render: (inspection) => getCaptureMethodLabel(inspection.captureMethod),
                   },
                   {
                     key: 'status',
@@ -435,10 +429,10 @@ export function InspectionListPage() {
                   },
                   {
                     key: 'actions',
-                    header: '동작',
+                    header: '이동',
                     render: (inspection) => (
                       <Link className="text-button" to={`/inspections/${inspection.inspectionId}`}>
-                        이어하기
+                        이어서 보기
                       </Link>
                     ),
                   },
@@ -456,16 +450,11 @@ export function InspectionListPage() {
               />
             </>
           ) : (
-            <div className="state-card space-y-4">
+            <div className="state-card">
               <EmptyState
                 title="아직 등록된 점검이 없습니다."
-                description="새 점검을 시작하고 이미지를 업로드해 분석을 요청하세요."
+                description="상단의 새 점검 시작 버튼으로 촬영과 분석 흐름을 시작해 주세요."
               />
-              <div className="flex justify-center">
-                <button className="btn btn-primary" type="button" onClick={() => openCreateModal()}>
-                  새 점검 시작
-                </button>
-              </div>
             </div>
           )
         ) : null}
@@ -474,18 +463,18 @@ export function InspectionListPage() {
       <EntityModal
         isOpen={isCreateModalOpen}
         title="새 점검 시작"
-        description="점검할 발전소와 점검 영역을 선택한 뒤 기본 정보를 입력하세요. 등록 후 이미지 업로드 화면으로 이동합니다."
+        description="발전소와 점검 영역을 선택하고 기본 정보를 입력하면 이미지 업로드 단계로 바로 이동합니다."
         onClose={() => setIsCreateModalOpen(false)}
       >
         {!hasPlants ? (
           <div className="space-y-4">
             <EmptyState
               title="등록된 발전소가 없습니다."
-              description="첫 점검을 시작하려면 발전소를 먼저 등록하세요."
+              description="점검을 시작하려면 먼저 발전소를 등록해 주세요."
             />
-            <div className="flex justify-end">
-              <Link className="btn btn-primary" to="/plants">
-                발전소 등록
+            <div className="inline-actions justify-end">
+              <Link className="btn btn-secondary" to="/plants">
+                발전소 화면으로 이동
               </Link>
             </div>
           </div>
@@ -493,7 +482,7 @@ export function InspectionListPage() {
           <form className="stack-md" onSubmit={handleCreateInspection}>
             <FormField label="발전소 *" error={createForm.formState.errors.plantId?.message}>
               <select className="input-field" {...createForm.register('plantId')}>
-                <option value="">발전소를 선택하세요.</option>
+                <option value="">발전소를 선택해 주세요.</option>
                 {plantsQuery.data?.data.content.map((plant) => (
                   <option key={plant.plantId} value={plant.plantId}>
                     {plant.name}
@@ -506,8 +495,8 @@ export function InspectionListPage() {
               label="점검 영역 *"
               hint={
                 createPlantId
-                  ? '점검할 영역을 선택하세요.'
-                  : '발전소를 먼저 선택하면 점검 영역을 고를 수 있습니다.'
+                  ? '점검할 영역을 선택해 주세요.'
+                  : '발전소를 먼저 선택하면 영역 목록이 열립니다.'
               }
               error={createForm.formState.errors.zoneId?.message}
             >
@@ -518,9 +507,9 @@ export function InspectionListPage() {
               >
                 <option value="">
                   {!createPlantId
-                    ? '발전소를 먼저 선택하세요.'
+                    ? '발전소를 먼저 선택해 주세요.'
                     : hasCreateZones
-                      ? '점검 영역을 선택하세요.'
+                      ? '점검 영역을 선택해 주세요.'
                       : '등록된 점검 영역이 없습니다.'}
                 </option>
                 {createZones.map((zone) => (
@@ -532,13 +521,11 @@ export function InspectionListPage() {
             </FormField>
 
             {createPlantId && !createZonesQuery.isLoading && !createZonesQuery.isError && !hasCreateZones ? (
-              <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                <p>
-                  등록된 점검 영역이 없습니다. 먼저 발전소 상세에서 점검 영역을 설정하세요.
-                </p>
-                <div className="mt-3 flex justify-end">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <p>선택한 발전소에 등록된 점검 영역이 없습니다. 먼저 발전소 상세에서 영역을 추가해 주세요.</p>
+                <div className="mt-3 inline-actions justify-end">
                   <Link className="btn btn-secondary" to={`/plants/${createPlantId}`}>
-                    발전소 상세로 이동
+                    발전소 상세 보기
                   </Link>
                 </div>
               </div>
@@ -546,7 +533,7 @@ export function InspectionListPage() {
 
             <FormField
               label="점검명 *"
-              hint="발전소명 또는 점검 영역명을 기준으로 기본 점검명을 미리 채워드립니다."
+              hint="발전소와 점검 영역을 고르면 기본 점검명이 자동으로 채워집니다."
               error={createForm.formState.errors.name?.message}
             >
               <input
@@ -571,7 +558,7 @@ export function InspectionListPage() {
 
             <FormField
               label="촬영 시각"
-              hint="촬영 시각을 모르면 비워둘 수 있습니다."
+              hint="정확한 시각을 모르면 비워 둘 수 있습니다."
               error={createForm.formState.errors.capturedAt?.message}
             >
               <input
@@ -592,7 +579,7 @@ export function InspectionListPage() {
             <FormField label="메모" error={createForm.formState.errors.memo?.message}>
               <textarea
                 className="input-field textarea-field"
-                placeholder="예: 특이사항, 날씨, 촬영 조건 등을 입력하세요."
+                placeholder="특이사항이나 촬영 조건이 있으면 적어 주세요."
                 {...createForm.register('memo')}
               />
             </FormField>
@@ -675,7 +662,7 @@ function ModalActions({
   submitText?: string
 }) {
   return (
-    <div className="flex justify-end gap-3">
+    <div className="inline-actions justify-end">
       <button className="btn btn-secondary" type="button" onClick={onCancel}>
         취소
       </button>

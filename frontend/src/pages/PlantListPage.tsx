@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+﻿import type { ReactNode } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -104,6 +104,11 @@ export function PlantListPage() {
     setSearchParams(nextParams)
   }
 
+  const resetFilters = () => {
+    setFilters({ keyword: '', status: '', size: '10' })
+    setSearchParams(new URLSearchParams({ page: '1', size: '10' }))
+  }
+
   const handlePageChange = (nextPage: number) => {
     const nextParams = new URLSearchParams(searchParams)
     nextParams.set('page', String(nextPage))
@@ -119,7 +124,7 @@ export function PlantListPage() {
 
     try {
       const response = await createPlantMutation.mutateAsync(payload)
-      toast.push(response.message || '발전소가 등록되었습니다.')
+      toast.push(response.message || '발전소를 등록했습니다.')
       reset()
       setIsCreateModalOpen(false)
       navigate(`/plants/${response.data.plantId}`)
@@ -133,8 +138,8 @@ export function PlantListPage() {
   return (
     <section className="space-y-6">
       <PageHeader
-        title="발전소 관리"
-        description="점검할 발전소를 등록하고 상태를 확인하세요."
+        title="발전소"
+        description="발전소를 등록하고 상태와 최근 점검 흐름을 빠르게 확인하세요."
         actions={
           <button
             className="btn btn-primary"
@@ -149,19 +154,24 @@ export function PlantListPage() {
       <section className="panel stack-md">
         <div className="toolbar">
           <div>
-            <h2 className="panel-title">검색 및 필터</h2>
+            <h2 className="panel-title">조회 조건</h2>
             <p className="panel-description">
-              이름과 상태로 발전소를 빠르게 찾을 수 있습니다.
+              검색어와 상태만 먼저 열어 두고, 필요한 경우에만 조건을 바꿔 확인합니다.
             </p>
           </div>
-          <button className="btn btn-secondary" type="button" onClick={submitFilters}>
-            조건 적용
-          </button>
+          <div className="inline-actions">
+            <button className="btn btn-secondary" type="button" onClick={resetFilters}>
+              초기화
+            </button>
+            <button className="btn btn-primary" type="button" onClick={submitFilters}>
+              적용
+            </button>
+          </div>
         </div>
         <div className="filter-grid">
           <FormField
             label="검색어"
-            placeholder="예: 부천 발전소"
+            placeholder="발전소 이름 또는 위치"
             value={filters.keyword}
             onChange={(event) =>
               setFilters((current) => ({ ...current, keyword: event.target.value }))
@@ -204,7 +214,7 @@ export function PlantListPage() {
       {plantsQuery.isLoading ? <LoadingState message="발전소 목록을 불러오는 중입니다." /> : null}
       {plantsQuery.isError ? (
         <ErrorState
-          title="발전소 목록 조회에 실패했습니다."
+          title="발전소 목록을 불러오지 못했습니다."
           description={getApiErrorMessage(plantsQuery.error, '잠시 후 다시 시도해 주세요.')}
         />
       ) : null}
@@ -225,14 +235,11 @@ export function PlantListPage() {
                       >
                         {plant.name}
                       </Link>
-                      <span className="text-xs text-slate-500">ID {plant.plantId}</span>
+                      <span className="text-sm text-slate-500">
+                        {plant.location || '위치 정보 없음'}
+                      </span>
                     </div>
                   ),
-                },
-                {
-                  key: 'location',
-                  header: '위치',
-                  render: (plant) => plant.location || '-',
                 },
                 {
                   key: 'status',
@@ -254,6 +261,15 @@ export function PlantListPage() {
                   header: '최근 점검',
                   render: (plant) => formatDateTime(plant.latestInspectionAt),
                 },
+                {
+                  key: 'actions',
+                  header: '이동',
+                  render: (plant) => (
+                    <Link className="text-button" to={`/plants/${plant.plantId}`}>
+                      상세 보기
+                    </Link>
+                  ),
+                },
               ]}
               rows={plants}
               rowKey={(plant) => plant.plantId}
@@ -266,20 +282,11 @@ export function PlantListPage() {
             />
           </>
         ) : (
-          <div className="state-card space-y-4">
+          <div className="state-card">
             <EmptyState
               title="등록된 발전소가 없습니다."
-              description="첫 점검을 시작하려면 발전소를 먼저 등록하세요."
+              description="상단의 발전소 등록 버튼으로 첫 운영 대상을 추가해 주세요."
             />
-            <div className="flex justify-center">
-              <button
-                className="btn btn-primary"
-                type="button"
-                onClick={() => setIsCreateModalOpen(true)}
-              >
-                발전소 등록
-              </button>
-            </div>
           </div>
         )
       ) : null}
@@ -287,7 +294,7 @@ export function PlantListPage() {
       <EntityModal
         isOpen={isCreateModalOpen}
         title="발전소 등록"
-        description="점검할 태양광 발전소 정보를 입력하세요."
+        description="발전소 이름과 기본 정보를 입력하면 상세 화면에서 점검 영역을 이어서 등록할 수 있습니다."
         onClose={() => {
           reset()
           setIsCreateModalOpen(false)
@@ -302,18 +309,18 @@ export function PlantListPage() {
           />
           <FormField
             label="위치"
-            placeholder="예: 경기도 부천시"
+            placeholder="예: 경기 부천시"
             error={errors.location?.message}
             {...register('location')}
           />
           <FormField label="설명" error={errors.description?.message}>
             <textarea
               className="input-field textarea-field"
-              placeholder="예: 지붕형 발전소, 1구역과 2구역으로 나누어 점검"
+              placeholder="운영 메모나 구역 구성 정보를 적어 두면 이후 화면에서 참고하기 쉽습니다."
               {...register('description')}
             />
           </FormField>
-          <div className="flex justify-end gap-3">
+          <div className="inline-actions justify-end">
             <button
               className="btn btn-secondary"
               type="button"

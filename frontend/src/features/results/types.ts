@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   AnalysisInputType,
   AnalysisJobStatus,
   AnalysisModelType,
@@ -220,7 +220,7 @@ export function getResultStatusLabel(status?: AnalysisResultStatus | null) {
     case 'ANOMALY':
       return '이상'
     case 'LOW_CONFIDENCE':
-      return '저신뢰'
+      return '낮은 신뢰도'
     default:
       return '-'
   }
@@ -242,7 +242,7 @@ export function getResultStatusTone(status?: AnalysisResultStatus | null) {
 export function getActionCandidateLabel(actionCandidate?: ActionCandidate | null) {
   switch (actionCandidate) {
     case 'CLEANING':
-      return '세척'
+      return '청소'
     case 'RETAKE':
       return '재촬영'
     case 'FIELD_INSPECTION':
@@ -259,9 +259,9 @@ export function getReviewStatusLabel(reviewStatus?: ReviewStatus | null) {
     case 'UNCHECKED':
       return '미검토'
     case 'CONFIRMED':
-      return '확인됨'
+      return '확인 완료'
     case 'RECHECK_REQUIRED':
-      return '재점검 필요'
+      return '재확인 필요'
     case 'ACTION_COMPLETED':
       return '조치 완료'
     default:
@@ -350,7 +350,7 @@ export function getDefectTypeLabel(defectType?: DefectType | null) {
     case 'ABNORMAL_HEAT':
       return '이상 발열'
     case 'UNKNOWN':
-      return '알 수 없음'
+      return '유형 미확인'
     default:
       return '-'
   }
@@ -370,10 +370,10 @@ export function getDefectSourceLabel(defectSource?: DefectSource | null) {
 export function getVisualizationTypeLabel(type: ResultVisualizationType) {
   switch (type) {
     case 'bbox':
-      return 'BBox'
+      return '경계 상자'
     case 'heatmap':
-      return 'Heatmap'
+      return '히트맵'
     case 'mask':
-      return 'Mask'
+      return '마스크'
   }
 }
