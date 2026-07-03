@@ -88,8 +88,6 @@ export function InspectionListPage() {
         <InspectionCreateWizard
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
-          initialPlantId={plantId}
-          initialZoneId={zoneId}
         />
       </section>
     )
@@ -149,7 +147,7 @@ export function InspectionListPage() {
               ))}
             </select>
           </FormField>
-          <FormField label="점검 영역">
+          <FormField label="구역">
             <select
               className="input-field"
               value={zoneId ? String(zoneId) : ''}
@@ -274,7 +272,7 @@ export function InspectionListPage() {
                     render: (inspection) => (
                       <div className="stack-sm text-sm text-slate-600">
                         <span>{inspection.plantId ? '발전소 연결됨' : '발전소 정보 없음'}</span>
-                        <span>점검 영역 연결됨</span>
+                        <span>구역 연결됨</span>
                       </div>
                     ),
                   },
@@ -334,8 +332,6 @@ export function InspectionListPage() {
       <InspectionCreateWizard
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        initialPlantId={plantId}
-        initialZoneId={zoneId}
       />
     </section>
   )

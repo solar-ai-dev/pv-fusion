@@ -20,7 +20,7 @@ import {
 
 const createInspectionSchema = z.object({
   plantId: z.string().min(1, '발전소를 선택해 주세요.'),
-  zoneId: z.string().min(1, '점검 영역을 선택해 주세요.'),
+  zoneId: z.string().min(1, '구역을 선택해 주세요.'),
   name: z.string().trim().min(1, '점검명을 입력해 주세요.'),
   capturedAt: z.string().optional(),
   captureMethod: z.enum(CAPTURE_METHOD_OPTIONS),
@@ -33,7 +33,7 @@ type WizardStep = 1 | 2 | 3
 
 const WIZARD_STEPS: Array<{ step: WizardStep; label: string }> = [
   { step: 1, label: '발전소 선택' },
-  { step: 2, label: '점검 영역 선택' },
+  { step: 2, label: '구역 선택' },
   { step: 3, label: '점검 정보 입력' },
 ]
 
@@ -182,7 +182,7 @@ export function InspectionCreateWizard({
 
     try {
       const response = await createInspectionMutation.mutateAsync(payload)
-      toast.push(response.message || '점검을 생성했습니다.')
+      toast.push('점검이 생성되었습니다.')
       onClose()
       navigate(`/inspections/${response.data.inspectionId}`)
     } catch (error) {
@@ -196,7 +196,7 @@ export function InspectionCreateWizard({
         <div className="wizard-header">
           <h2 className="panel-title">새 점검 시작</h2>
           <p className="panel-description">
-            발전소와 점검 영역을 선택한 뒤 점검을 생성하면 상세 화면으로 이동합니다.
+            발전소와 구역을 선택한 뒤 점검을 생성하면 상세 화면으로 이동합니다.
           </p>
         </div>
 
@@ -271,9 +271,9 @@ export function InspectionCreateWizard({
                     ? `선택한 발전소: ${selectedPlant.name}`
                     : '발전소를 먼저 선택해 주세요.'}
                 </div>
-                <FormField label="점검 영역" error={form.formState.errors.zoneId?.message}>
+                <FormField label="구역" error={form.formState.errors.zoneId?.message}>
                   <select className="input-field" {...form.register('zoneId')}>
-                    <option value="">점검 영역을 선택해 주세요.</option>
+                    <option value="">구역을 선택해 주세요.</option>
                     {zones.map((zone) => (
                       <option key={zone.zoneId} value={zone.zoneId}>
                         {zone.name}
@@ -285,8 +285,8 @@ export function InspectionCreateWizard({
             ) : (
               <div className="stack-md">
                 <EmptyState
-                  title="등록된 점검 영역이 없습니다."
-                  description="먼저 점검 영역을 등록하세요."
+                  title="등록된 구역이 없습니다."
+                  description="먼저 구역을 등록하세요."
                 />
                 <div className="wizard-footer">
                   <button className="btn btn-secondary" type="button" onClick={() => setCurrentStep(1)}>

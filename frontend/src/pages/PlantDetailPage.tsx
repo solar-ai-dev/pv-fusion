@@ -15,8 +15,18 @@ import {
   getResourceStatusTone,
   type UpdatePlantRequest,
 } from '../features/plants/types'
-import { useCreateZone, useZonesByPlantId } from '../features/zones/hooks/useZones'
-import type { CreateZoneRequest, ZoneSummary } from '../features/zones/types'
+import {
+  useCreateZone,
+  useDeactivateZone,
+  useZone,
+  useUpdateZone,
+  useZonesByPlantId,
+} from '../features/zones/hooks/useZones'
+import type {
+  CreateZoneRequest,
+  UpdateZoneRequest,
+  ZoneSummary,
+} from '../features/zones/types'
 import { InspectionCreateWizard } from '../features/inspections/components/InspectionCreateWizard'
 import { ConfirmModal } from '../shared/components/feedback/ConfirmModal'
 import { FormField } from '../shared/components/form/FormField'
@@ -35,7 +45,7 @@ const plantFormSchema = z.object({
 })
 
 const zoneFormSchema = z.object({
-  name: z.string().trim().min(1, '점검 영역 이름을 입력해 주세요.'),
+  name: z.string().trim().min(1, '구역 이름을 입력해 주세요.'),
   location: z.string().trim().optional(),
   description: z.string().trim().optional(),
 })
@@ -52,14 +62,19 @@ export function PlantDetailPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isCreateZoneModalOpen, setIsCreateZoneModalOpen] = useState(false)
   const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false)
+  const [selectedZone, setSelectedZone] = useState<ZoneSummary | null>(null)
+  const [zoneToDeactivate, setZoneToDeactivate] = useState<ZoneSummary | null>(null)
   const [isCreateInspectionWizardOpen, setIsCreateInspectionWizardOpen] = useState(false)
   const [initialZoneIdForWizard, setInitialZoneIdForWizard] = useState<number | null>(null)
 
   const plantQuery = usePlant(plantId ?? 0)
   const zonesQuery = useZonesByPlantId(plantId ?? 0)
+  const selectedZoneQuery = useZone(selectedZone?.zoneId ?? 0)
   const updatePlantMutation = useUpdatePlant(plantId ?? 0)
   const deactivatePlantMutation = useDeactivatePlant(plantId ?? 0)
   const createZoneMutation = useCreateZone(plantId ?? 0)
+  const updateZoneMutation = useUpdateZone(selectedZone?.zoneId ?? 0)
+  const deactivateZoneMutation = useDeactivateZone(zoneToDeactivate?.zoneId ?? 0)
 
   const plantForm = useForm<PlantFormValues>({
     resolver: zodResolver(plantFormSchema),
@@ -90,6 +105,18 @@ export function PlantDetailPage() {
       description: plantQuery.data.data.description ?? '',
     })
   }, [plantForm, plantQuery.data])
+
+  useEffect(() => {
+    if (!selectedZoneQuery.data?.data) {
+      return
+    }
+
+    zoneForm.reset({
+      name: selectedZoneQuery.data.data.name,
+      location: selectedZoneQuery.data.data.location ?? '',
+      description: selectedZoneQuery.data.data.description ?? '',
+    })
+  }, [selectedZoneQuery.data, zoneForm])
 
   const plant = plantQuery.data?.data
   const zones = useMemo(() => zonesQuery.data?.data ?? [], [zonesQuery.data])
@@ -126,8 +153,8 @@ export function PlantDetailPage() {
     }
 
     try {
-      const response = await updatePlantMutation.mutateAsync(payload)
-      toast.push(response.message || '발전소 정보가 수정되었습니다.')
+      await updatePlantMutation.mutateAsync(payload)
+      toast.push('변경사항이 저장되었습니다.')
       setIsEditModalOpen(false)
     } catch (error) {
       toast.push(getApiErrorMessage(error, '발전소 수정에 실패했습니다.'))
@@ -142,19 +169,39 @@ export function PlantDetailPage() {
     }
 
     try {
-      const response = await createZoneMutation.mutateAsync(payload)
-      toast.push(response.message || '점검 영역이 설정되었습니다.')
+      await createZoneMutation.mutateAsync(payload)
+      toast.push('구역이 등록되었습니다.')
       zoneForm.reset()
       setIsCreateZoneModalOpen(false)
     } catch (error) {
-      toast.push(getApiErrorMessage(error, '점검 영역 설정에 실패했습니다.'))
+      toast.push(getApiErrorMessage(error, '구역 등록에 실패했습니다.'))
+    }
+  })
+
+  const handleUpdateZone = zoneForm.handleSubmit(async (values) => {
+    if (!selectedZone) {
+      return
+    }
+
+    const payload: UpdateZoneRequest = {
+      name: values.name.trim(),
+      location: values.location?.trim() || null,
+      description: values.description?.trim() || null,
+    }
+
+    try {
+      await updateZoneMutation.mutateAsync(payload)
+      toast.push('구역 정보가 저장되었습니다.')
+      setSelectedZone(null)
+    } catch (error) {
+      toast.push(getApiErrorMessage(error, '구역 수정에 실패했습니다.'))
     }
   })
 
   const handleDeactivatePlant = async () => {
     try {
-      const response = await deactivatePlantMutation.mutateAsync()
-      toast.push(response.message || '발전소를 비활성화했습니다.')
+      await deactivatePlantMutation.mutateAsync()
+      toast.push('비활성화되었습니다.')
       setIsDeactivateModalOpen(false)
       navigate('/plants')
     } catch (error) {
@@ -162,29 +209,35 @@ export function PlantDetailPage() {
     }
   }
 
+  const handleDeactivateZone = async () => {
+    if (!zoneToDeactivate) {
+      return
+    }
+
+    try {
+      await deactivateZoneMutation.mutateAsync()
+      toast.push('구역이 비활성화되었습니다.')
+      setZoneToDeactivate(null)
+    } catch (error) {
+      toast.push(getApiErrorMessage(error, '구역 비활성화에 실패했습니다.'))
+    }
+  }
+
   return (
     <section className="space-y-6">
       <PageHeader
         title={plant?.name ?? '발전소 상세'}
-        description="이 발전소의 점검 영역을 확인하고 자연스럽게 점검과 결과 검토로 이어가세요."
+        description="발전소 정보를 확인하고 구역별 점검을 바로 시작하세요."
         actions={
           <div className="page-actions">
-            <button
-              className="btn btn-primary"
-              type="button"
-              onClick={() => {
-                setInitialZoneIdForWizard(zones.length === 1 ? zones[0].zoneId : null)
-                setIsCreateInspectionWizardOpen(true)
-              }}
-            >
-              이 발전소 점검 시작
+            <button className="btn btn-primary" type="button" onClick={() => {
+              zoneForm.reset()
+              setIsCreateZoneModalOpen(true)
+            }}>
+              구역 등록
             </button>
-            <Link className="btn btn-secondary" to="/results">
-              결과 보기
-            </Link>
-            <Link className="btn btn-secondary" to="/inspections">
-              점검 목록
-            </Link>
+            <Link className="btn btn-secondary" to="/inspections">점검 목록</Link>
+            <Link className="btn btn-secondary" to="/results">결과 보기</Link>
           </div>
         }
       />
@@ -200,7 +253,7 @@ export function PlantDetailPage() {
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge label={getResourceStatusLabel(plant.status)} tone={getResourceStatusTone(plant.status)} />
-                <StatusBadge label={`점검 영역 ${plant.zoneCount}개`} />
+                <StatusBadge label={`구역 ${plant.zoneCount}개`} />
                 {highPriorityCount > 0 ? <StatusBadge label={`우선 확인 ${highPriorityCount}개`} tone="danger" /> : null}
               </div>
               <div>
@@ -211,10 +264,10 @@ export function PlantDetailPage() {
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SummaryCard label="상태" value={getResourceStatusLabel(plant.status)} />
-            <SummaryCard label="점검 영역 수" value={`${plant.zoneCount}개`} />
+            <SummaryCard label="구역 수" value={`${plant.zoneCount}개`} />
             <SummaryCard label="최근 점검" value={formatDateTime(latestInspectionAt)} />
             <SummaryCard label="이상 후보" value={`${totalAnomalyCount}건`} />
-            <SummaryCard label="우선 확인" value={highPriorityCount > 0 ? `${highPriorityCount}개 영역` : '없음'} />
+            <SummaryCard label="우선 확인" value={highPriorityCount > 0 ? `${highPriorityCount}개 구역` : '없음'} />
             <SummaryCard label="설명" value={plant.description || '-'} />
             <SummaryCard label="등록 시각" value={formatDateTime(plant.createdAt)} />
             <SummaryCard label="수정 시각" value={formatDateTime(plant.updatedAt)} />
@@ -225,8 +278,8 @@ export function PlantDetailPage() {
       {plant ? (
         <section className="panel space-y-4">
           <div>
-            <h2 className="panel-title">관리</h2>
-            <p className="panel-description">설정 변경이나 비활성화처럼 관리성 작업은 이 영역에서 진행하세요.</p>
+            <h2 className="panel-title">발전소 관리</h2>
+            <p className="panel-description">발전소 정보 수정과 비활성화는 필요할 때만 여기에서 진행하세요.</p>
           </div>
           <div className="management-actions">
             <button
@@ -237,7 +290,7 @@ export function PlantDetailPage() {
                 setIsCreateZoneModalOpen(true)
               }}
             >
-              점검 영역 설정
+              구역 등록
             </button>
             <button className="btn btn-secondary" type="button" onClick={() => setIsEditModalOpen(true)}>
               정보 수정
@@ -252,14 +305,26 @@ export function PlantDetailPage() {
       <section className="panel space-y-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="panel-title">점검 영역</h2>
-            <p className="panel-description">이 발전소에서 점검할 영역을 확인하고 바로 점검을 시작하세요.</p>
+            <h2 className="panel-title">구역</h2>
+            <p className="panel-description">구역을 등록하고 각 구역에서 바로 점검을 시작할 수 있습니다.</p>
+          </div>
+          <div className="inline-actions">
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => {
+                zoneForm.reset()
+                setIsCreateZoneModalOpen(true)
+              }}
+            >
+              새 구역 등록
+            </button>
           </div>
         </div>
 
-        {zonesQuery.isLoading ? <LoadingState message="점검 영역 목록을 불러오는 중입니다." /> : null}
+        {zonesQuery.isLoading ? <LoadingState message="구역 목록을 불러오는 중입니다." /> : null}
         {zonesQuery.isError ? (
-          <ErrorState title="점검 영역 목록을 불러오지 못했습니다." description={getApiErrorMessage(zonesQuery.error)} />
+          <ErrorState title="구역 목록을 불러오지 못했습니다." description={getApiErrorMessage(zonesQuery.error)} />
         ) : null}
 
         {zonesQuery.data ? (
@@ -273,15 +338,17 @@ export function PlantDetailPage() {
                     setInitialZoneIdForWizard(selectedZoneId)
                     setIsCreateInspectionWizardOpen(true)
                   }}
+                  onEdit={(selectedZone) => setSelectedZone(selectedZone)}
+                  onDeactivate={(selectedZone) => setZoneToDeactivate(selectedZone)}
                 />
               ))}
             </div>
           ) : (
             <div className="state-card space-y-4">
-              <EmptyState
-                title="아직 점검 영역이 없습니다."
-                description="첫 점검을 시작하려면 발전소 안의 점검 영역을 먼저 설정하세요. 단일 발전소라면 기본 점검 영역을 만들어 전체 영역 기준으로 점검을 시작할 수 있습니다."
-              />
+                <EmptyState
+                title="아직 구역이 없습니다."
+                description="등록된 구역이 없습니다. 첫 구역을 추가하세요."
+                />
               <div className="flex justify-center">
                 <button
                   className="btn btn-primary"
@@ -291,7 +358,7 @@ export function PlantDetailPage() {
                     setIsCreateZoneModalOpen(true)
                   }}
                 >
-                  점검 영역 설정
+                  구역 등록
                 </button>
               </div>
             </div>
@@ -321,15 +388,15 @@ export function PlantDetailPage() {
 
       <EntityModal
         isOpen={isCreateZoneModalOpen}
-        title="점검 영역 설정"
-        description="이 발전소에서 점검할 영역 정보를 입력하세요."
+        title="구역 등록"
+        description="이 발전소에 새 구역을 추가합니다."
         onClose={() => {
           zoneForm.reset()
           setIsCreateZoneModalOpen(false)
         }}
       >
         <form className="stack-md" onSubmit={handleCreateZone}>
-          <FormField label="점검 영역 이름 *" error={zoneForm.formState.errors.name?.message}>
+          <FormField label="구역 이름 *" error={zoneForm.formState.errors.name?.message}>
             <input className="input-field" {...zoneForm.register('name')} />
           </FormField>
           <FormField label="위치" error={zoneForm.formState.errors.location?.message}>
@@ -338,7 +405,27 @@ export function PlantDetailPage() {
           <FormField label="설명" error={zoneForm.formState.errors.description?.message}>
             <textarea className="input-field textarea-field" {...zoneForm.register('description')} />
           </FormField>
-          <ModalActions isSubmitting={createZoneMutation.isPending} onCancel={() => { zoneForm.reset(); setIsCreateZoneModalOpen(false) }} submitText="설정 저장" />
+          <ModalActions isSubmitting={createZoneMutation.isPending} onCancel={() => { zoneForm.reset(); setIsCreateZoneModalOpen(false) }} submitText="구역 등록" />
+        </form>
+      </EntityModal>
+
+      <EntityModal
+        isOpen={Boolean(selectedZone)}
+        title="구역 수정"
+        description="구역 이름과 기본 정보를 수정합니다."
+        onClose={() => setSelectedZone(null)}
+      >
+        <form className="stack-md" onSubmit={handleUpdateZone}>
+          <FormField label="구역 이름 *" error={zoneForm.formState.errors.name?.message}>
+            <input className="input-field" {...zoneForm.register('name')} />
+          </FormField>
+          <FormField label="위치" error={zoneForm.formState.errors.location?.message}>
+            <input className="input-field" {...zoneForm.register('location')} />
+          </FormField>
+          <FormField label="설명" error={zoneForm.formState.errors.description?.message}>
+            <textarea className="input-field textarea-field" {...zoneForm.register('description')} />
+          </FormField>
+          <ModalActions isSubmitting={updateZoneMutation.isPending} onCancel={() => setSelectedZone(null)} submitText="저장" />
         </form>
       </EntityModal>
 
@@ -351,6 +438,16 @@ export function PlantDetailPage() {
         isConfirming={deactivatePlantMutation.isPending}
         onConfirm={handleDeactivatePlant}
         onCancel={() => setIsDeactivateModalOpen(false)}
+      />
+      <ConfirmModal
+        isOpen={Boolean(zoneToDeactivate)}
+        title="구역 비활성화"
+        description={zoneToDeactivate ? `${zoneToDeactivate.name} 구역을 비활성화할까요? 이후 점검 시작 전에 상태를 다시 확인해야 합니다.` : '선택한 구역을 비활성화할까요?'}
+        confirmText="비활성화"
+        cancelText="취소"
+        isConfirming={deactivateZoneMutation.isPending}
+        onConfirm={handleDeactivateZone}
+        onCancel={() => setZoneToDeactivate(null)}
       />
       <InspectionCreateWizard
         isOpen={isCreateInspectionWizardOpen}
@@ -368,12 +465,16 @@ export function PlantDetailPage() {
 function ZoneEntryCard({
   zone,
   onStartInspection,
+  onEdit,
+  onDeactivate,
 }: {
   zone: ZoneSummary
   onStartInspection: (zoneId: number) => void
+  onEdit: (zone: ZoneSummary) => void
+  onDeactivate: (zone: ZoneSummary) => void
 }) {
   return (
-    <article className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-slate-950">{zone.name}</h3>
@@ -388,15 +489,23 @@ function ZoneEntryCard({
         <MiniInfo label="최근 점검" value={formatDateTime(zone.latestInspectionAt)} />
         <MiniInfo label="설비 위치" value={`Array ${zone.arrayCount}개 · Panel ${zone.panelCount}개`} />
         <MiniInfo label="조치 후보" value={getActionCandidateText(zone.topActionCandidate)} />
-        <MiniInfo label="이동" value="점검 시작, 상세 보기, 결과 보기" />
+        <MiniInfo label="점검 준비" value={zone.latestInspectionAt ? '이전 점검 이어서 확인 가능' : '첫 점검을 시작할 수 있습니다.'} />
       </div>
-      <div className="mt-4 flex flex-wrap gap-3">
+      <div className="mt-5 flex flex-wrap gap-3">
         <button className="btn btn-primary" type="button" onClick={() => onStartInspection(zone.zoneId)}>
-          이 영역 점검 시작
+          이 구역 점검 시작
         </button>
         <Link className="btn btn-secondary" to={`/zones/${zone.zoneId}`}>
           상세 보기
         </Link>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-3">
+        <button className="btn btn-secondary" type="button" onClick={() => onEdit(zone)}>
+          구역 수정
+        </button>
+        <button className="btn btn-secondary" type="button" onClick={() => onDeactivate(zone)}>
+          구역 비활성화
+        </button>
         <Link className="btn btn-secondary" to={`/results?zoneId=${zone.zoneId}`}>
           결과 보기
         </Link>

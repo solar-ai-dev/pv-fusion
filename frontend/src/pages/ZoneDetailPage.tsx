@@ -53,7 +53,7 @@ import {
 } from '../shared/utils'
 
 const zoneFormSchema = z.object({
-  name: z.string().trim().min(1, '점검 영역 이름을 입력해 주세요.'),
+  name: z.string().trim().min(1, '구역 이름을 입력해 주세요.'),
   location: z.string().trim().optional(),
   description: z.string().trim().optional(),
 })
@@ -142,7 +142,7 @@ export function ZoneDetailPage() {
   const plantName = plantQuery.data?.data.name ?? '발전소 확인 필요'
 
   if (!zoneId) {
-    return <ErrorState title="올바르지 않은 점검 영역 정보입니다." description="주소의 점검 영역 정보를 다시 확인해 주세요." />
+    return <ErrorState title="올바르지 않은 구역 정보입니다." description="주소의 구역 정보를 다시 확인해 주세요." />
   }
 
   const handleUpdateZone = zoneForm.handleSubmit(async (values) => {
@@ -153,11 +153,11 @@ export function ZoneDetailPage() {
     }
 
     try {
-      const response = await updateZoneMutation.mutateAsync(payload)
-      toast.push(response.message || '점검 영역 정보가 수정되었습니다.')
+      await updateZoneMutation.mutateAsync(payload)
+      toast.push('구역 정보가 저장되었습니다.')
       setIsEditZoneModalOpen(false)
     } catch (error) {
-      toast.push(getApiErrorMessage(error, '점검 영역 수정에 실패했습니다.'))
+      toast.push(getApiErrorMessage(error, '구역 수정에 실패했습니다.'))
     }
   })
 
@@ -170,8 +170,8 @@ export function ZoneDetailPage() {
     }
 
     try {
-      const response = await createEquipmentMutation.mutateAsync(payload)
-      toast.push(response.message || '설비 위치가 등록되었습니다.')
+      await createEquipmentMutation.mutateAsync(payload)
+      toast.push('설비 위치가 등록되었습니다.')
       createEquipmentForm.reset()
       setIsCreateEquipmentModalOpen(false)
     } catch (error) {
@@ -190,8 +190,8 @@ export function ZoneDetailPage() {
     }
 
     try {
-      const response = await updateEquipmentMutation.mutateAsync({ equipmentId: selectedEquipment.equipmentId, payload })
-      toast.push(response.message || '설비 위치가 수정되었습니다.')
+      await updateEquipmentMutation.mutateAsync({ equipmentId: selectedEquipment.equipmentId, payload })
+      toast.push('변경사항이 저장되었습니다.')
       setSelectedEquipment(null)
     } catch (error) {
       toast.push(getApiErrorMessage(error, '설비 위치 수정에 실패했습니다.'))
@@ -200,11 +200,11 @@ export function ZoneDetailPage() {
 
   const handleDeactivateZone = async () => {
     try {
-      const response = await deactivateZoneMutation.mutateAsync()
-      toast.push(response.message || '점검 영역을 비활성화했습니다.')
+      await deactivateZoneMutation.mutateAsync()
+      toast.push('구역이 비활성화되었습니다.')
       setIsDeactivateZoneModalOpen(false)
     } catch (error) {
-      toast.push(getApiErrorMessage(error, '점검 영역 비활성화에 실패했습니다.'))
+      toast.push(getApiErrorMessage(error, '구역 비활성화에 실패했습니다.'))
     }
   }
 
@@ -212,8 +212,8 @@ export function ZoneDetailPage() {
     if (!equipmentToDeactivate) return
 
     try {
-      const response = await deactivateEquipmentMutation.mutateAsync(equipmentToDeactivate.equipmentId)
-      toast.push(response.message || '설비 위치를 비활성화했습니다.')
+      await deactivateEquipmentMutation.mutateAsync(equipmentToDeactivate.equipmentId)
+      toast.push('비활성화되었습니다.')
       setEquipmentToDeactivate(null)
     } catch (error) {
       toast.push(getApiErrorMessage(error, '설비 위치 비활성화에 실패했습니다.'))
@@ -223,12 +223,12 @@ export function ZoneDetailPage() {
   return (
     <section className="space-y-6">
       <PageHeader
-        title={zone?.name ?? '점검 영역 상세'}
-        description="이 영역의 최근 상태를 확인하고 바로 점검, 결과 검토, 변화 추적으로 이어가세요."
+        title={zone?.name ?? '구역 상세'}
+        description="이 구역의 최근 상태를 확인하고 바로 점검, 결과 검토, 변화 추적으로 이어가세요."
         actions={
           <div className="page-actions">
             <button className="btn btn-primary" type="button" onClick={() => setIsCreateInspectionWizardOpen(true)}>
-              이 영역 점검 시작
+              이 구역 점검 시작
             </button>
             <Link className="btn btn-secondary" to={`/results?zoneId=${zoneId}`}>
               결과 보기
@@ -240,8 +240,8 @@ export function ZoneDetailPage() {
         }
       />
 
-      {zoneQuery.isLoading ? <LoadingState message="점검 영역 정보를 불러오는 중입니다." /> : null}
-      {zoneQuery.isError ? <ErrorState title="점검 영역 상세를 불러오지 못했습니다." description={getApiErrorMessage(zoneQuery.error)} /> : null}
+      {zoneQuery.isLoading ? <LoadingState message="구역 정보를 불러오는 중입니다." /> : null}
+      {zoneQuery.isError ? <ErrorState title="구역 상세를 불러오지 못했습니다." description={getApiErrorMessage(zoneQuery.error)} /> : null}
 
       {zone ? (
         <section className="panel space-y-5">
@@ -276,11 +276,11 @@ export function ZoneDetailPage() {
         <section className="panel space-y-4">
           <div>
             <h2 className="panel-title">관리</h2>
-            <p className="panel-description">설정 변경과 설비 위치 등록 같은 관리성 작업은 이 영역에서 진행하세요.</p>
+            <p className="panel-description">설정 변경과 설비 위치 등록 같은 관리성 작업은 여기에서 진행하세요.</p>
           </div>
           <div className="management-actions">
             <button className="btn btn-secondary" type="button" onClick={() => setIsEditZoneModalOpen(true)}>
-              점검 영역 수정
+              구역 수정
             </button>
             <button className="btn btn-secondary" type="button" onClick={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(true) }}>
               설비 위치 등록
@@ -295,7 +295,7 @@ export function ZoneDetailPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="panel-title">변화 추적 요약</h2>
-            <p className="panel-description">같은 점검 영역의 이전 결과와 비교해 반복 이상과 악화 여부를 확인하세요.</p>
+            <p className="panel-description">같은 구역의 이전 결과와 비교해 반복 이상과 악화 여부를 확인하세요.</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <Link className="btn btn-secondary" to={`/tracking?zoneId=${zoneId}`}>변화 추적 보기</Link>
@@ -320,7 +320,7 @@ export function ZoneDetailPage() {
           ) : (
             <CompactEmptyState
               title="아직 비교할 이전 점검 결과가 없습니다."
-              description="같은 점검 영역의 결과가 2회 이상 누적되면 반복 이상과 악화 여부를 확인할 수 있습니다."
+              description="같은 구역의 결과가 2회 이상 누적되면 반복 이상과 악화 여부를 확인할 수 있습니다."
               action={<Link className="btn btn-secondary" to={`/results?zoneId=${zoneId}`}>결과 보기</Link>}
             />
           )
@@ -374,16 +374,16 @@ export function ZoneDetailPage() {
         </div>
       </details>
 
-      <EntityModal isOpen={isEditZoneModalOpen} title="점검 영역 수정" description="점검에 필요한 점검 영역 기본 정보를 수정하세요." onClose={() => setIsEditZoneModalOpen(false)}>
+      <EntityModal isOpen={isEditZoneModalOpen} title="구역 수정" description="점검에 필요한 구역 기본 정보를 수정하세요." onClose={() => setIsEditZoneModalOpen(false)}>
         <form className="stack-md" onSubmit={handleUpdateZone}>
-          <FormField label="점검 영역 이름 *" error={zoneForm.formState.errors.name?.message}><input className="input-field" {...zoneForm.register('name')} /></FormField>
+          <FormField label="구역 이름 *" error={zoneForm.formState.errors.name?.message}><input className="input-field" {...zoneForm.register('name')} /></FormField>
           <FormField label="위치" error={zoneForm.formState.errors.location?.message}><input className="input-field" {...zoneForm.register('location')} /></FormField>
           <FormField label="설명" error={zoneForm.formState.errors.description?.message}><textarea className="input-field textarea-field" {...zoneForm.register('description')} /></FormField>
           <ModalActions isSubmitting={updateZoneMutation.isPending} onCancel={() => setIsEditZoneModalOpen(false)} submitText="저장" />
         </form>
       </EntityModal>
 
-      <EntityModal isOpen={isCreateEquipmentModalOpen} title="설비 위치 등록" description="이 점검 영역 안에서 더 세밀하게 관리할 설비 위치를 등록하세요." onClose={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(false) }}>
+      <EntityModal isOpen={isCreateEquipmentModalOpen} title="설비 위치 등록" description="이 구역 안에서 더 세밀하게 관리할 설비 위치를 등록하세요." onClose={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(false) }}>
         <form className="stack-md" onSubmit={handleCreateEquipment}>
           <EquipmentFormFields form={createEquipmentForm} parentOptions={flattenedEquipments} />
           <ModalActions isSubmitting={createEquipmentMutation.isPending} onCancel={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(false) }} submitText="등록" />
@@ -397,7 +397,7 @@ export function ZoneDetailPage() {
         </form>
       </EntityModal>
 
-      <ConfirmModal isOpen={isDeactivateZoneModalOpen} title="점검 영역 비활성화" description="이 점검 영역을 비활성화하면 이후 점검 시작 전에 상태를 다시 확인해야 합니다. 계속할까요?" confirmText="비활성화" cancelText="취소" isConfirming={deactivateZoneMutation.isPending} onConfirm={handleDeactivateZone} onCancel={() => setIsDeactivateZoneModalOpen(false)} />
+      <ConfirmModal isOpen={isDeactivateZoneModalOpen} title="구역 비활성화" description="이 구역을 비활성화하면 이후 점검 시작 전에 상태를 다시 확인해야 합니다. 계속할까요?" confirmText="비활성화" cancelText="취소" isConfirming={deactivateZoneMutation.isPending} onConfirm={handleDeactivateZone} onCancel={() => setIsDeactivateZoneModalOpen(false)} />
       <ConfirmModal isOpen={Boolean(equipmentToDeactivate)} title="설비 위치 비활성화" description={equipmentToDeactivate ? `${equipmentToDeactivate.name} 설비 위치를 비활성화할까요?` : '선택한 설비 위치를 비활성화할까요?'} confirmText="비활성화" cancelText="취소" isConfirming={deactivateEquipmentMutation.isPending} onConfirm={handleDeactivateEquipment} onCancel={() => setEquipmentToDeactivate(null)} />
       <InspectionCreateWizard
         isOpen={isCreateInspectionWizardOpen}
