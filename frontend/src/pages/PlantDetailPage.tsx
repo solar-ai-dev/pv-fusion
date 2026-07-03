@@ -17,6 +17,7 @@ import {
 } from '../features/plants/types'
 import { useCreateZone, useZonesByPlantId } from '../features/zones/hooks/useZones'
 import type { CreateZoneRequest, ZoneSummary } from '../features/zones/types'
+import { InspectionCreateWizard } from '../features/inspections/components/InspectionCreateWizard'
 import { ConfirmModal } from '../shared/components/feedback/ConfirmModal'
 import { FormField } from '../shared/components/form/FormField'
 import { PageHeader } from '../shared/components/layout/PageHeader'
@@ -51,6 +52,8 @@ export function PlantDetailPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isCreateZoneModalOpen, setIsCreateZoneModalOpen] = useState(false)
   const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false)
+  const [isCreateInspectionWizardOpen, setIsCreateInspectionWizardOpen] = useState(false)
+  const [initialZoneIdForWizard, setInitialZoneIdForWizard] = useState<number | null>(null)
 
   const plantQuery = usePlant(plantId ?? 0)
   const zonesQuery = useZonesByPlantId(plantId ?? 0)
@@ -105,7 +108,6 @@ export function PlantDetailPage() {
     () => zones.filter((zone) => isHighPriority(zone.priorityLevel)).length,
     [zones],
   )
-  const plantInspectionLink = useMemo(() => buildPlantInspectionLink(plantId, zones), [plantId, zones])
 
   if (!plantId) {
     return (
@@ -167,9 +169,16 @@ export function PlantDetailPage() {
         description="이 발전소의 점검 영역을 확인하고 자연스럽게 점검과 결과 검토로 이어가세요."
         actions={
           <div className="page-actions">
-            <Link className="btn btn-primary" to={plantInspectionLink}>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={() => {
+                setInitialZoneIdForWizard(zones.length === 1 ? zones[0].zoneId : null)
+                setIsCreateInspectionWizardOpen(true)
+              }}
+            >
               이 발전소 점검 시작
-            </Link>
+            </button>
             <Link className="btn btn-secondary" to="/results">
               결과 보기
             </Link>
@@ -257,7 +266,14 @@ export function PlantDetailPage() {
           zones.length > 0 ? (
             <div className="grid gap-4 lg:grid-cols-2">
               {zones.map((zone) => (
-                <ZoneEntryCard key={zone.zoneId} zone={zone} plantId={plantId} />
+                <ZoneEntryCard
+                  key={zone.zoneId}
+                  zone={zone}
+                  onStartInspection={(selectedZoneId) => {
+                    setInitialZoneIdForWizard(selectedZoneId)
+                    setIsCreateInspectionWizardOpen(true)
+                  }}
+                />
               ))}
             </div>
           ) : (
@@ -336,11 +352,26 @@ export function PlantDetailPage() {
         onConfirm={handleDeactivatePlant}
         onCancel={() => setIsDeactivateModalOpen(false)}
       />
+      <InspectionCreateWizard
+        isOpen={isCreateInspectionWizardOpen}
+        onClose={() => {
+          setIsCreateInspectionWizardOpen(false)
+          setInitialZoneIdForWizard(null)
+        }}
+        initialPlantId={plantId}
+        initialZoneId={initialZoneIdForWizard}
+      />
     </section>
   )
 }
 
-function ZoneEntryCard({ zone, plantId }: { zone: ZoneSummary; plantId: number }) {
+function ZoneEntryCard({
+  zone,
+  onStartInspection,
+}: {
+  zone: ZoneSummary
+  onStartInspection: (zoneId: number) => void
+}) {
   return (
     <article className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -360,9 +391,9 @@ function ZoneEntryCard({ zone, plantId }: { zone: ZoneSummary; plantId: number }
         <MiniInfo label="이동" value="점검 시작, 상세 보기, 결과 보기" />
       </div>
       <div className="mt-4 flex flex-wrap gap-3">
-        <Link className="btn btn-primary" to={`/inspections?plantId=${plantId}&zoneId=${zone.zoneId}`}>
+        <button className="btn btn-primary" type="button" onClick={() => onStartInspection(zone.zoneId)}>
           이 영역 점검 시작
-        </Link>
+        </button>
         <Link className="btn btn-secondary" to={`/zones/${zone.zoneId}`}>
           상세 보기
         </Link>
@@ -391,11 +422,6 @@ function ModalActions({ isSubmitting, onCancel, submitText = '저장' }: { isSub
   return <div className="flex justify-end gap-3"><button className="btn btn-secondary" type="button" onClick={onCancel}>취소</button><button className="btn btn-primary" type="submit" disabled={isSubmitting}>{submitText}</button></div>
 }
 
-function buildPlantInspectionLink(plantId: number | null, zones: ZoneSummary[]) {
-  if (!plantId) return '/inspections'
-  if (zones.length === 1) return `/inspections?plantId=${plantId}&zoneId=${zones[0].zoneId}`
-  return `/inspections?plantId=${plantId}`
-}
 
 function isHighPriority(priorityLevel: string | null) {
   return priorityLevel === 'HIGH' || priorityLevel === 'URGENT'
@@ -430,3 +456,6 @@ function getActionCandidateText(value: string | null) {
   if (value === 'REPLACEMENT_REVIEW') return '교체 검토'
   return value
 }
+
+
+

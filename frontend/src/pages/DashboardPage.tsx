@@ -26,9 +26,11 @@ import {
   DASHBOARD_INTERVAL_OPTIONS,
   type DashboardQueryParams,
   type DashboardTrendInterval,
+  type DashboardSummary,
   type PriorityTarget,
   type RecentInspectionResult,
 } from '../features/dashboard/types'
+import { InspectionCreateWizard } from '../features/inspections/components/InspectionCreateWizard'
 import { useInspection, useInspections } from '../features/inspections/hooks/useInspections'
 import type { InspectionStatus, InspectionSummary } from '../features/inspections/types'
 import { usePlant, usePlants } from '../features/plants/hooks/usePlants'
@@ -52,7 +54,8 @@ export function DashboardPage() {
   const [zoneIdInput, setZoneIdInput] = useState(searchParams.get('zoneId') ?? '')
   const [fromInput, setFromInput] = useState(searchParams.get('from') ?? '')
   const [toInput, setToInput] = useState(searchParams.get('to') ?? '')
-  const [intervalInput, setIntervalInput] = useState<DashboardTrendInterval>(toDashboardInterval(searchParams.get('interval')))
+  const [intervalInput, setIntervalInput] = useState<DashboardTrendInterval>(toDashboardInterval(searchParams.get('interval'))) 
+  const [isCreateWizardOpen, setIsCreateWizardOpen] = useState(false)
 
   useEffect(() => {
     setPlantIdInput(searchParams.get('plantId') ?? '')
@@ -121,8 +124,50 @@ export function DashboardPage() {
     [recentResultSummaries, reviewStatusByResultId],
   )
   const continueInspection = recentInspectionRows.find((inspection) => inspection.inspectionStatus !== 'COMPLETED') ?? recentInspectionRows[0] ?? null
+  const currentInspectionDetailQuery = useInspection(continueInspection?.inspectionId ?? 0)
   const topPriorityTarget = priorityTargets[0] ?? null
-  const hasTaskCounts = Boolean(summary && (summary.pendingReviewCount > 0 || summary.failedJobCount > 0 || summary.highPriorityCount > 0 || summary.inProgressInspectionCount > 0 || recentInspectionRows.length > 0))
+  const uploadPendingInspections = useMemo(
+    () =>
+      recentInspectionRows.filter(
+        (inspection) => inspection.inspectionStatus === 'READY' || inspection.inspectionStatus === 'UPLOADING',
+      ),
+    [recentInspectionRows],
+  )
+  const failedInspections = useMemo(
+    () => recentInspectionRows.filter((inspection) => inspection.inspectionStatus === 'FAILED'),
+    [recentInspectionRows],
+  )
+  const hasTaskCounts = Boolean(
+    summary &&
+      (summary.pendingReviewCount > 0 ||
+        summary.failedJobCount > 0 ||
+        summary.highPriorityCount > 0 ||
+        summary.inProgressInspectionCount > 0 ||
+        recentInspectionRows.length > 0),
+  )
+  const taskQueue = useMemo(
+    () =>
+      buildTaskQueue({
+        summary,
+        uploadPendingCount: uploadPendingInspections.length,
+        analysisPendingCount: summary?.queuedJobCount ?? 0,
+        failedInspectionCount: failedInspections.length,
+        topPriorityTarget,
+        continueInspection,
+      }),
+    [continueInspection, failedInspections.length, summary, topPriorityTarget, uploadPendingInspections],
+  )
+  const dashboardFocus = useMemo(
+    () => buildDashboardFocus(summary, continueInspection, topPriorityTarget),
+    [continueInspection, summary, topPriorityTarget],
+  )
+  const currentInspectionResult = useMemo(
+    () =>
+      continueInspection
+        ? mergedRecentResults.find((result) => result.inspectionId === continueInspection.inspectionId) ?? null
+        : null,
+    [continueInspection, mergedRecentResults],
+  )
 
   const handleSearch = () => {
     const next = new URLSearchParams()
@@ -155,11 +200,12 @@ export function DashboardPage() {
   return (
     <section className="space-y-6">
       <PageHeader
-        title="대시보드"
-        description="오늘 확인할 점검과 분석 결과를 한눈에 확인하세요."
+        title="운영 홈"
+        description="오늘 처리할 작업을 먼저 확인하세요."
         actions={
           <div className="page-actions">
-            <Link className="btn btn-primary" to="/inspections">새 점검 시작</Link>
+            <button className="btn btn-primary" type="button" onClick={() => setIsCreateWizardOpen(true)}>새 점검 시작</button>
+            <Link className="btn btn-secondary" to="/inspections">점검 목록</Link>
             <Link className="btn btn-secondary" to="/results">결과 검토</Link>
             <button className="btn btn-secondary" type="button" onClick={handleRefresh}>새로고침</button>
           </div>
@@ -170,12 +216,12 @@ export function DashboardPage() {
         <summary className="cursor-pointer list-none">
           <div className="toolbar gap-3">
             <div>
-              <h2 className="panel-title">조회 조건</h2>
+              <h2 className="panel-title">작업 범위</h2>
               <p className="panel-description">{buildFilterSummary(selectedPlant?.name, selectedZone?.name, fromInput, toInput, intervalInput)}</p>
             </div>
             <div className="flex items-center gap-3">
               <StatusBadge label={canQuery ? '조회 가능' : '범위 선택 필요'} tone={canQuery ? 'success' : 'warning'} />
-              <span className="text-sm text-slate-500">열어 변경</span>
+              <span className="text-sm text-slate-500">조건 변경</span>
             </div>
           </div>
         </summary>
@@ -212,7 +258,7 @@ export function DashboardPage() {
         <section className="panel space-y-4">
           <CompactEmptyState
             title="먼저 확인할 범위를 선택하세요."
-            description="발전소 또는 점검 영역을 선택하면 오늘 처리할 항목과 최근 진행 상황을 바로 확인할 수 있습니다."
+            description="발전소 또는 점검 영역을 선택하세요."
             action={<Link className="btn btn-secondary" to="/plants">발전소 보기</Link>}
           />
         </section>
@@ -223,179 +269,449 @@ export function DashboardPage() {
 
       {canQuery && summary ? (
         <>
-          <section className="panel space-y-5">
+          <section className="dashboard-home-grid">
+            <section className="panel space-y-4">
+              <div>
+                <h2 className="panel-title">작업 범위</h2>
+                <p className="panel-description">현재 범위</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ScopeInfoItem label="현재 범위" value={getScopeLabel(selectedPlant, selectedZone)} />
+                <ScopeInfoItem label="발전소" value={selectedPlant?.name ?? '전체 발전소'} />
+                <ScopeInfoItem label="점검 영역" value={selectedZone?.name ?? '전체 점검 영역'} />
+                <ScopeInfoItem label="현재 점검" value={continueInspection?.name ?? '선택된 점검 없음'} />
+              </div>
+              {!continueInspection ? (
+                <CompactEmptyState
+                  title="선택된 점검이 없습니다."
+                  description="새 점검을 시작하세요."
+                  action={<Link className="btn btn-secondary" to="/inspections">점검 목록</Link>}
+                  compact
+                />
+              ) : null}
+            </section>
+
+            <section className="panel space-y-4">
+              <div>
+                <h2 className="panel-title">현재 작업</h2>
+                <p className="panel-description">가장 먼저 이어갈 점검입니다.</p>
+              </div>
+              <CurrentWorkCard
+                inspection={continueInspection}
+                inspectionDetail={currentInspectionDetailQuery.data?.data ?? null}
+                result={currentInspectionResult}
+                fallback={dashboardFocus}
+              />
+            </section>
+          </section>
+
+          <section className="panel space-y-4">
             <div>
-              <h2 className="panel-title">오늘 할 일</h2>
-              <p className="panel-description">검토 대기, 분석 실패, 높은 우선순위, 진행 중 점검을 먼저 확인하세요.</p>
+              <h2 className="panel-title">오늘 우선 작업</h2>
+              <p className="panel-description">처리할 작업만 표시합니다.</p>
             </div>
             {hasTaskCounts ? (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                <TodayTaskCard title="검토 대기 결과" count={summary.pendingReviewCount} description={summary.pendingReviewCount > 0 ? '확인하지 않은 분석 결과가 있습니다.' : '지금은 검토 대기 결과가 없습니다.'} href="/results" actionLabel="결과 검토" tone={summary.pendingReviewCount > 0 ? 'warning' : 'default'} />
-                <TodayTaskCard title="분석 실패 작업" count={summary.failedJobCount} description={summary.failedJobCount > 0 ? '실패한 분석 작업을 다시 확인하세요.' : '지금은 실패한 분석 작업이 없습니다.'} href={continueInspection ? `/inspections/${continueInspection.inspectionId}` : '/inspections'} actionLabel="이어하기" tone={summary.failedJobCount > 0 ? 'danger' : 'default'} />
-                <TodayTaskCard title="높은 우선순위" count={summary.highPriorityCount} description={summary.highPriorityCount > 0 ? '우선 확인이 필요한 결과가 있습니다.' : '긴급하게 확인할 결과는 없습니다.'} href={topPriorityTarget?.resultId ? `/results/${topPriorityTarget.resultId}` : '/results'} actionLabel="우선 결과 보기" tone={summary.highPriorityCount > 0 ? 'danger' : 'default'} />
-                <TodayTaskCard title="진행 중 점검" count={summary.inProgressInspectionCount} description={summary.inProgressInspectionCount > 0 ? '이미지 업로드나 분석 요청을 이어서 진행하세요.' : '현재 진행 중인 점검은 없습니다.'} href={continueInspection ? `/inspections/${continueInspection.inspectionId}` : '/inspections'} actionLabel="이어하기" tone={summary.inProgressInspectionCount > 0 ? 'warning' : 'default'} />
-                <TodayTaskCard title="최근 점검" count={recentInspectionRows.length} description={continueInspection ? `${continueInspection.name} 점검으로 바로 이동할 수 있습니다.` : '최근 점검이 없으면 새 점검부터 시작하세요.'} href={continueInspection ? `/inspections/${continueInspection.inspectionId}` : '/inspections'} actionLabel={continueInspection ? '최근 점검 열기' : '새 점검 시작'} tone="default" />
+              <div className="task-queue-list">
+                {taskQueue.map((task) => (
+                  <TaskQueueCard key={task.title} task={task} />
+                ))}
               </div>
             ) : (
-              <CompactEmptyState title="오늘 처리할 긴급 항목이 없습니다." description="상단의 새 점검 시작 또는 결과 검토로 다음 작업을 이어가세요." action={<Link className="btn btn-secondary" to="/results">최근 결과 확인</Link>} />
+              <CompactEmptyState
+                title="우선 작업이 없습니다."
+                description="새 점검 시작 또는 결과 검토를 진행하세요."
+                action={<Link className="btn btn-secondary" to="/results">최근 결과 보기</Link>}
+                compact
+              />
             )}
           </section>
 
-          <section className="panel space-y-5">
-            <div>
-              <h2 className="panel-title">빠른 시작</h2>
-              <p className="panel-description">자주 쓰는 흐름으로 바로 이동해 다음 작업을 이어가세요.</p>
+          <section className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+            <section className="panel space-y-5">
+              <div className="toolbar gap-3">
+                <div>
+                  <h2 className="panel-title">새 점검 시작</h2>
+                  <p className="panel-description">발전소와 점검 영역을 선택해 점검을 시작합니다.</p>
+                </div>
+              </div>
+              <div className="dashboard-start-card">
+                <div>
+                  <div className="text-lg font-semibold text-slate-950">새 점검을 시작할 준비가 되어 있습니다.</div>
+                  <p className="mt-2 text-sm text-slate-600">발전소와 점검 영역을 선택해 점검을 시작합니다.</p>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button className="btn btn-primary" type="button" onClick={() => setIsCreateWizardOpen(true)}>새 점검 시작</button>
+                  <Link className="btn btn-secondary" to="/plants">발전소 보기</Link>
+                </div>
+              </div>
+            </section>
+
+            <section className="panel space-y-5">
+              <div>
+                <h2 className="panel-title">진행 중 점검</h2>
+                <p className="panel-description">이어갈 점검</p>
+              </div>
+              {continueInspection ? (
+                <div className="space-y-4">
+                  <ContinueInspectionCard inspection={continueInspection} />
+                  {recentInspectionRows.length > 1 ? (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {recentInspectionRows.slice(1, 3).map((inspection) => (
+                        <RecentInspectionCompactCard key={inspection.inspectionId} inspection={inspection} />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <CompactEmptyState
+                  title="진행 중인 점검이 없습니다."
+                  description="새 점검을 시작하세요."
+                  action={<button className="btn btn-secondary" type="button" onClick={() => setIsCreateWizardOpen(true)}>새 점검 시작</button>}
+                  compact
+                />
+              )}
+            </section>
+          </section>
+
+          <section className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+            <section className="panel space-y-5">
+              <div className="toolbar gap-3">
+                <div>
+                  <h2 className="panel-title">분석·결과 처리</h2>
+                  <p className="panel-description">실패한 분석과 검토 대기 결과를 확인합니다.</p>
+                </div>
+                <Link className="btn btn-secondary" to="/results">결과 목록</Link>
+              </div>
+              {(summary.failedJobCount > 0 || summary.pendingReviewCount > 0 || summary.highPriorityCount > 0 || mergedRecentResults.length > 0 || priorityTargets.length > 0) ? (
+                <div className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <CompactStatusPill label="분석 실패" value={`${formatCount(summary.failedJobCount)}건`} tone={summary.failedJobCount > 0 ? 'danger' : 'default'} />
+                    <CompactStatusPill label="결과 검토 대기" value={`${formatCount(summary.pendingReviewCount)}건`} tone={summary.pendingReviewCount > 0 ? 'warning' : 'default'} />
+                    <CompactStatusPill label="높은 우선순위" value={`${formatCount(summary.highPriorityCount)}건`} tone={summary.highPriorityCount > 0 ? 'danger' : 'default'} />
+                  </div>
+
+                  {topPriorityTarget ? <PriorityTargetCard target={topPriorityTarget} compact /> : null}
+
+                  {mergedRecentResults.length > 0 ? (
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      {mergedRecentResults.slice(0, 2).map((result, index) => (
+                        <RecentResultCard key={result.resultId ?? `recent-result-${index}`} result={result} compact />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <CompactEmptyState
+                  title="등록된 분석 결과가 없습니다."
+                  description="이미지를 등록하면 분석을 요청할 수 있습니다."
+                  action={<Link className="btn btn-secondary" to="/inspections">점검 목록 보기</Link>}
+                  compact
+                />
+              )}
+            </section>
+
+            <section className="panel space-y-5">
+              <div>
+                <h2 className="panel-title">보조 통계</h2>
+                <p className="panel-description">운영 수치</p>
+              </div>
+              <div className="dashboard-kpi-grid">
+                <KpiCard label="발전소" value={summary.totalPlantCount} compact />
+                <KpiCard label="점검 영역" value={summary.totalZoneCount} compact />
+                <KpiCard label="점검" value={summary.totalInspectionCount} compact />
+                <KpiCard label="분석 결과" value={summary.totalAnalysisResultCount} compact />
+                <KpiCard label="진행 중 점검" value={summary.inProgressInspectionCount} tone={summary.inProgressInspectionCount > 0 ? 'warning' : 'default'} compact />
+                <KpiCard label="대기 작업" value={summary.queuedJobCount + summary.runningJobCount} tone={(summary.queuedJobCount + summary.runningJobCount) > 0 ? 'warning' : 'default'} compact />
+              </div>
+            </section>
+          </section>
+
+          <details className="panel" open={false}>
+            <summary className="cursor-pointer list-none">
+              <div className="toolbar gap-3">
+                <div>
+                  <h2 className="panel-title">추가 통계 보기</h2>
+                  <p className="panel-description">필요할 때만 펼쳐 확인합니다.</p>
+                </div>
+                <StatusBadge label="보조 정보" tone="default" />
+              </div>
+            </summary>
+            <div className="mt-5 space-y-6">
+              <section className="grid gap-6 xl:grid-cols-2">
+                <DashboardChartSection title="조치 후보 통계" description="최근 분석 결과에서 어떤 후속 조치가 필요한지 요약합니다." isLoading={actionStatsQuery.isLoading} error={actionStatsQuery.isError ? getApiErrorMessage(actionStatsQuery.error) : null} isEmpty={actionChartData.length === 0} emptyTitle="조치 후보 통계가 없습니다." emptyDescription="분석 결과가 쌓이면 후속 조치 분포를 확인할 수 있습니다." compactWhenEmpty>
+                  <div className="chart-shell">
+                    <ResponsiveContainer width="100%" height={260}>
+                      <BarChart data={actionChartData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="actionCandidate" tickFormatter={(value) => getActionCandidateLabel(value)} />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip formatter={(value) => [`${value}건`, '건수']} labelFormatter={(value) => getActionCandidateLabel(value as ActionCandidate)} />
+                        <Bar dataKey="count" radius={[12, 12, 0, 0]}>
+                          {actionChartData.map((item, index) => <Cell key={`${item.actionCandidate}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </DashboardChartSection>
+
+                <DashboardChartSection title="심각도 분포" description="완료된 분석 결과의 위험 수준을 확인합니다." isLoading={severityStatsQuery.isLoading} error={severityStatsQuery.isError ? getApiErrorMessage(severityStatsQuery.error) : null} isEmpty={severityChartData.length === 0} emptyTitle="심각도 분포가 없습니다." emptyDescription="분석이 완료되면 심각도 분포를 확인할 수 있습니다." compactWhenEmpty>
+                  <div className="chart-shell">
+                    <ResponsiveContainer width="100%" height={260}>
+                      <PieChart>
+                        <Pie data={severityChartData} dataKey="count" nameKey="severityLevel" innerRadius={60} outerRadius={92} paddingAngle={3}>
+                          {severityChartData.map((item, index) => <Cell key={`${item.severityLevel}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip formatter={(value) => [`${value}건`, '건수']} labelFormatter={(value) => getSeverityLevelLabel(value as SeverityLevel)} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="inline-actions">
+                    {severityChartData.map((item) => <StatusBadge key={item.severityLevel} label={`${getSeverityLevelLabel(item.severityLevel)} ${item.count}건`} tone={getSeverityLevelTone(item.severityLevel)} />)}
+                  </div>
+                </DashboardChartSection>
+              </section>
+
+              <DashboardChartSection title="기간별 점검 추이" description="같은 범위에서 점검 수와 이상 결과 수의 변화 흐름을 확인합니다." isLoading={trendQuery.isLoading} error={trendQuery.isError ? getApiErrorMessage(trendQuery.error) : null} isEmpty={!hasTrendChartData} emptyTitle="아직 추이를 표시할 데이터가 부족합니다." emptyDescription="같은 점검 영역의 결과가 누적되면 기간별 변화를 확인할 수 있습니다." compactWhenEmpty>
+                <div className="chart-shell">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={trendChartData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="trendDate" tickFormatter={(value) => formatDate(String(value))} />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip labelFormatter={(value) => formatDate(String(value))} formatter={(value, name) => [`${value}건`, name === 'inspectionCount' ? '점검 수' : '이상 결과 수']} />
+                      <Line type="monotone" dataKey="inspectionCount" stroke="#0369a1" strokeWidth={3} dot={{ r: 4 }} />
+                      <Line type="monotone" dataKey="anomalyCount" stroke="#dc2626" strokeWidth={3} dot={{ r: 4 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </DashboardChartSection>
+
+              <section className="grid gap-6 xl:grid-cols-2">
+                <section className="panel space-y-4">
+                  <div>
+                    <h3 className="panel-title">우선 확인 대상</h3>
+                    <p className="panel-description">우선순위가 높은 점검 영역을 확인합니다.</p>
+                  </div>
+                  {priorityTargets.length > 0 ? (
+                    <div className="space-y-3">
+                      {priorityTargets.slice(0, 3).map((target, index) => (
+                        <PriorityTargetCard key={buildPriorityTargetKey(target, index)} target={target} compact />
+                      ))}
+                    </div>
+                  ) : (
+                    <CompactEmptyState title="우선 확인 대상이 없습니다." description="분석 결과가 누적되면 우선 확인 대상이 표시됩니다." compact />
+                  )}
+                </section>
+
+                <section className="panel space-y-4">
+                  <div>
+                    <h3 className="panel-title">운영 요약</h3>
+                    <p className="panel-description">현재 범위의 진행 현황을 간단히 확인합니다.</p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <MiniMetric label="완료 점검" value={summary.completedInspectionCount} />
+                    <MiniMetric label="전체 이미지" value={summary.totalImageCount} />
+                    <MiniMetric label="분석 작업" value={summary.totalAnalysisJobCount} />
+                    <MiniMetric label="정상 결과" value={summary.normalResultCount} />
+                    <MiniMetric label="이상 결과" value={summary.anomalyResultCount} />
+                    <MiniMetric label="반복 또는 악화" value={summary.repeatedAnomalyCount + summary.worsenedCount} />
+                  </div>
+                </section>
+              </section>
             </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <QuickStartCard title="새 점검 시작" description="발전소와 점검 영역을 선택해 새 점검을 시작합니다." href="/inspections" actionLabel="새 점검 시작" tone="primary" />
-              <QuickStartCard title="진행 중 점검 이어하기" description="이미지 업로드나 분석 요청이 남은 점검을 이어서 진행합니다." href={continueInspection ? `/inspections/${continueInspection.inspectionId}` : '/inspections'} actionLabel="이어하기" />
-              <QuickStartCard title="결과 검토" description="분석이 완료된 결과의 조치 후보와 검토 상태를 확인합니다." href="/results" actionLabel="결과 검토" />
-              <QuickStartCard title="발전소 보기" description="등록된 발전소와 점검 영역을 확인합니다." href="/plants" actionLabel="발전소 보기" />
-            </div>
-          </section>
-          <section className="kpi-grid">
-            <KpiCard label="발전소" value={summary.totalPlantCount} />
-            <KpiCard label="점검 영역" value={summary.totalZoneCount} />
-            <KpiCard label="점검" value={summary.totalInspectionCount} />
-            <KpiCard label="분석 결과" value={summary.totalAnalysisResultCount} />
-            <KpiCard label="검토 대기" value={summary.pendingReviewCount} tone={summary.pendingReviewCount > 0 ? 'warning' : 'default'} />
-            <KpiCard label="높은 우선순위" value={summary.highPriorityCount} tone={summary.highPriorityCount > 0 ? 'danger' : 'default'} />
-            <KpiCard label="분석 실패" value={summary.failedJobCount} tone={summary.failedJobCount > 0 ? 'danger' : 'default'} />
-            <KpiCard label="대기 작업" value={summary.queuedJobCount} tone={summary.queuedJobCount > 0 ? 'warning' : 'default'} />
-          </section>
-
-          <section className="grid gap-6 xl:grid-cols-2">
-            <DashboardChartSection title="조치 후보 통계" description="최근 분석 결과에서 어떤 후속 조치가 필요한지 요약합니다." isLoading={actionStatsQuery.isLoading} error={actionStatsQuery.isError ? getApiErrorMessage(actionStatsQuery.error) : null} isEmpty={actionChartData.length === 0} emptyTitle="아직 조치 후보 통계가 없습니다." emptyDescription="분석 결과가 쌓이면 청소, 재촬영, 현장 점검, 교체 검토 후보가 표시됩니다." compactWhenEmpty>
-              <div className="chart-shell">
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={actionChartData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="actionCandidate" tickFormatter={(value) => getActionCandidateLabel(value)} />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip formatter={(value) => [`${value}건`, '건수']} labelFormatter={(value) => getActionCandidateLabel(value as ActionCandidate)} />
-                    <Bar dataKey="count" radius={[12, 12, 0, 0]}>
-                      {actionChartData.map((item, index) => <Cell key={`${item.actionCandidate}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </DashboardChartSection>
-
-            <DashboardChartSection title="심각도 분포" description="완료된 분석 결과의 위험 수준을 빠르게 확인합니다." isLoading={severityStatsQuery.isLoading} error={severityStatsQuery.isError ? getApiErrorMessage(severityStatsQuery.error) : null} isEmpty={severityChartData.length === 0} emptyTitle="아직 심각도 분포가 없습니다." emptyDescription="분석이 완료되면 심각도 분포를 확인할 수 있습니다." emptyAction={<Link className="btn btn-secondary" to="/results">결과 목록 보기</Link>} compactWhenEmpty>
-              <div className="chart-shell">
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Pie data={severityChartData} dataKey="count" nameKey="severityLevel" innerRadius={64} outerRadius={96} paddingAngle={3}>
-                      {severityChartData.map((item, index) => <Cell key={`${item.severityLevel}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip formatter={(value) => [`${value}건`, '건수']} labelFormatter={(value) => getSeverityLevelLabel(value as SeverityLevel)} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="inline-actions">
-                {severityChartData.map((item) => <StatusBadge key={item.severityLevel} label={`${getSeverityLevelLabel(item.severityLevel)} ${item.count}건`} tone={getSeverityLevelTone(item.severityLevel)} />)}
-              </div>
-            </DashboardChartSection>
-          </section>
-
-          <DashboardChartSection title="기간별 점검 추이" description="같은 범위에서 점검 수와 이상 결과 수의 변화 흐름을 확인합니다." isLoading={trendQuery.isLoading} error={trendQuery.isError ? getApiErrorMessage(trendQuery.error) : null} isEmpty={!hasTrendChartData} emptyTitle="아직 추이를 표시할 데이터가 부족합니다." emptyDescription="같은 점검 영역의 결과가 누적되면 기간별 변화를 확인할 수 있습니다." compactWhenEmpty>
-            <div className="chart-shell">
-              <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={trendChartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="trendDate" tickFormatter={(value) => formatDate(String(value))} />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip labelFormatter={(value) => formatDate(String(value))} formatter={(value, name) => [`${value}건`, name === 'inspectionCount' ? '점검 수' : '이상 결과 수']} />
-                  <Line type="monotone" dataKey="inspectionCount" stroke="#0369a1" strokeWidth={3} dot={{ r: 4 }} />
-                  <Line type="monotone" dataKey="anomalyCount" stroke="#dc2626" strokeWidth={3} dot={{ r: 4 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </DashboardChartSection>
-
-          <section className="grid gap-6 xl:grid-cols-2">
-            <section className="panel space-y-5">
-              <div>
-                <h2 className="panel-title">우선 확인 대상</h2>
-                <p className="panel-description">우선순위가 높은 결과와 점검 영역을 먼저 확인하세요.</p>
-              </div>
-              {priorityTargets.length > 0 ? <div className="space-y-4">{priorityTargets.slice(0, 5).map((target, index) => <PriorityTargetCard key={buildPriorityTargetKey(target, index)} target={target} />)}</div> : <CompactEmptyState title="우선 확인 대상이 없습니다." description="분석 결과가 누적되면 우선 확인할 점검 영역이 표시됩니다." />}
-            </section>
-
-            <section className="panel space-y-5">
-              <div>
-                <h2 className="panel-title">최근 분석 결과</h2>
-                <p className="panel-description">최근 완료된 결과를 빠르게 검토하고 필요한 조치를 이어가세요.</p>
-              </div>
-              {mergedRecentResults.length > 0 ? <div className="space-y-4">{mergedRecentResults.map((result, index) => <RecentResultCard key={result.resultId ?? `recent-result-${index}`} result={result} />)}</div> : <CompactEmptyState title="아직 분석 결과가 없습니다." description="분석이 완료되면 결과와 조치 후보가 표시됩니다." action={<Link className="btn btn-secondary" to="/inspections">점검 목록 보기</Link>} />}
-            </section>
-          </section>
-
-          <section className="grid gap-6 xl:grid-cols-2">
-            <section className="panel space-y-5">
-              <div>
-                <h2 className="panel-title">최근 점검</h2>
-                <p className="panel-description">최근 등록한 점검을 이어서 진행하거나 상태를 확인하세요.</p>
-              </div>
-              {recentInspectionsQuery.isLoading && recentInspectionRows.length === 0 ? <LoadingState message="최근 점검을 불러오는 중입니다." /> : null}
-              {recentInspectionsQuery.isError ? <ErrorState title="최근 점검을 불러오지 못했습니다." description={getApiErrorMessage(recentInspectionsQuery.error)} /> : null}
-              {!recentInspectionsQuery.isLoading && !recentInspectionsQuery.isError && recentInspectionRows.length > 0 ? <div className="space-y-4">{recentInspectionRows.map((inspection) => <RecentInspectionCard key={inspection.inspectionId} inspection={inspection} />)}</div> : null}
-              {!recentInspectionsQuery.isLoading && !recentInspectionsQuery.isError && recentInspectionRows.length === 0 ? <CompactEmptyState title="아직 등록된 점검이 없습니다." description="상단의 새 점검 시작으로 첫 점검을 등록해 보세요." /> : null}
-            </section>
-
-            <section className="panel space-y-5">
-              <div>
-                <h2 className="panel-title">운영 요약</h2>
-                <p className="panel-description">현재 범위에서 점검과 분석이 어디까지 진행됐는지 빠르게 확인합니다.</p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <MiniMetric label="진행 중 점검" value={summary.inProgressInspectionCount} />
-                <MiniMetric label="완료 점검" value={summary.completedInspectionCount} />
-                <MiniMetric label="전체 이미지" value={summary.totalImageCount} />
-                <MiniMetric label="분석 작업" value={summary.totalAnalysisJobCount} />
-                <MiniMetric label="정상 결과" value={summary.normalResultCount} />
-                <MiniMetric label="이상 결과" value={summary.anomalyResultCount} />
-                <MiniMetric label="낮은 신뢰도" value={summary.lowConfidenceResultCount} />
-                <MiniMetric label="반복 또는 악화" value={summary.repeatedAnomalyCount + summary.worsenedCount} />
-              </div>
-            </section>
-          </section>
+          </details>
         </>
       ) : null}
+
+      <InspectionCreateWizard
+        isOpen={isCreateWizardOpen}
+        onClose={() => setIsCreateWizardOpen(false)}
+        initialPlantId={params.plantId}
+        initialZoneId={params.zoneId}
+      />
     </section>
   )
 }
 
-function KpiCard({ label, value, tone = 'default' }: { label: string; value: number; tone?: 'default' | 'warning' | 'danger' }) {
-  return <article className={`kpi-card kpi-card-${tone}`}><div className="text-sm font-medium text-slate-500">{label}</div><div className="mt-3 text-3xl font-semibold text-slate-900">{formatCount(value)}</div></article>
+function KpiCard({ label, value, tone = 'default', compact = false }: { label: string; value: number; tone?: 'default' | 'warning' | 'danger'; compact?: boolean }) {
+  return <article className={`kpi-card kpi-card-${tone} ${compact ? 'kpi-card-compact' : ''}`}><div className="text-sm font-medium text-slate-500">{label}</div><div className={`mt-3 font-semibold text-slate-900 ${compact ? 'text-2xl' : 'text-3xl'}`}>{formatCount(value)}</div></article>
 }
 
-function TodayTaskCard({ title, count, description, href, actionLabel, tone }: { title: string; count: number; description: string; href: string; actionLabel: string; tone: 'default' | 'warning' | 'danger' }) {
-  const hasAction = count > 0
-  const badgeTone = hasAction ? tone : 'default'
+type TaskQueueItem = {
+  title: string
+  count: number
+  description: string
+  href: string
+  actionLabel: string
+  tone: 'default' | 'warning' | 'danger'
+}
+
+type DashboardFocus = {
+  title: string
+  description: string
+  badge: string
+  tone: 'default' | 'success' | 'warning' | 'danger'
+  primaryLabel: string
+  primaryHref: string
+  secondaryLabel?: string
+  secondaryHref?: string
+}
+
+function TaskQueueCard({ task }: { task: TaskQueueItem }) {
+  const hasAction = task.count > 0
+  const badgeTone = hasAction ? task.tone : 'default'
 
   return (
-    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-base font-semibold text-slate-950">{title}</h3>
-          <p className="mt-2 text-sm text-slate-600">{description}</p>
+    <article className={`task-queue-card task-queue-item ${hasAction ? `task-queue-card-${task.tone}` : ''}`}>
+      <div className="min-w-0">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-950">{task.title}</h3>
+            <p className="mt-2 text-sm text-slate-600">{task.description}</p>
+          </div>
+          <StatusBadge label={`${task.count}건`} tone={badgeTone} />
         </div>
-        <StatusBadge label={`${count}건`} tone={badgeTone} />
       </div>
       {hasAction ? (
-        <div className="mt-4">
-          <Link className="btn btn-secondary" to={href}>{actionLabel}</Link>
+        <div className="task-queue-action">
+          <Link className="btn btn-secondary" to={task.href}>{task.actionLabel}</Link>
         </div>
       ) : (
-        <div className="mt-4 text-sm text-slate-500">지금은 처리할 항목이 없습니다.</div>
+        <div className="text-sm text-slate-500">없음</div>
       )}
     </article>
   )
 }
 
-function QuickStartCard({ title, description, href, actionLabel, tone = 'secondary' }: { title: string; description: string; href: string; actionLabel: string; tone?: 'primary' | 'secondary' }) {
-  return <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><h3 className="text-lg font-semibold text-slate-950">{title}</h3><p className="mt-2 text-sm text-slate-600">{description}</p><div className="mt-4"><Link className={tone === 'primary' ? 'btn btn-primary' : 'btn btn-secondary'} to={href}>{actionLabel}</Link></div></article>
+function ScopeInfoItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</div>
+      <div className="mt-2 text-sm font-medium text-slate-900">{value}</div>
+    </div>
+  )
+}
+
+function CurrentWorkCard({
+  inspection,
+  inspectionDetail,
+  result,
+  fallback,
+}: {
+  inspection: InspectionSummary | null
+  inspectionDetail: { images: { imageId: number }[]; analysisJobIds: number[] } | null
+  result: (RecentInspectionResult & { reviewStatus: ReviewStatus | null }) | null
+  fallback: DashboardFocus
+}) {
+  if (!inspection) {
+    return (
+      <article className="workflow-focus-card dashboard-focus-card">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-sm font-semibold text-sky-700">현재 작업 없음</div>
+            <h3 className="mt-2 text-2xl font-semibold text-slate-950">{fallback.title}</h3>
+            <p className="mt-2 text-sm text-slate-600">{fallback.description}</p>
+          </div>
+          <StatusBadge label={fallback.badge} tone={fallback.tone} />
+        </div>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Link className="btn btn-primary" to={fallback.primaryHref}>{fallback.primaryLabel}</Link>
+          {fallback.secondaryHref ? <Link className="btn btn-secondary" to={fallback.secondaryHref}>{fallback.secondaryLabel}</Link> : null}
+        </div>
+      </article>
+    )
+  }
+
+  const imageCount = inspectionDetail?.images.length ?? 0
+  const analysisJobCount = inspectionDetail?.analysisJobIds.length ?? 0
+  const resultStatus = result ? getReviewStatusLabel(result.reviewStatus) : '결과 없음'
+  const nextAction = getCurrentWorkNextAction(inspection.inspectionStatus, Boolean(result))
+
+  return (
+    <article className="workflow-focus-card dashboard-focus-card">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="text-sm font-semibold text-sky-700">선택된 점검</div>
+          <h3 className="mt-2 text-2xl font-semibold text-slate-950">{inspection.name}</h3>
+          <p className="mt-2 text-sm text-slate-600">{nextAction.description}</p>
+        </div>
+        <StatusBadge label={getInspectionStatusLabel(inspection.inspectionStatus)} tone={getInspectionStatusTone(inspection.inspectionStatus)} />
+      </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <ScopeInfoItem label="다음 작업" value={nextAction.label} />
+        <ScopeInfoItem label="업로드 이미지 수" value={`${formatCount(imageCount)}건`} />
+        <ScopeInfoItem label="분석 상태" value={getInspectionProgressText(inspection.inspectionStatus)} />
+        <ScopeInfoItem label="결과 상태" value={resultStatus} />
+      </div>
+      <div className="mt-5 flex flex-wrap gap-3">
+        <Link className="btn btn-primary" to={`/inspections/${inspection.inspectionId}`}>{nextAction.primaryLabel}</Link>
+        {result?.resultId ? <Link className="btn btn-secondary" to={`/results/${result.resultId}`}>결과 보기</Link> : null}
+        {!result?.resultId ? <Link className="btn btn-secondary" to="/inspections">점검 목록</Link> : null}
+      </div>
+      <div className="mt-4 text-sm text-slate-500">
+        촬영 시각 {inspection.capturedAt ? formatDateTime(inspection.capturedAt) : '-'} · 분석 작업 {formatCount(analysisJobCount)}건
+      </div>
+    </article>
+  )
+}
+
+function ContinueInspectionCard({ inspection }: { inspection: InspectionSummary }) {
+  const plantQuery = usePlant(inspection.plantId ?? 0)
+  const zoneQuery = useZone(inspection.zoneId)
+  const plantName = plantQuery.data?.data.name ?? '발전소 확인 필요'
+  const zoneName = zoneQuery.data?.data.name ?? '점검 영역 확인 필요'
+
+  return (
+    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-950">{inspection.name}</div>
+          <p className="mt-1 text-sm text-slate-600">{plantName} · {zoneName}</p>
+        </div>
+        <StatusBadge label={getInspectionStatusLabel(inspection.inspectionStatus)} tone={getInspectionStatusTone(inspection.inspectionStatus)} />
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <InfoBlock label="촬영 시각" value={inspection.capturedAt ? formatDateTime(inspection.capturedAt) : '-'} />
+        <InfoBlock label="진행 상태" value={getInspectionProgressText(inspection.inspectionStatus)} />
+        <InfoBlock label="등록 시각" value={formatDateTime(inspection.createdAt)} />
+      </div>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <Link className="btn btn-primary" to={`/inspections/${inspection.inspectionId}`}>이어가기</Link>
+        <Link className="btn btn-secondary" to="/inspections">점검 목록</Link>
+      </div>
+    </article>
+  )
+}
+
+function CompactStatusPill({ label, value, tone }: { label: string; value: string; tone: 'default' | 'warning' | 'danger' }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</div>
+      <div className="mt-2 flex items-center gap-2">
+        <div className="text-lg font-semibold text-slate-950">{value}</div>
+        <StatusBadge label={label} tone={tone} />
+      </div>
+    </div>
+  )
+}
+
+function RecentInspectionCompactCard({ inspection }: { inspection: InspectionSummary }) {
+  const zoneQuery = useZone(inspection.zoneId)
+
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-slate-950">{inspection.name}</div>
+          <p className="mt-1 text-sm text-slate-600">{zoneQuery.data?.data.name ?? '점검 영역 확인 중'}</p>
+        </div>
+        <StatusBadge label={getInspectionStatusLabel(inspection.inspectionStatus)} tone={getInspectionStatusTone(inspection.inspectionStatus)} />
+      </div>
+      <div className="mt-3">
+        <Link className="btn btn-secondary" to={`/inspections/${inspection.inspectionId}`}>열기</Link>
+      </div>
+    </article>
+  )
 }
 function MiniMetric({ label, value }: { label: string; value: number }) {
   return <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</div><div className="mt-2 text-xl font-semibold text-slate-900">{formatCount(value)}건</div></div>
@@ -409,14 +725,14 @@ function DashboardChartSection({ title, description, isLoading, error, isEmpty, 
   return <section className={`panel ${isEmpty && !isLoading && !error && compactWhenEmpty ? 'space-y-4' : 'space-y-5'}`}><div><h2 className="panel-title">{title}</h2><p className="panel-description">{description}</p></div>{isLoading ? <LoadingState message={`${title} 데이터를 불러오는 중입니다.`} /> : null}{!isLoading && error ? <ErrorState title={`${title} 조회에 실패했습니다.`} description={error} /> : null}{!isLoading && !error && isEmpty ? <CompactEmptyState title={emptyTitle} description={emptyDescription} action={emptyAction} compact={compactWhenEmpty} /> : null}{!isLoading && !error && !isEmpty ? children : null}</section>
 }
 
-function PriorityTargetCard({ target }: { target: PriorityTarget }) {
+function PriorityTargetCard({ target, compact = false }: { target: PriorityTarget; compact?: boolean }) {
   const plantQuery = usePlant(target.plantId ?? 0)
   const zoneQuery = useZone(target.zoneId ?? 0)
   const plantName = plantQuery.data?.data.name ?? '발전소 확인 필요'
   const zoneName = zoneQuery.data?.data.name ?? '점검 영역 확인 필요'
 
   return (
-    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article className={`rounded-3xl border border-slate-200 bg-white shadow-sm ${compact ? 'p-4' : 'p-5'}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-base font-semibold text-slate-950">{plantName}</div>
@@ -439,38 +755,9 @@ function PriorityTargetCard({ target }: { target: PriorityTarget }) {
   )
 }
 
-function RecentInspectionCard({ inspection }: { inspection: InspectionSummary }) {
-  const plantQuery = usePlant(inspection.plantId ?? 0)
-  const zoneQuery = useZone(inspection.zoneId)
-  const inspectionDetailQuery = useInspection(inspection.inspectionId)
-  const plantName = plantQuery.data?.data.name ?? '발전소 확인 필요'
-  const zoneName = zoneQuery.data?.data.name ?? '점검 영역 확인 필요'
-  const imageCount = inspectionDetailQuery.data?.data.images.length ?? 0
-
+function RecentResultCard({ result, compact = false }: { result: RecentInspectionResult & { reviewStatus: ReviewStatus | null }; compact?: boolean }) {
   return (
-    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-base font-semibold text-slate-950">{inspection.name}</div>
-          <p className="mt-1 text-sm text-slate-600">{plantName} · {zoneName}</p>
-        </div>
-        <StatusBadge label={getInspectionStatusLabel(inspection.inspectionStatus)} tone={getInspectionStatusTone(inspection.inspectionStatus)} />
-      </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <InfoBlock label="촬영 시각" value={inspection.capturedAt ? formatDateTime(inspection.capturedAt) : '-'} />
-        <InfoBlock label="업로드 이미지 수" value={`${formatCount(imageCount)}건`} />
-        <InfoBlock label="분석 상태" value={getInspectionProgressText(inspection.inspectionStatus)} />
-      </div>
-      <div className="mt-4 flex flex-wrap gap-3">
-        <Link className="btn btn-secondary" to={`/inspections/${inspection.inspectionId}`}>이어하기</Link>
-      </div>
-    </article>
-  )
-}
-
-function RecentResultCard({ result }: { result: RecentInspectionResult & { reviewStatus: ReviewStatus | null } }) {
-  return (
-    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article className={`rounded-3xl border border-slate-200 bg-white shadow-sm ${compact ? 'p-4' : 'p-5'}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-base font-semibold text-slate-950">{result.inspectionName || '결과 확인 필요'}</div>
@@ -500,6 +787,196 @@ function InfoBlock({ label, value }: { label: string; value: string }) {
 
 function buildPriorityTargetKey(target: PriorityTarget, index: number) {
   return `${target.resultId ?? 'result'}-${target.zoneId ?? 'zone'}-${index}`
+}
+
+function getScopeLabel(
+  selectedPlant: { name: string } | null,
+  selectedZone: { name: string } | null,
+) {
+  if (selectedZone) {
+    return '점검 영역 기준'
+  }
+  if (selectedPlant) {
+    return '발전소 기준'
+  }
+  return '전체 범위'
+}
+
+function buildTaskQueue({
+  summary,
+  uploadPendingCount,
+  analysisPendingCount,
+  failedInspectionCount,
+  topPriorityTarget,
+  continueInspection,
+}: {
+  summary?: DashboardSummary
+  uploadPendingCount: number
+  analysisPendingCount: number
+  failedInspectionCount: number
+  topPriorityTarget: PriorityTarget | null
+  continueInspection: InspectionSummary | null
+}): TaskQueueItem[] {
+  if (!summary) {
+    return []
+  }
+
+  return [
+    {
+      title: '이미지 등록 대기',
+      count: uploadPendingCount,
+      description: uploadPendingCount > 0 ? '등록 필요' : '없음',
+      href: continueInspection ? `/inspections/${continueInspection.inspectionId}` : '/inspections',
+      actionLabel: '점검 이어가기',
+      tone: uploadPendingCount > 0 ? 'warning' : 'default',
+    },
+    {
+      title: '분석 요청 대기',
+      count: analysisPendingCount,
+      description: analysisPendingCount > 0 ? '요청 대기' : '없음',
+      href: continueInspection ? `/inspections/${continueInspection.inspectionId}` : '/inspections',
+      actionLabel: '점검 이어가기',
+      tone: analysisPendingCount > 0 ? 'warning' : 'default',
+    },
+    {
+      title: '분석 실패',
+      count: summary.failedJobCount,
+      description: summary.failedJobCount > 0 ? '재확인 필요' : '없음',
+      href:
+        failedInspectionCount > 0 && continueInspection
+          ? `/inspections/${continueInspection.inspectionId}`
+          : '/inspections',
+      actionLabel: '점검 이어가기',
+      tone: summary.failedJobCount > 0 ? 'danger' : 'default',
+    },
+    {
+      title: '결과 검토 대기',
+      count: summary.pendingReviewCount,
+      description: summary.pendingReviewCount > 0 ? '검토 필요' : '없음',
+      href: '/results',
+      actionLabel: '결과 검토',
+      tone: summary.pendingReviewCount > 0 ? 'warning' : 'default',
+    },
+    {
+      title: '높은 우선순위',
+      count: summary.highPriorityCount,
+      description: summary.highPriorityCount > 0 ? '우선 확인' : '없음',
+      href: topPriorityTarget?.resultId ? `/results/${topPriorityTarget.resultId}` : '/results',
+      actionLabel: '우선 결과 보기',
+      tone: summary.highPriorityCount > 0 ? 'danger' : 'default',
+    },
+  ]
+}
+
+function buildDashboardFocus(
+  summary: DashboardSummary | undefined,
+  continueInspection: InspectionSummary | null,
+  topPriorityTarget: PriorityTarget | null,
+): DashboardFocus {
+  if (!summary) {
+    return {
+      title: '운영 상태를 불러오는 중입니다.',
+      description: '잠시 후 다시 확인하세요.',
+      badge: '대기 중',
+      tone: 'default' as const,
+      primaryLabel: '새 점검 시작',
+      primaryHref: '/inspections',
+      secondaryLabel: '결과 검토',
+      secondaryHref: '/results',
+    }
+  }
+
+  if (summary.highPriorityCount > 0 && topPriorityTarget?.resultId) {
+    return {
+      title: '우선 확인이 필요한 결과가 있습니다.',
+      description: '결과 검토가 필요합니다.',
+      badge: `${formatCount(summary.highPriorityCount)}건`,
+      tone: 'danger' as const,
+      primaryLabel: '우선 결과 보기',
+      primaryHref: `/results/${topPriorityTarget.resultId}`,
+      secondaryLabel: '결과 목록',
+      secondaryHref: '/results',
+    }
+  }
+
+  if (summary.pendingReviewCount > 0) {
+    return {
+      title: '검토가 필요한 결과가 남아 있습니다.',
+      description: '결과 검토를 진행하세요.',
+      badge: `${formatCount(summary.pendingReviewCount)}건`,
+      tone: 'warning' as const,
+      primaryLabel: '결과 검토',
+      primaryHref: '/results',
+      secondaryLabel: '새 점검 시작',
+      secondaryHref: '/inspections',
+    }
+  }
+
+  if (continueInspection) {
+    return {
+      title: `${continueInspection.name} 점검을 이어서 진행하세요.`,
+      description: '남은 작업을 이어가세요.',
+      badge: getInspectionStatusLabel(continueInspection.inspectionStatus),
+      tone: continueInspection.inspectionStatus === 'FAILED' ? 'danger' : 'warning',
+      primaryLabel: '점검 이어가기',
+      primaryHref: `/inspections/${continueInspection.inspectionId}`,
+      secondaryLabel: '새 점검 시작',
+      secondaryHref: '/inspections',
+    }
+  }
+
+  return {
+    title: '오늘 점검을 새로 시작할 수 있습니다.',
+    description: '새 점검을 시작하세요.',
+    badge: '준비 완료',
+    tone: 'success' as const,
+    primaryLabel: '새 점검 시작',
+    primaryHref: '/inspections',
+    secondaryLabel: '발전소 보기',
+    secondaryHref: '/plants',
+  }
+}
+
+function getCurrentWorkNextAction(
+  status: InspectionStatus,
+  hasResult: boolean,
+): {
+  label: string
+  primaryLabel: string
+  description: string
+} {
+  switch (status) {
+    case 'READY':
+      return {
+        label: '이미지 업로드',
+        primaryLabel: '이미지 업로드',
+        description: '다음 작업: 이미지 업로드',
+      }
+    case 'UPLOADING':
+      return {
+        label: '이미지 확인',
+        primaryLabel: '점검 이어가기',
+        description: '다음 작업: 이미지 확인',
+      }
+    case 'ANALYZING':
+      return {
+        label: '분석 상태 확인',
+        primaryLabel: '분석 상태 확인',
+        description: '다음 작업: 분석 상태 확인',
+      }
+    case 'FAILED':
+      return {
+        label: '실패 확인',
+        primaryLabel: '실패 확인',
+        description: '다음 작업: 실패 확인',
+      }
+    case 'COMPLETED':
+      return {
+        label: hasResult ? '결과 검토' : '점검 확인',
+        primaryLabel: hasResult ? '결과 검토' : '점검 확인',
+        description: hasResult ? '다음 작업: 결과 검토' : '다음 작업: 점검 확인',
+      }
+  }
 }
 
 function buildFilterSummary(plantName?: string | null, zoneName?: string | null, from?: string, to?: string, interval?: DashboardTrendInterval) {
@@ -693,3 +1170,6 @@ function getPriorityReasonLabel(reason?: string | null) {
       return reason?.trim() || '-'
   }
 }
+
+
+

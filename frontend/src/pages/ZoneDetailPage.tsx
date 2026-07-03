@@ -39,6 +39,7 @@ import type { UpdateZoneRequest } from '../features/zones/types'
 import { ConfirmModal } from '../shared/components/feedback/ConfirmModal'
 import { FormField } from '../shared/components/form/FormField'
 import { PageHeader } from '../shared/components/layout/PageHeader'
+import { InspectionCreateWizard } from '../features/inspections/components/InspectionCreateWizard'
 import { ErrorState } from '../shared/components/state/ErrorState'
 import { LoadingState } from '../shared/components/state/LoadingState'
 import { StatusBadge } from '../shared/components/state/StatusBadge'
@@ -77,6 +78,7 @@ export function ZoneDetailPage() {
   const [isCreateEquipmentModalOpen, setIsCreateEquipmentModalOpen] = useState(false)
   const [selectedEquipment, setSelectedEquipment] = useState<EquipmentTreeNode | null>(null)
   const [isDeactivateZoneModalOpen, setIsDeactivateZoneModalOpen] = useState(false)
+  const [isCreateInspectionWizardOpen, setIsCreateInspectionWizardOpen] = useState(false)
   const [equipmentToDeactivate, setEquipmentToDeactivate] = useState<EquipmentTreeNode | null>(null)
 
   const statusParam = searchParams.get('status')
@@ -225,9 +227,9 @@ export function ZoneDetailPage() {
         description="이 영역의 최근 상태를 확인하고 바로 점검, 결과 검토, 변화 추적으로 이어가세요."
         actions={
           <div className="page-actions">
-            <Link className="btn btn-primary" to={`/inspections?plantId=${zone?.plantId ?? ''}&zoneId=${zoneId}`}>
+            <button className="btn btn-primary" type="button" onClick={() => setIsCreateInspectionWizardOpen(true)}>
               이 영역 점검 시작
-            </Link>
+            </button>
             <Link className="btn btn-secondary" to={`/results?zoneId=${zoneId}`}>
               결과 보기
             </Link>
@@ -397,6 +399,12 @@ export function ZoneDetailPage() {
 
       <ConfirmModal isOpen={isDeactivateZoneModalOpen} title="점검 영역 비활성화" description="이 점검 영역을 비활성화하면 이후 점검 시작 전에 상태를 다시 확인해야 합니다. 계속할까요?" confirmText="비활성화" cancelText="취소" isConfirming={deactivateZoneMutation.isPending} onConfirm={handleDeactivateZone} onCancel={() => setIsDeactivateZoneModalOpen(false)} />
       <ConfirmModal isOpen={Boolean(equipmentToDeactivate)} title="설비 위치 비활성화" description={equipmentToDeactivate ? `${equipmentToDeactivate.name} 설비 위치를 비활성화할까요?` : '선택한 설비 위치를 비활성화할까요?'} confirmText="비활성화" cancelText="취소" isConfirming={deactivateEquipmentMutation.isPending} onConfirm={handleDeactivateEquipment} onCancel={() => setEquipmentToDeactivate(null)} />
+      <InspectionCreateWizard
+        isOpen={isCreateInspectionWizardOpen}
+        onClose={() => setIsCreateInspectionWizardOpen(false)}
+        initialPlantId={zone?.plantId ?? null}
+        initialZoneId={zoneId}
+      />
     </section>
   )
 
@@ -473,3 +481,4 @@ function getActionCandidateText(value: string | null) {
   if (value === 'REPLACEMENT_REVIEW') return '교체 검토'
   return value
 }
+

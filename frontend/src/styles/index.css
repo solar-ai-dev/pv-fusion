@@ -209,6 +209,34 @@ textarea {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
+.dashboard-home-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.dashboard-focus-card {
+  padding: 1.5rem;
+}
+
+.dashboard-start-card {
+  border: 1px solid rgba(186, 230, 253, 0.9);
+  border-radius: 1.25rem;
+  background:
+    linear-gradient(135deg, rgba(240, 249, 255, 0.96), rgba(255, 255, 255, 0.98));
+  padding: 1.25rem;
+}
+
+.dashboard-kpi-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.task-queue-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
 .kpi-card {
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 1rem;
@@ -223,6 +251,38 @@ textarea {
 
 .kpi-card-danger {
   background: linear-gradient(180deg, rgba(254, 226, 226, 0.85), rgba(255, 255, 255, 0.94));
+}
+
+.kpi-card-compact {
+  padding: 0.875rem;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+}
+
+.task-queue-card {
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 1rem;
+}
+
+.task-queue-item {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.task-queue-action {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.task-queue-card-warning {
+  border-color: rgba(245, 158, 11, 0.22);
+  background: linear-gradient(180deg, rgba(255, 251, 235, 0.96), rgba(255, 255, 255, 0.98));
+}
+
+.task-queue-card-danger {
+  border-color: rgba(248, 113, 113, 0.22);
+  background: linear-gradient(180deg, rgba(254, 242, 242, 0.96), rgba(255, 255, 255, 0.98));
 }
 
 .chart-shell {
@@ -487,6 +547,13 @@ textarea {
   margin-top: 0.5rem;
 }
 
+.compact-status-card {
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 1rem;
+}
+
 .tab-strip {
   display: flex;
   gap: 0.5rem;
@@ -496,6 +563,30 @@ textarea {
 
 .tab-button {
   flex: 0 0 auto;
+}
+
+.workflow-tab {
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 9999px;
+  background: rgba(248, 250, 252, 0.96);
+  padding: 0.65rem 1rem;
+  color: #475569;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.workflow-tab-active {
+  border-color: rgba(14, 165, 233, 0.28);
+  background: rgba(224, 242, 254, 0.92);
+  color: #0f172a;
+}
+
+.workflow-focus-card {
+  border: 1px solid rgba(186, 230, 253, 0.9);
+  border-radius: 1.25rem;
+  background:
+    linear-gradient(135deg, rgba(240, 249, 255, 0.96), rgba(255, 255, 255, 0.98));
+  padding: 1.25rem;
 }
 
 .text-button {
@@ -546,6 +637,61 @@ textarea {
   gap: 0.35rem;
 }
 
+.wizard-modal {
+  width: min(100%, 44rem);
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+
+.wizard-header {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.wizard-step-strip {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 1rem 0 0.25rem;
+}
+
+.wizard-step-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 9999px;
+  background: rgba(248, 250, 252, 0.96);
+  padding: 0.65rem 0.95rem;
+  color: #475569;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.wizard-step-chip-active {
+  border-color: rgba(14, 165, 233, 0.28);
+  background: rgba(224, 242, 254, 0.92);
+  color: #0f172a;
+}
+
+.wizard-body {
+  margin-top: 0.75rem;
+}
+
+.wizard-form-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.wizard-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 0.25rem;
+}
 .compare-image {
   width: 100%;
   min-height: 280px;
@@ -628,6 +774,10 @@ textarea {
   .top-navbar-actions {
     justify-content: flex-end;
   }
+
+  .dashboard-home-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -668,4 +818,31 @@ textarea {
   .tab-strip {
     width: 100%;
   }
+
+  .dashboard-focus-card,
+  .dashboard-start-card,
+  .task-queue-card {
+    padding: 1rem;
+  }
+
+  .task-queue-action {
+    width: 100%;
+  }
 }
+
+@media (min-width: 1200px) {
+  .dashboard-home-grid {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.9fr);
+    align-items: start;
+  }
+
+  .task-queue-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .task-queue-action {
+    justify-content: flex-end;
+  }
+}
+
