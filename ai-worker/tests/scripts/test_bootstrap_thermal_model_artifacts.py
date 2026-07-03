@@ -52,11 +52,11 @@ def test_bootstrap_downloads_manifest_and_model_to_manifest_directory(tmp_path: 
             ]
         )
     )
-    manifest_path = tmp_path / "models" / "thermal" / "stage10b" / "v20260704-r1" / "model-manifest.yaml"
+    manifest_path = tmp_path / "models" / "thermal" / "model-manifest.yaml"
     config = ThermalArtifactBootstrapConfig(
         bucket="artifact-bucket",
         manifest_path=manifest_path,
-        prefix="models/ai-worker/thermal/stage10b/v20260704-r1",
+        prefix="models/ai-worker/thermal",
         endpoint_url=None,
         region_name="ap-northeast-2",
     )
@@ -70,12 +70,12 @@ def test_bootstrap_downloads_manifest_and_model_to_manifest_directory(tmp_path: 
     assert client.calls == [
         (
             "artifact-bucket",
-            "models/ai-worker/thermal/stage10b/v20260704-r1/model-manifest.yaml",
+            "models/ai-worker/thermal/model-manifest.yaml",
             str(manifest_path),
         ),
         (
             "artifact-bucket",
-            "models/ai-worker/thermal/stage10b/v20260704-r1/thermal-yolo26s-det-stage10b-v20260704-r1.onnx",
+            "models/ai-worker/thermal/thermal-yolo26s-det-stage10b-v20260704-r1.onnx",
             str(resolved_model_path),
         ),
     ]
@@ -100,8 +100,8 @@ def test_bootstrap_rejects_absolute_model_path_in_manifest(tmp_path: Path):
     )
     config = ThermalArtifactBootstrapConfig(
         bucket="artifact-bucket",
-        manifest_path=tmp_path / "models" / "thermal" / "stage10b" / "v20260704-r1" / "model-manifest.yaml",
-        prefix="models/ai-worker/thermal/stage10b/v20260704-r1",
+        manifest_path=tmp_path / "models" / "thermal" / "model-manifest.yaml",
+        prefix="models/ai-worker/thermal",
         endpoint_url=None,
         region_name="ap-northeast-2",
     )
@@ -112,15 +112,15 @@ def test_bootstrap_rejects_absolute_model_path_in_manifest(tmp_path: Path):
 
 def test_load_config_from_env_uses_thermal_manifest_path_and_bucket_alias(monkeypatch):
     monkeypatch.setenv("STORAGE_DEFAULT_BUCKET", "artifact-bucket")
-    monkeypatch.setenv("THERMAL_MODEL_MANIFEST_PATH", "/models/thermal/stage10b/v20260704-r1/model-manifest.yaml")
-    monkeypatch.setenv("THERMAL_MODEL_S3_PREFIX", "models/ai-worker/thermal/stage10b/v20260704-r1")
+    monkeypatch.setenv("THERMAL_MODEL_MANIFEST_PATH", "/models/thermal/model-manifest.yaml")
+    monkeypatch.setenv("THERMAL_MODEL_S3_PREFIX", "models/ai-worker/thermal")
     monkeypatch.setenv("STORAGE_REGION", "ap-northeast-2")
     monkeypatch.setenv("STORAGE_PATH_STYLE_ENABLED", "true")
 
     config = load_config_from_env()
 
     assert config.bucket == "artifact-bucket"
-    assert config.manifest_path == Path("/models/thermal/stage10b/v20260704-r1/model-manifest.yaml")
-    assert config.prefix == "models/ai-worker/thermal/stage10b/v20260704-r1"
+    assert config.manifest_path == Path("/models/thermal/model-manifest.yaml")
+    assert config.prefix == "models/ai-worker/thermal"
     assert config.region_name == "ap-northeast-2"
     assert config.path_style_enabled is True

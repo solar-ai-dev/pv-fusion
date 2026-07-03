@@ -48,10 +48,10 @@ def test_settings_accepts_database_url_alias():
 def test_settings_accepts_thermal_model_manifest_path_alias():
     settings = Settings(
         _env_file=None,
-        THERMAL_MODEL_MANIFEST_PATH="/models/thermal/stage10b/v20260704-r1/model-manifest.yaml",
+        THERMAL_MODEL_MANIFEST_PATH="/models/thermal/model-manifest.yaml",
     )
 
-    assert settings.thermalModelManifestPath == "/models/thermal/stage10b/v20260704-r1/model-manifest.yaml"
+    assert settings.thermalModelManifestPath == "/models/thermal/model-manifest.yaml"
 
 
 def test_settings_rejects_invalid_app_env():
