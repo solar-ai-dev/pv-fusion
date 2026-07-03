@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 
+import yaml
+
 from app.domain.enums import InputType, ModelType, RequestedModelType
 from app.domain.model import ModelInfo
 
@@ -20,6 +22,7 @@ class ModelManifest:
     inputSize: int
     confidenceThreshold: Decimal
     nmsIouThreshold: Decimal
+    preprocessId: str | None
     modelPath: str
     classNames: list[str]
 
@@ -34,6 +37,8 @@ class ModelManifest:
             runtime=self.runtime.lower(),
             inputSize=self.inputSize,
             threshold=self.confidenceThreshold,
+            nmsIouThreshold=self.nmsIouThreshold,
+            preprocessId=self.preprocessId,
             classNames=self.classNames,
         )
 
@@ -49,17 +54,18 @@ def load_model_manifest(manifest_path: str) -> ModelManifest:
         return ModelManifest(
             modelName=_require_string(parsed, "model_name"),
             modelVersion=_require_string(parsed, "model_version"),
-            modelStatus=_require_string(parsed, "model_status"),
+            modelStatus=_optional_string(parsed, "model_status", "READY"),
             inputType=InputType[_require_string(parsed, "input_type")],
             modelType=ModelType[_require_string(parsed, "model_type")],
             task=_require_string(parsed, "task"),
             modelFormat=_require_string(parsed, "format"),
-            precision=_require_string(parsed, "precision"),
+            precision=_optional_string(parsed, "precision", "FP32"),
             runtime=_require_string(parsed, "runtime"),
-            inputSize=int(_require_string(parsed, "input_size")),
-            confidenceThreshold=Decimal(_require_string(parsed, "confidence_threshold")),
-            nmsIouThreshold=Decimal(_require_string(parsed, "nms_iou_threshold")),
-            modelPath=_require_string(parsed, "model_path"),
+            inputSize=int(_require_number_like(parsed, "input_size")),
+            confidenceThreshold=Decimal(_require_number_like(parsed, "confidence_threshold")),
+            nmsIouThreshold=Decimal(_require_number_like(parsed, "nms_iou_threshold")),
+            preprocessId=_optional_string(parsed, "preprocess_id", None),
+            modelPath=_resolve_model_path(path, _require_string(parsed, "model_path")),
             classNames=_require_list(parsed, "class_names"),
         )
     except KeyError as exc:
@@ -67,76 +73,28 @@ def load_model_manifest(manifest_path: str) -> ModelManifest:
 
 
 def _parse_manifest(path: Path) -> dict[str, object]:
-    data: dict[str, object] = {}
-    lines = path.read_text(encoding="utf-8").splitlines()
-
-    in_first_model = False
-    current_list_key: str | None = None
-    current_list_indent = 0
-
-    for raw_line in lines:
-        if not raw_line.strip() or raw_line.lstrip().startswith("#"):
-            continue
-
-        indent = len(raw_line) - len(raw_line.lstrip(" "))
-        stripped = raw_line.strip()
-
-        if stripped == "models:":
-            continue
-
-        if stripped.startswith("- "):
-            if not in_first_model:
-                in_first_model = True
-                remainder = stripped[2:]
-                if remainder:
-                    key, value = _split_key_value(remainder, path)
-                    data[key] = value
-                continue
-
-            if current_list_key is not None and indent > current_list_indent:
-                items = data.setdefault(current_list_key, [])
-                if not isinstance(items, list):
-                    raise ValueError(f"Manifest list field is malformed: {path} -> {current_list_key}")
-                items.append(stripped[2:].strip())
-                continue
-
-            break
-
-        if not in_first_model:
-            continue
-
-        if current_list_key is not None and indent <= current_list_indent:
-            current_list_key = None
-
-        if ":" not in stripped:
-            continue
-
-        key, value = _split_key_value(stripped, path)
-        if key == "note":
-            break
-
-        if value == "":
-            if key == "class_names":
-                data[key] = []
-                current_list_key = key
-                current_list_indent = indent
-            else:
-                data[key] = {}
-            continue
-
-        data[key] = value
-
-    if not data:
+    loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
         raise ValueError(f"Unable to parse model manifest: {path}")
+    if "models" in loaded:
+        models = loaded.get("models")
+        if not isinstance(models, list) or not models or not isinstance(models[0], dict):
+            raise ValueError(f"Manifest models section is malformed: {path}")
+        source = dict(models[0])
+    else:
+        source = dict(loaded)
 
-    return data
+    threshold = source.get("threshold")
+    if isinstance(threshold, dict):
+        source.setdefault("confidence_threshold", threshold.get("conf"))
+        source.setdefault("nms_iou_threshold", threshold.get("iou"))
 
+    preprocess = source.get("preprocess")
+    if isinstance(preprocess, dict):
+        source.setdefault("preprocess_id", preprocess.get("id"))
 
-def _split_key_value(text: str, path: Path) -> tuple[str, str]:
-    if ":" not in text:
-        raise ValueError(f"Invalid manifest line in {path}: {text}")
-    key, value = text.split(":", 1)
-    return key.strip(), value.strip()
+    source["class_names"] = _normalize_class_names(source.get("class_names"))
+    return source
 
 
 def _require_string(parsed: dict[str, object], key: str) -> str:
@@ -154,3 +112,39 @@ def _require_list(parsed: dict[str, object], key: str) -> list[str]:
     if not normalized:
         raise ValueError(f"Required manifest list field is missing or empty: {key}")
     return normalized
+
+
+def _optional_string(parsed: dict[str, object], key: str, default: str | None) -> str | None:
+    value = parsed.get(key)
+    if value is None:
+        return default
+    text = str(value).strip()
+    return text or default
+
+
+def _require_number_like(parsed: dict[str, object], key: str) -> str:
+    value = parsed.get(key)
+    if value is None or value == "":
+        raise ValueError(f"Required manifest field is missing or empty: {key}")
+    return str(value)
+
+
+def _normalize_class_names(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, dict):
+        def sort_key(item: tuple[object, object]) -> tuple[int, str]:
+            raw_key = str(item[0]).strip()
+            if raw_key.isdigit():
+                return (0, f"{int(raw_key):08d}")
+            return (1, raw_key)
+
+        return [str(item).strip() for _, item in sorted(value.items(), key=sort_key) if str(item).strip()]
+    return []
+
+
+def _resolve_model_path(manifest_path: Path, model_path: str) -> str:
+    candidate = Path(model_path)
+    if candidate.is_absolute():
+        return str(candidate)
+    return str((manifest_path.parent / candidate).resolve())

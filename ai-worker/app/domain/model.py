@@ -17,4 +17,6 @@ class ModelInfo(BaseModel):
     runtime: str
     inputSize: int
     threshold: Decimal
+    nmsIouThreshold: Decimal | None = None
+    preprocessId: str | None = None
     classNames: list[str] = Field(default_factory=list)

@@ -1,0 +1,18 @@
+model_name: thermal-only-yolo26s-det
+model_version: th-final-aug-batch-08-stage10b
+model_type: THERMAL_ONLY
+input_type: THERMAL_SINGLE
+task: detect
+runtime: onnxruntime
+format: onnx
+input_size: 640
+model_path: thermal-only-yolo26s-det-640-stage10b-rawu8-r3-rot45-flip-s150-t075.onnx
+preprocess:
+  id: RAW_UINT8_NORMALIZED
+threshold:
+  conf: 0.55
+  iou: 0.45
+class_names:
+  0: HotSpot
+  1: Diode_ByPassed
+  2: String_Fault

@@ -27,8 +27,64 @@ def test_load_model_manifest_reads_required_fields(tmp_path: Path):
     assert manifest.modelVersion == "v1.0.0"
     assert manifest.inputType is InputType.RGB_SINGLE
     assert manifest.modelType is ModelType.RGB_ONLY
-    assert manifest.modelPath == "models/rgb.onnx"
+    assert manifest.modelPath == str((tmp_path / "models" / "rgb.onnx").resolve())
     assert manifest.classNames == ["A", "B"]
+
+
+def test_load_model_manifest_reads_stage10b_style_manifest_and_resolves_relative_model_path(tmp_path: Path):
+    manifest_path = tmp_path / "thermal-stage10b.yaml"
+    manifest_path.write_text(
+        "\n".join(
+            [
+                "model_name: thermal-only-yolo26s-det",
+                "model_version: th-final-aug-batch-08-stage10b",
+                "model_type: THERMAL_ONLY",
+                "input_type: THERMAL_SINGLE",
+                "task: detect",
+                "runtime: onnxruntime",
+                "format: onnx",
+                "model_path: thermal-only.onnx",
+                "input_size: 640",
+                "preprocess:",
+                "  id: RAW_UINT8_NORMALIZED",
+                "threshold:",
+                "  conf: 0.55",
+                "  iou: 0.45",
+                "class_names:",
+                "  0: HotSpot",
+                "  1: Diode_ByPassed",
+                "  2: String_Fault",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    manifest = load_model_manifest(str(manifest_path))
+
+    assert manifest.preprocessId == "RAW_UINT8_NORMALIZED"
+    assert str(manifest.confidenceThreshold) == "0.55"
+    assert str(manifest.nmsIouThreshold) == "0.45"
+    assert manifest.classNames == ["HotSpot", "Diode_ByPassed", "String_Fault"]
+    assert manifest.modelPath == str((tmp_path / "thermal-only.onnx").resolve())
+
+
+def test_load_model_manifest_resolves_models_prefix_relative_to_manifest_directory(tmp_path: Path):
+    manifest_path = _write_manifest(
+        tmp_path / "thermal-manifest.yaml",
+        model_name="pv-thermal",
+        model_version="v1.0.0",
+        input_type="THERMAL_SINGLE",
+        model_type="THERMAL_ONLY",
+        input_size=640,
+        confidence_threshold="0.60",
+        model_path="models/thermal.onnx",
+        class_names=["HOTSPOT"],
+    )
+
+    manifest = load_model_manifest(str(manifest_path))
+
+    assert manifest.modelPath == str((tmp_path / "models" / "thermal.onnx").resolve())
 
 
 def test_resolve_returns_rgb_model_for_rgb_single(tmp_path: Path):
@@ -36,7 +92,7 @@ def test_resolve_returns_rgb_model_for_rgb_single(tmp_path: Path):
 
     model_info = registry.resolve(InputType.RGB_SINGLE, RequestedModelType.RGB_ONLY)
 
-    assert model_info.modelPath == "models/rgb.onnx"
+    assert model_info.modelPath == str((tmp_path / "models" / "rgb.onnx").resolve())
     assert model_info.modelType is ModelType.RGB_ONLY
     assert model_info.modelName == "pv-rgb"
     assert str(model_info.threshold) == "0.55"
@@ -61,7 +117,7 @@ def test_resolve_returns_thermal_model_for_thermal_single(tmp_path: Path):
 
     model_info = registry.resolve(InputType.THERMAL_SINGLE, RequestedModelType.THERMAL_ONLY)
 
-    assert model_info.modelPath == "models/thermal.onnx"
+    assert model_info.modelPath == str((tmp_path / "models" / "thermal.onnx").resolve())
     assert model_info.modelType is ModelType.THERMAL_ONLY
     assert model_info.modelName == "pv-thermal"
     assert str(model_info.threshold) == "0.65"
