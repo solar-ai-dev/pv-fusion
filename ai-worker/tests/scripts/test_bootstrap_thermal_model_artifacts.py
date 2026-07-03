@@ -29,15 +29,16 @@ def test_bootstrap_downloads_manifest_and_model_to_manifest_directory(tmp_path: 
     client = FakeS3Client(
         "\n".join(
             [
-                "model_name: thermal-only-yolo26s-det",
-                "model_version: stage10b",
+                "model_id: thermal-yolo26s-det-stage10b",
+                "model_name: thermal-yolo26s-det-stage10b",
+                "model_version: v20260704-r1",
                 "model_type: THERMAL_ONLY",
                 "input_type: THERMAL_SINGLE",
-                "task: detect",
-                "runtime: onnxruntime",
-                "format: onnx",
+                "task: detection",
+                "runtime: ONNX_RUNTIME",
+                "format: ONNX_FP32",
                 "input_size: 640",
-                "model_path: thermal-only-yolo26s-det-640-stage10b.onnx",
+                "model_path: thermal-yolo26s-det-stage10b-v20260704-r1.onnx",
                 "preprocess:",
                 "  id: RAW_UINT8_NORMALIZED",
                 "threshold:",
@@ -51,11 +52,11 @@ def test_bootstrap_downloads_manifest_and_model_to_manifest_directory(tmp_path: 
             ]
         )
     )
-    manifest_path = tmp_path / "models" / "thermal" / "model-manifest.thermal.stage10b.yaml"
+    manifest_path = tmp_path / "models" / "thermal" / "stage10b" / "v20260704-r1" / "model-manifest.yaml"
     config = ThermalArtifactBootstrapConfig(
         bucket="artifact-bucket",
         manifest_path=manifest_path,
-        prefix="models/ai-worker/stage10b/thermal",
+        prefix="models/ai-worker/thermal/stage10b/v20260704-r1",
         endpoint_url=None,
         region_name="ap-northeast-2",
     )
@@ -63,18 +64,18 @@ def test_bootstrap_downloads_manifest_and_model_to_manifest_directory(tmp_path: 
     resolved_manifest_path, resolved_model_path = bootstrap_thermal_model_artifacts(config, s3_client=client)
 
     assert resolved_manifest_path == manifest_path
-    assert resolved_model_path == manifest_path.parent / "thermal-only-yolo26s-det-640-stage10b.onnx"
+    assert resolved_model_path == manifest_path.parent / "thermal-yolo26s-det-stage10b-v20260704-r1.onnx"
     assert resolved_manifest_path.exists()
     assert resolved_model_path.exists()
     assert client.calls == [
         (
             "artifact-bucket",
-            "models/ai-worker/stage10b/thermal/model-manifest.thermal.stage10b.yaml",
+            "models/ai-worker/thermal/stage10b/v20260704-r1/model-manifest.yaml",
             str(manifest_path),
         ),
         (
             "artifact-bucket",
-            "models/ai-worker/stage10b/thermal/thermal-only-yolo26s-det-640-stage10b.onnx",
+            "models/ai-worker/thermal/stage10b/v20260704-r1/thermal-yolo26s-det-stage10b-v20260704-r1.onnx",
             str(resolved_model_path),
         ),
     ]
@@ -84,23 +85,23 @@ def test_bootstrap_rejects_absolute_model_path_in_manifest(tmp_path: Path):
     client = FakeS3Client(
         "\n".join(
             [
-                "model_name: thermal-only-yolo26s-det",
-                "model_version: stage10b",
+                "model_name: thermal-yolo26s-det-stage10b",
+                "model_version: v20260704-r1",
                 "model_type: THERMAL_ONLY",
                 "input_type: THERMAL_SINGLE",
                 "task: detect",
                 "runtime: onnxruntime",
                 "format: onnx",
                 "input_size: 640",
-                "model_path: C:/project/thermal-only-yolo26s-det-640-stage10b.onnx",
+                "model_path: C:/project/thermal-yolo26s-det-stage10b-v20260704-r1.onnx",
                 "",
             ]
         )
     )
     config = ThermalArtifactBootstrapConfig(
         bucket="artifact-bucket",
-        manifest_path=tmp_path / "models" / "thermal" / "model-manifest.thermal.stage10b.yaml",
-        prefix="models/ai-worker/stage10b/thermal",
+        manifest_path=tmp_path / "models" / "thermal" / "stage10b" / "v20260704-r1" / "model-manifest.yaml",
+        prefix="models/ai-worker/thermal/stage10b/v20260704-r1",
         endpoint_url=None,
         region_name="ap-northeast-2",
     )
@@ -111,15 +112,15 @@ def test_bootstrap_rejects_absolute_model_path_in_manifest(tmp_path: Path):
 
 def test_load_config_from_env_uses_thermal_manifest_path_and_bucket_alias(monkeypatch):
     monkeypatch.setenv("STORAGE_DEFAULT_BUCKET", "artifact-bucket")
-    monkeypatch.setenv("THERMAL_MODEL_MANIFEST_PATH", "/models/thermal/model-manifest.thermal.stage10b.yaml")
-    monkeypatch.setenv("THERMAL_MODEL_S3_PREFIX", "models/ai-worker/stage10b/thermal")
+    monkeypatch.setenv("THERMAL_MODEL_MANIFEST_PATH", "/models/thermal/stage10b/v20260704-r1/model-manifest.yaml")
+    monkeypatch.setenv("THERMAL_MODEL_S3_PREFIX", "models/ai-worker/thermal/stage10b/v20260704-r1")
     monkeypatch.setenv("STORAGE_REGION", "ap-northeast-2")
     monkeypatch.setenv("STORAGE_PATH_STYLE_ENABLED", "true")
 
     config = load_config_from_env()
 
     assert config.bucket == "artifact-bucket"
-    assert config.manifest_path == Path("/models/thermal/model-manifest.thermal.stage10b.yaml")
-    assert config.prefix == "models/ai-worker/stage10b/thermal"
+    assert config.manifest_path == Path("/models/thermal/stage10b/v20260704-r1/model-manifest.yaml")
+    assert config.prefix == "models/ai-worker/thermal/stage10b/v20260704-r1"
     assert config.region_name == "ap-northeast-2"
     assert config.path_style_enabled is True

@@ -28,7 +28,7 @@ def load_config_from_env() -> ThermalArtifactBootstrapConfig:
     manifest_path = Path(
         os.getenv(
             "THERMAL_MODEL_MANIFEST_PATH",
-            "/models/thermal/model-manifest.thermal.stage10b.yaml",
+            "/models/thermal/stage10b/v20260704-r1/model-manifest.yaml",
         )
     )
     prefix = _require_env("THERMAL_MODEL_S3_PREFIX")
