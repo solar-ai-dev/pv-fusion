@@ -229,13 +229,7 @@ export function PlantDetailPage() {
         title={plant?.name ?? '발전소 상세'}
         description="발전소 정보를 확인하고 구역별 점검을 바로 시작하세요."
         actions={
-          <div className="page-actions">
-            <button className="btn btn-primary" type="button" onClick={() => {
-              zoneForm.reset()
-              setIsCreateZoneModalOpen(true)
-            }}>
-              구역 등록
-            </button>
+          <div className="inline-actions">
             <Link className="btn btn-secondary" to="/inspections">점검 목록</Link>
             <Link className="btn btn-secondary" to="/results">결과 보기</Link>
           </div>
@@ -281,21 +275,11 @@ export function PlantDetailPage() {
             <h2 className="panel-title">발전소 관리</h2>
             <p className="panel-description">발전소 정보 수정과 비활성화는 필요할 때만 여기에서 진행하세요.</p>
           </div>
-          <div className="management-actions">
-            <button
-              className="btn btn-secondary"
-              type="button"
-              onClick={() => {
-                zoneForm.reset()
-                setIsCreateZoneModalOpen(true)
-              }}
-            >
-              구역 등록
-            </button>
+          <div className="management-actions management-actions-muted">
             <button className="btn btn-secondary" type="button" onClick={() => setIsEditModalOpen(true)}>
               정보 수정
             </button>
-            <button className="btn btn-secondary" type="button" onClick={() => setIsDeactivateModalOpen(true)}>
+            <button className="text-button text-button-danger" type="button" onClick={() => setIsDeactivateModalOpen(true)}>
               비활성화
             </button>
           </div>
@@ -496,19 +480,20 @@ function ZoneEntryCard({
           이 구역 점검 시작
         </button>
         <Link className="btn btn-secondary" to={`/zones/${zone.zoneId}`}>
-          상세 보기
+          구역 상세
         </Link>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-3">
-        <button className="btn btn-secondary" type="button" onClick={() => onEdit(zone)}>
-          구역 수정
-        </button>
-        <button className="btn btn-secondary" type="button" onClick={() => onDeactivate(zone)}>
-          구역 비활성화
-        </button>
         <Link className="btn btn-secondary" to={`/results?zoneId=${zone.zoneId}`}>
           결과 보기
         </Link>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+        <span className="font-medium text-slate-500">관리</span>
+        <button className="text-button" type="button" onClick={() => onEdit(zone)}>
+          구역 수정
+        </button>
+        <button className="text-button text-button-danger" type="button" onClick={() => onDeactivate(zone)}>
+          구역 비활성화
+        </button>
       </div>
     </article>
   )

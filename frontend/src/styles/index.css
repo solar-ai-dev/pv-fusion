@@ -536,6 +536,14 @@ textarea {
   gap: 0.5rem;
 }
 
+.management-actions-muted {
+  align-items: center;
+}
+
+.management-actions-muted .text-button {
+  font-size: 0.95rem;
+}
+
 .compact-empty {
   border-radius: 0.875rem;
   border: 1px solid rgba(203, 213, 225, 0.9);

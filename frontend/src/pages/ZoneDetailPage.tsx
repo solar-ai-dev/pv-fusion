@@ -226,15 +226,12 @@ export function ZoneDetailPage() {
         title={zone?.name ?? '구역 상세'}
         description="이 구역의 최근 상태를 확인하고 바로 점검, 결과 검토, 변화 추적으로 이어가세요."
         actions={
-          <div className="page-actions">
+          <div className="inline-actions">
             <button className="btn btn-primary" type="button" onClick={() => setIsCreateInspectionWizardOpen(true)}>
               이 구역 점검 시작
             </button>
             <Link className="btn btn-secondary" to={`/results?zoneId=${zoneId}`}>
               결과 보기
-            </Link>
-            <Link className="btn btn-secondary" to={`/tracking?zoneId=${zoneId}`}>
-              변화 추적
             </Link>
           </div>
         }
@@ -257,7 +254,7 @@ export function ZoneDetailPage() {
                 <p className="panel-description">{zone.location || '위치 정보가 없습니다.'}</p>
               </div>
             </div>
-            <Link className="btn btn-secondary" to={`/plants/${zone.plantId}`}>상위 발전소 보기</Link>
+            <Link className="btn btn-secondary" to={`/plants/${zone.plantId}`}>발전소 상세</Link>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SummaryCard label="발전소" value={plantName} />
@@ -275,17 +272,17 @@ export function ZoneDetailPage() {
       {zone ? (
         <section className="panel space-y-4">
           <div>
-            <h2 className="panel-title">관리</h2>
+            <h2 className="panel-title">관리 작업</h2>
             <p className="panel-description">설정 변경과 설비 위치 등록 같은 관리성 작업은 여기에서 진행하세요.</p>
           </div>
-          <div className="management-actions">
-            <button className="btn btn-secondary" type="button" onClick={() => setIsEditZoneModalOpen(true)}>
+          <div className="management-actions management-actions-muted">
+            <button className="btn btn-secondary" type="button" onClick={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(true) }}>
+              하위 설비 추가
+            </button>
+            <button className="text-button" type="button" onClick={() => setIsEditZoneModalOpen(true)}>
               구역 수정
             </button>
-            <button className="btn btn-secondary" type="button" onClick={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(true) }}>
-              설비 위치 등록
-            </button>
-            <button className="btn btn-secondary" type="button" onClick={() => setIsDeactivateZoneModalOpen(true)}>
+            <button className="text-button text-button-danger" type="button" onClick={() => setIsDeactivateZoneModalOpen(true)}>
               비활성화
             </button>
           </div>
@@ -344,7 +341,7 @@ export function ZoneDetailPage() {
               <p className="mt-1 text-sm text-slate-600">필요한 경우에만 설비 위치를 추가해 더 세밀한 점검 범위를 관리하세요.</p>
             </div>
             <button className="btn btn-secondary" type="button" onClick={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(true) }}>
-              설비 위치 등록
+              하위 설비 추가
             </button>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
@@ -368,7 +365,7 @@ export function ZoneDetailPage() {
             equipmentsQuery.data.data.length > 0 ? (
               <EquipmentTree nodes={equipmentsQuery.data.data} onEdit={(node) => setSelectedEquipment(node)} onDeactivate={(node) => setEquipmentToDeactivate(node)} />
             ) : (
-              <CompactEmptyState title="등록된 설비 위치가 없습니다." description="더 세밀한 관리가 필요할 때만 설비 위치를 추가하세요." action={<button className="btn btn-secondary" type="button" onClick={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(true) }}>설비 위치 등록</button>} />
+              <CompactEmptyState title="등록된 설비 위치가 없습니다." description="더 세밀한 관리가 필요할 때만 설비 위치를 추가하세요." action={<button className="btn btn-secondary" type="button" onClick={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(true) }}>하위 설비 추가</button>} />
             )
           ) : null}
         </div>
@@ -383,10 +380,10 @@ export function ZoneDetailPage() {
         </form>
       </EntityModal>
 
-      <EntityModal isOpen={isCreateEquipmentModalOpen} title="설비 위치 등록" description="이 구역 안에서 더 세밀하게 관리할 설비 위치를 등록하세요." onClose={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(false) }}>
+      <EntityModal isOpen={isCreateEquipmentModalOpen} title="하위 설비 추가" description="이 구역 안에서 더 세밀하게 관리할 설비 위치를 추가하세요." onClose={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(false) }}>
         <form className="stack-md" onSubmit={handleCreateEquipment}>
           <EquipmentFormFields form={createEquipmentForm} parentOptions={flattenedEquipments} />
-          <ModalActions isSubmitting={createEquipmentMutation.isPending} onCancel={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(false) }} submitText="등록" />
+          <ModalActions isSubmitting={createEquipmentMutation.isPending} onCancel={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(false) }} submitText="추가" />
         </form>
       </EntityModal>
 

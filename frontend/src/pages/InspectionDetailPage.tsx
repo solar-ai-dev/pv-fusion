@@ -40,6 +40,7 @@ import {
   useInspection,
   useUpdateInspection,
 } from '../features/inspections/hooks/useInspections'
+import { usePlant } from '../features/plants/hooks/usePlants'
 import { getResourceStatusLabel, getResourceStatusTone } from '../features/plants/types'
 import {
   getActionCandidateLabel,
@@ -136,6 +137,7 @@ export function InspectionDetailPage() {
   const inspectionQuery = useInspection(inspectionId ?? 0)
   const zoneId = inspectionQuery.data?.data.zoneId ?? 0
   const zoneQuery = useZone(zoneId)
+  const plantQuery = usePlant(zoneQuery.data?.data.plantId ?? 0)
   const equipmentsQuery = useEquipments(zoneId, {})
   const imagesQuery = useImages({ inspectionId: inspectionId ?? undefined })
   const resultsQuery = useResults(
@@ -446,7 +448,7 @@ export function InspectionDetailPage() {
     <section className="space-y-6">
       <PageHeader
         title="점검 상세"
-        description="지금 필요한 작업부터 확인하고 이미지 업로드, 분석 요청, 결과 검토를 이어서 진행하세요."
+        description="이미지 업로드와 이미지별 분석 요청, 결과 확인을 한 흐름으로 이어서 진행하세요."
         actions={
           <>
             <Link className="btn btn-secondary" to="/inspections">
@@ -457,7 +459,7 @@ export function InspectionDetailPage() {
                 결과 보기
               </Link>
             ) : null}
-            <button className="btn btn-primary" type="button" onClick={() => setIsEditModalOpen(true)}>
+            <button className="btn btn-secondary" type="button" onClick={() => setIsEditModalOpen(true)}>
               점검 정보 수정
             </button>
           </>
@@ -469,16 +471,16 @@ export function InspectionDetailPage() {
           <div className="min-w-0">
             <h2 className="panel-title">{inspection.name}</h2>
             <p className="panel-description">
-              {zoneQuery.data?.data.name || '점검 영역 정보 확인 중'} · {workflowStatus.summary}
+              {zoneQuery.data?.data.name || '구역 정보 확인 중'} · {workflowStatus.summary}
             </p>
           </div>
           <div className="inline-actions">
             <Link className="btn btn-secondary" to={`/zones/${inspection.zoneId}`}>
-              점검 영역
+              구역 상세
             </Link>
             {zoneQuery.data ? (
               <Link className="btn btn-secondary" to={`/plants/${zoneQuery.data.data.plantId}`}>
-                발전소
+                발전소 상세
               </Link>
             ) : null}
           </div>
@@ -486,11 +488,11 @@ export function InspectionDetailPage() {
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <SummaryItem
             label="발전소"
-            value={zoneQuery.data?.data.plantId ? `발전소 ${zoneQuery.data.data.plantId}` : '-'}
+            value={plantQuery.data?.data.name || '발전소 정보를 불러오는 중입니다.'}
           />
           <SummaryItem
-            label="점검 영역"
-            value={zoneQuery.data?.data.name || '점검 영역 정보를 불러오는 중입니다.'}
+            label="구역"
+            value={zoneQuery.data?.data.name || '구역 정보를 불러오는 중입니다.'}
           />
           <SummaryItem label="점검 상태" value={getInspectionStatusLabel(inspection.inspectionStatus)} />
           <SummaryItem label="업로드 이미지 수" value={`${imageRows.length}건`} />
@@ -705,7 +707,7 @@ export function InspectionDetailPage() {
 
               {isUploadEquipmentEmpty ? (
                 <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                  세부 단위로 업로드하려면 점검 영역 상세에서 설비 위치를 먼저 등록하세요.
+                  세부 단위로 업로드하려면 구역 상세에서 설비 위치를 먼저 등록하세요.
                 </div>
               ) : null}
 

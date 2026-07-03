@@ -99,7 +99,7 @@ export function InspectionListPage() {
     <section className="space-y-6">
       <PageHeader
         title="점검"
-        description="점검을 시작하고 업로드, 분석, 결과 확인까지 한 흐름으로 이어서 관리하세요."
+        description="새 점검을 시작하거나 진행 중인 점검을 이어서 확인하세요."
         actions={
           <button className="btn btn-primary" type="button" onClick={() => setIsCreateModalOpen(true)}>
             새 점검 시작
@@ -301,7 +301,7 @@ export function InspectionListPage() {
                     header: '이동',
                     render: (inspection) => (
                       <Link className="text-button" to={`/inspections/${inspection.inspectionId}`}>
-                        이어서 보기
+                        점검 상세
                       </Link>
                     ),
                   },
