@@ -182,7 +182,7 @@
 | PO-064 | 비활성화 우선 정책 | 발전소, 구역, 하위 설비, 사용자 계정은 실제 삭제하지 않고 비활성화 처리한다. | 일반 사용자, 관리자, 시스템 | 삭제 또는 사용 중지 요청 시 | 기존 이력과 분석 결과 보존 |
 | PO-065 | 파일 저장소 분리 정책 | 원본 이미지와 분석 결과 이미지는 DB에 직접 저장하지 않고 객체 저장소에 저장한다. | 시스템 | 파일 저장 시 | 로컬 MinIO, 운영 S3 |
 | PO-066 | 모델 파일 관리 정책 | PyTorch 또는 ONNX 모델 파일은 서비스 코드와 분리하여 관리하고 모델명과 버전을 추적한다. | 시스템, 관리자 | 모델 배포 및 교체 시 | 모델 운영 기준 |
-| PO-067 | ONNX 추론 정책 | 배포 모델은 ONNX Runtime 기반으로 실행하며, CPU 추론 가능성을 기준으로 관리한다. | AI 서버 | 분석 실행 시 | INT8 양자화는 성능 검증 후 적용 |
+| PO-067 | ONNX 추론 정책 | 배포 모델은 ONNX Runtime 기반으로 실행하며, CPU 추론 가능성을 기준으로 관리한다. | AI 서버 | 분석 실행 시 | 현재 배포 모델은 ONNX FP32 기준 |
 
 ---
 
@@ -191,10 +191,10 @@
 | 정책 ID | 정책명 | 정책 내용 | 적용 대상 | 적용 조건 | 예외/비고 |
 | --- | --- | --- | --- | --- | --- |
 | PO-068 | HTTPS 적용 정책 | 운영 환경의 외부 사용자 요청은 HTTPS를 기본으로 처리한다. | Frontend, Backend | 운영 환경 배포 시 | 로컬 개발 환경은 HTTP 허용 가능 |
-| PO-069 | Reverse Proxy 라우팅 정책 | 외부 요청은 Traefik 또는 Nginx를 통해 Frontend와 Backend API로 라우팅한다. | Infra | 운영 환경 요청 수신 시 | K3s 환경에서는 Traefik Ingress Controller 사용 |
+| PO-069 | Reverse Proxy 라우팅 정책 | 외부 요청은 Traefik Ingress Controller를 통해 Frontend와 Backend API로 라우팅한다. | Infra | 운영 환경 요청 수신 시 | Frontend Pod 내부 Nginx는 정적 파일 제공 역할만 담당 |
 | PO-070 | 외부 노출 API 제한 정책 | 외부 사용자는 Frontend와 Backend Public API에만 접근할 수 있다. | Backend, Infra | API 호출 시 | AI Worker, DB, Queue, Storage는 외부 직접 접근 금지 |
 | PO-071 | Frontend API 접근 정책 | Frontend는 Spring Boot Backend API만 호출한다. | Frontend | 화면에서 데이터 요청 시 | S3, SQS, RDS, AI Worker 직접 호출 금지 |
-| PO-072 | Backend 내부 통신 정책 | Backend는 분석 작업 생성, 상태 관리, 파일 메타데이터 관리 등 서버 간 처리를 담당한다. | Backend | 분석 요청, 결과 조회, 파일 조회 시 | AI Worker 호출은 직접 호출 또는 Queue 기반 처리로 제한 |
+| PO-072 | Backend 내부 통신 정책 | Backend는 분석 작업 생성, 상태 관리, 파일 메타데이터 관리 등 서버 간 처리를 담당하고, 분석 작업을 SQS에 등록한다. | Backend | 분석 요청, 결과 조회, 파일 조회 시 | AI Worker는 Queue에서 분석 작업을 수신하여 처리 |
 | PO-073 | AI Worker 접근 제한 정책 | FastAPI AI Worker는 내부 분석 처리 전용으로 사용하며 외부 사용자에게 직접 노출하지 않는다. | AI Server, Infra | 운영 환경 배포 시 | 필요 시 내부 Ingress 또는 private network만 허용 |
 | PO-074 | Queue 접근 정책 | 분석 작업은 AWS SQS 또는 LocalStack SQS를 통해 비동기 처리한다. | Backend, AI Worker, Queue | AI 분석 요청 생성 시 | 운영 환경은 AWS SQS, 로컬은 LocalStack SQS 사용 |
 | PO-075 | Storage 접근 정책 | 원본 이미지와 분석 결과 이미지는 Backend 권한 검증 후 접근한다. | Backend, Storage | 파일 조회, 다운로드, 미리보기 시 | S3/MinIO URL 직접 노출은 제한 |
@@ -211,14 +211,14 @@
 | PO-079 | 로컬 실행 환경 정책 | 로컬 개발 환경은 Docker Compose 기반 실행을 우선한다. | Local Infra | 로컬 개발 및 테스트 시 | PostgreSQL Docker, MinIO, LocalStack SQS 사용 |
 | PO-080 | 운영 실행 환경 정책 | 운영 환경은 AWS 기반 인프라와 컨테이너 배포 구조를 사용한다. | AWS Infra | 운영 배포 시 | EC2, K3s, S3, RDS, SQS 사용 |
 | PO-081 | 컨테이너 실행 정책 | Frontend, Backend, AI Worker는 Docker 이미지로 빌드하고 실행한다. | Frontend, Backend, AI | 배포 시 | 로컬 개발 중 일부 단독 실행은 허용 |
-| PO-082 | K3s 배포 정책 | 운영 환경에서 컨테이너 오케스트레이션이 필요한 경우 K3s 기반 배포를 사용한다. | Infra | 운영 서버 구성 시 | MVP 규모에 따라 단일 EC2 배포도 가능 |
-| PO-083 | Ingress 구성 정책 | K3s 환경에서는 Traefik Ingress Controller를 통해 요청을 라우팅한다. | Infra | K3s 배포 시 | 별도 Nginx 사용 시 역할 중복 주의 |
+| PO-082 | K3s 배포 정책 | 운영 환경은 단일 AWS EC2에 설치한 K3s 기반으로 Frontend, Backend, AI Worker를 배포한다. | Infra | 운영 서버 구성 시 | 현재 단일 노드 K3s 구성 사용 |
+| PO-083 | Ingress 구성 정책 | K3s 환경에서는 Traefik Ingress Controller를 통해 외부 요청을 라우팅한다. | Infra | K3s 배포 시 | Frontend 컨테이너의 Nginx는 Vite 정적 파일만 제공 |
 | PO-084 | 파일 저장소 정책 | 원본 이미지와 분석 결과 이미지는 DB에 직접 저장하지 않고 객체 저장소에 저장한다. | Storage | 이미지 업로드, 결과 저장 시 | 운영은 S3, 로컬은 MinIO 사용 |
 | PO-085 | 데이터베이스 운영 정책 | 운영 환경의 주요 서비스 데이터는 PostgreSQL 기반 관계형 DB로 관리한다. | Database | 사용자, 발전소, 점검, 결과 저장 시 | 운영은 RDS PostgreSQL, 로컬은 PostgreSQL Docker 사용 |
 | PO-086 | 비동기 분석 인프라 정책 | AI 분석 작업은 Queue 기반으로 등록하고 Worker가 처리한다. | Backend, AI Worker, Queue | 분석 요청 시 | 분석 완료 대기 없이 jobId와 상태를 먼저 반환 |
-| PO-087 | CI/CD 정책 | 빌드, 테스트, Docker 이미지 생성, 배포는 Jenkins 또는 GitHub Actions로 자동화할 수 있다. | DevOps | 배포 파이프라인 구성 시 | MVP 초기에는 수동 배포 가능 |
-| PO-088 | 이미지 레지스트리 정책 | 운영 배포용 Docker 이미지는 ECR 또는 지정된 이미지 레지스트리에 저장한다. | DevOps | Docker 이미지 배포 시 | 이미지 태그에 서비스명, 버전, 배포일자 포함 권장 |
-| PO-089 | 모델 파일 배포 정책 | AI 모델 파일은 서비스 코드와 분리하여 관리하고, 모델명, 버전, 형식, 실험 ID를 추적한다. | AI Server, Storage | 모델 교체 또는 배포 시 | PyTorch, ONNX FP32, ONNX INT8 구분 |
+| PO-087 | CI/CD 정책 | Jenkins Pipeline을 통해 빌드, 테스트, Docker 이미지 생성, ECR Push, K3s 배포를 자동화한다. | DevOps | 배포 파이프라인 실행 시 | 서비스별 배포 결과와 Rollout 상태 확인 |
+| PO-088 | 이미지 레지스트리 정책 | 운영 배포용 Docker 이미지는 Amazon ECR의 서비스별 Repository에 저장한다. | DevOps | Docker 이미지 배포 시 | 이미지 태그는 Git SHA 기준으로 관리 |
+| PO-089 | 모델 파일 배포 정책 | AI 모델 파일은 서비스 코드와 분리하여 관리하고, 모델명, 버전, 형식, 실험 ID를 추적한다. | AI Server, Storage | 모델 교체 또는 배포 시 | PyTorch 학습 가중치와 ONNX FP32 배포 모델 구분 |
 | PO-090 | 배포 롤백 정책 | 배포 실패 또는 치명적 오류 발생 시 이전 정상 버전으로 되돌릴 수 있어야 한다. | DevOps | 배포 장애 발생 시 | Docker image tag 기준 롤백 권장 |
 | PO-091 | 운영 비용 관리 정책 | 대용량 이미지는 S3에 저장하고, AI 분석은 비동기 처리하며, ONNX 기반 추론 최적화를 적용한다. | Infra, AI Server | 운영 비용 관리 시 | 불필요한 GPU 상시 사용은 지양 |
 
@@ -229,12 +229,12 @@
 | 정책 ID | 정책명 | 정책 내용 | 적용 대상 | 적용 조건 | 예외/비고 |
 | --- | --- | --- | --- | --- | --- |
 | PO-092 | 인증 방식 정책 | 사용자 인증은 Google OAuth2 기반 로그인을 사용한다. | Frontend, Backend | 로그인 시 | 최초 로그인 사용자는 승인 대기 상태로 등록 |
-| PO-093 | 인증 정보 보호 정책 | JWT 또는 Session을 사용하는 경우 인증 정보는 외부에 노출되지 않도록 관리한다. | Backend, Frontend | 로그인 유지 시 | 토큰 저장 위치와 만료 기준은 구현 단계에서 확정 |
+| PO-093 | 인증 정보 보호 정책 | Google OAuth2 로그인 이후 생성된 Session 인증 정보는 외부에 노출되지 않도록 관리한다. | Backend, Frontend | 로그인 유지 시 | Session Cookie와 만료 기준은 Backend 설정을 적용 |
 | PO-094 | 승인 사용자 접근 정책 | 승인되지 않은 사용자는 주요 기능에 접근할 수 없다. | Backend, Frontend | 승인 대기 사용자 접근 시 | 승인 대기 안내 화면 제공 |
 | PO-095 | 권한 기반 접근 정책 | 관리자와 일반 사용자의 기능 및 데이터 접근 범위를 분리한다. | Backend, Frontend | API 호출 및 화면 접근 시 | Backend 권한 검증을 최종 기준으로 적용 |
 | PO-096 | 관리자 기능 보호 정책 | 회원 승인, 사용자 관리, 전체 업로드/분석/결과 조회는 관리자만 사용할 수 있다. | Backend, Frontend | 관리자 기능 접근 시 | Frontend 메뉴 숨김과 Backend 권한 검증 병행 |
 | PO-097 | 파일 접근 보안 정책 | 원본 이미지와 분석 결과 이미지는 권한 검증을 통과한 사용자만 접근할 수 있다. | Backend, Storage | 파일 조회 시 | 서명 URL 사용 시 만료 시간 설정 |
-| PO-098 | Secret 관리 정책 | DB 접속 정보, OAuth Client Secret, AWS 접근 정보, 인증 Secret은 코드에 직접 작성하지 않는다. | Backend, AI Server, Infra | 환경 설정 시 | 운영은 Kubernetes Secret 또는 AWS Secrets Manager 사용 |
+| PO-098 | Secret 관리 정책 | DB 접속 정보, OAuth Client Secret, 인증 Secret은 코드에 직접 작성하지 않는다. | Backend, AI Server, Infra | 환경 설정 시 | 운영 Secret은 Kubernetes Secret과 Jenkins Credentials로 관리하고, AWS 리소스 접근은 EC2 IAM Role을 사용 |
 | PO-099 | AWS 최소 권한 정책 | AWS 리소스 접근 권한은 필요한 범위만 부여한다. | AWS IAM | S3, SQS, RDS 접근 시 | 서비스별 IAM 권한 분리 권장 |
 | PO-100 | 개인정보 보호 정책 | 사용자 이메일, 이름, 소속, 권한 정보는 외부 응답과 로그에 불필요하게 노출하지 않는다. | Backend, Frontend | 사용자 정보 처리 시 | 관리자 화면에서도 필요한 정보만 표시 |
 | PO-101 | 로그 기록 정책 | 로그인, 업로드, 분석 요청, 분석 실패, 관리자 작업 등 주요 이벤트를 기록한다. | Backend, AI Worker | 주요 이벤트 발생 시 | 운영 환경은 CloudWatch Logs 사용 |
