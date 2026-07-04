@@ -37,6 +37,14 @@ export function useInspection(inspectionId: number) {
   })
 }
 
+export function useInspectionDeleteImpact(inspectionId: number, enabled = true) {
+  return useQuery({
+    queryKey: [...inspectionQueryKeys.detail(inspectionId), 'delete-impact'] as const,
+    queryFn: () => inspectionApi.fetchDeleteImpact(inspectionId),
+    enabled: enabled && Number.isInteger(inspectionId) && inspectionId > 0,
+  })
+}
+
 export function useCreateInspection() {
   const queryClient = useQueryClient()
 
@@ -66,6 +74,18 @@ export function useUpdateInspection(inspectionId: number) {
       void queryClient.invalidateQueries({
         queryKey: zoneQueryKeys.detail(response.data.zoneId),
       })
+    },
+  })
+}
+
+export function useDeleteInspection(inspectionId: number) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => inspectionApi.deleteInspection(inspectionId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: inspectionQueryKeys.lists() })
+      void queryClient.invalidateQueries({ queryKey: zoneQueryKeys.all })
     },
   })
 }

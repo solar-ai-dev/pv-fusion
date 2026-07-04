@@ -1,5 +1,10 @@
 import { apiClient } from '../../../shared/api/client'
-import { ApiSuccessResponse, PageResponse } from '../../../shared/api/types'
+import {
+  ApiSuccessResponse,
+  DeleteImpact,
+  DeleteResourceResult,
+  PageResponse,
+} from '../../../shared/api/types'
 import {
   CreatePlantRequest,
   Plant,
@@ -36,6 +41,18 @@ export const plantApi = {
   deactivatePlant: async (plantId: string | number) => {
     const response = await apiClient.patch<ApiSuccessResponse<Plant>>(
       `/plants/${plantId}/deactivate`,
+    )
+    return response.data
+  },
+  fetchDeleteImpact: async (plantId: string | number) => {
+    const response = await apiClient.get<ApiSuccessResponse<DeleteImpact>>(
+      `/plants/${plantId}/delete-impact`,
+    )
+    return response.data
+  },
+  deletePlant: async (plantId: string | number) => {
+    const response = await apiClient.delete<ApiSuccessResponse<DeleteResourceResult>>(
+      `/plants/${plantId}`,
     )
     return response.data
   },

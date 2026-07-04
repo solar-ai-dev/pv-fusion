@@ -33,6 +33,14 @@ export function usePlant(plantId: number) {
   })
 }
 
+export function usePlantDeleteImpact(plantId: number, enabled = true) {
+  return useQuery({
+    queryKey: [...plantQueryKeys.detail(plantId), 'delete-impact'] as const,
+    queryFn: () => plantApi.fetchDeleteImpact(plantId),
+    enabled: enabled && Number.isInteger(plantId) && plantId > 0,
+  })
+}
+
 export function useCreatePlant() {
   const queryClient = useQueryClient()
 
@@ -64,6 +72,17 @@ export function useDeactivatePlant(plantId: number) {
     mutationFn: () => plantApi.deactivatePlant(plantId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: plantQueryKeys.detail(plantId) })
+      void queryClient.invalidateQueries({ queryKey: plantQueryKeys.lists() })
+    },
+  })
+}
+
+export function useDeletePlant(plantId: number) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => plantApi.deletePlant(plantId),
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: plantQueryKeys.lists() })
     },
   })

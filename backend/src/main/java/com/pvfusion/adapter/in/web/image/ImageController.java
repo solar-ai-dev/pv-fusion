@@ -1,6 +1,8 @@
 package com.pvfusion.adapter.in.web.image;
 
 import com.pvfusion.application.dto.image.DeactivateImageCommand;
+import com.pvfusion.application.dto.deletion.DeleteImpactResponse;
+import com.pvfusion.application.dto.deletion.DeleteResourceResponse;
 import com.pvfusion.application.dto.image.GetImagePreviewQuery;
 import com.pvfusion.application.dto.image.GetImageQuery;
 import com.pvfusion.application.dto.image.ImageListQuery;
@@ -11,6 +13,7 @@ import com.pvfusion.application.dto.image.UploadImageCommand;
 import com.pvfusion.application.port.in.image.DeactivateImageUseCase;
 import com.pvfusion.application.port.in.image.GetImagePreviewUseCase;
 import com.pvfusion.application.port.in.image.GetImageUseCase;
+import com.pvfusion.application.port.in.image.ManageImageDeletionUseCase;
 import com.pvfusion.application.port.in.image.QueryImageUseCase;
 import com.pvfusion.application.port.in.image.UploadImageUseCase;
 import com.pvfusion.domain.common.ResourceStatus;
@@ -26,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -47,6 +51,7 @@ public class ImageController {
     private final GetImageUseCase getImageUseCase;
     private final GetImagePreviewUseCase getImagePreviewUseCase;
     private final DeactivateImageUseCase deactivateImageUseCase;
+    private final ManageImageDeletionUseCase manageImageDeletionUseCase;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<ImageResponse>> uploadImage(
@@ -122,5 +127,21 @@ public class ImageController {
     ) {
         ImageResponse response = deactivateImageUseCase.execute(new DeactivateImageCommand(imageId));
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{imageId}/delete-impact")
+    public ResponseEntity<ApiResponse<DeleteImpactResponse>> getImageDeleteImpact(
+            @PathVariable Long imageId
+    ) {
+        DeleteImpactResponse response = manageImageDeletionUseCase.getImageDeleteImpact(imageId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @DeleteMapping("/{imageId}")
+    public ResponseEntity<ApiResponse<DeleteResourceResponse>> deleteImage(
+            @PathVariable Long imageId
+    ) {
+        DeleteResourceResponse response = manageImageDeletionUseCase.deleteImage(imageId);
+        return ResponseEntity.ok(ApiResponse.success(response, "이미지가 삭제되었습니다."));
     }
 }

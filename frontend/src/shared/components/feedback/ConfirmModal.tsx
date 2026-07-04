@@ -7,6 +7,7 @@ type ConfirmModalProps = {
   confirmText?: string
   cancelText?: string
   isConfirming?: boolean
+  confirmDisabled?: boolean
   onConfirm?: () => void
   onCancel?: () => void
   children?: ReactNode
@@ -19,6 +20,7 @@ export function ConfirmModal({
   confirmText = '확인',
   cancelText = '취소',
   isConfirming = false,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
   children,
@@ -45,7 +47,7 @@ export function ConfirmModal({
           <button
             className="btn btn-primary"
             type="button"
-            disabled={isConfirming}
+            disabled={isConfirming || confirmDisabled}
             onClick={onConfirm}
           >
             {confirmText}

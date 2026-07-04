@@ -27,3 +27,27 @@ export type PageResponse<T> = {
   totalPages: number
   hasNext: boolean
 }
+
+export type DeleteImpact = {
+  resourceType: string
+  resourceId: number
+  resourceName: string
+  plantCount: number
+  plantMemberCount: number
+  zoneCount: number
+  equipmentCount: number
+  inspectionCount: number
+  imageCount: number
+  analysisJobCount: number
+  analysisResultCount: number
+  detectedDefectCount: number
+  reviewHistoryCount: number
+  operationLogCount: number
+  storageFileCount: number
+}
+
+export type DeleteResourceResult = {
+  resourceType: string
+  resourceId: number
+  resourceName: string
+}

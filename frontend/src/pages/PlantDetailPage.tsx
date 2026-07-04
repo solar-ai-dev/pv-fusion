@@ -6,6 +6,8 @@ import { useForm } from 'react-hook-form'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { z } from 'zod'
 import {
+  useDeletePlant,
+  usePlantDeleteImpact,
   useDeactivatePlant,
   usePlant,
   useUpdatePlant,
@@ -17,6 +19,8 @@ import {
 } from '../features/plants/types'
 import {
   useCreateZone,
+  useDeleteZone,
+  useZoneDeleteImpact,
   useDeactivateZone,
   useZone,
   useUpdateZone,
@@ -29,6 +33,7 @@ import type {
 } from '../features/zones/types'
 import { InspectionCreateWizard } from '../features/inspections/components/InspectionCreateWizard'
 import { ConfirmModal } from '../shared/components/feedback/ConfirmModal'
+import { DeleteImpactSummary } from '../shared/components/feedback/DeleteImpactSummary'
 import { FormField } from '../shared/components/form/FormField'
 import { PageHeader } from '../shared/components/layout/PageHeader'
 import { EmptyState } from '../shared/components/state/EmptyState'
@@ -62,8 +67,10 @@ export function PlantDetailPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isCreateZoneModalOpen, setIsCreateZoneModalOpen] = useState(false)
   const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false)
+  const [isDeletePlantModalOpen, setIsDeletePlantModalOpen] = useState(false)
   const [selectedZone, setSelectedZone] = useState<ZoneSummary | null>(null)
   const [zoneToDeactivate, setZoneToDeactivate] = useState<ZoneSummary | null>(null)
+  const [zoneToDelete, setZoneToDelete] = useState<ZoneSummary | null>(null)
   const [isCreateInspectionWizardOpen, setIsCreateInspectionWizardOpen] = useState(false)
   const [initialZoneIdForWizard, setInitialZoneIdForWizard] = useState<number | null>(null)
 
@@ -72,9 +79,13 @@ export function PlantDetailPage() {
   const selectedZoneQuery = useZone(selectedZone?.zoneId ?? 0)
   const updatePlantMutation = useUpdatePlant(plantId ?? 0)
   const deactivatePlantMutation = useDeactivatePlant(plantId ?? 0)
+  const deletePlantMutation = useDeletePlant(plantId ?? 0)
   const createZoneMutation = useCreateZone(plantId ?? 0)
   const updateZoneMutation = useUpdateZone(selectedZone?.zoneId ?? 0)
   const deactivateZoneMutation = useDeactivateZone(zoneToDeactivate?.zoneId ?? 0)
+  const deleteZoneMutation = useDeleteZone(zoneToDelete?.zoneId ?? 0)
+  const plantDeleteImpactQuery = usePlantDeleteImpact(plantId ?? 0, isDeletePlantModalOpen)
+  const zoneDeleteImpactQuery = useZoneDeleteImpact(zoneToDelete?.zoneId ?? 0, Boolean(zoneToDelete))
 
   const plantForm = useForm<PlantFormValues>({
     resolver: zodResolver(plantFormSchema),
@@ -223,6 +234,40 @@ export function PlantDetailPage() {
     }
   }
 
+  const handleDeletePlant = async () => {
+    if (!plantDeleteImpactQuery.data?.data) {
+      toast.push('삭제 영향 범위를 불러온 뒤 다시 시도해 주세요.')
+      return
+    }
+
+    try {
+      await deletePlantMutation.mutateAsync()
+      toast.push('발전소가 삭제되었습니다.')
+      setIsDeletePlantModalOpen(false)
+      navigate('/plants')
+    } catch (error) {
+      toast.push(getApiErrorMessage(error, '발전소 삭제에 실패했습니다.'))
+    }
+  }
+
+  const handleDeleteZone = async () => {
+    if (!zoneToDelete) {
+      return
+    }
+    if (!zoneDeleteImpactQuery.data?.data) {
+      toast.push('삭제 영향 범위를 불러온 뒤 다시 시도해 주세요.')
+      return
+    }
+
+    try {
+      await deleteZoneMutation.mutateAsync()
+      toast.push('구역이 삭제되었습니다.')
+      setZoneToDelete(null)
+    } catch (error) {
+      toast.push(getApiErrorMessage(error, '구역 삭제에 실패했습니다.'))
+    }
+  }
+
   return (
     <section className="space-y-6">
       <PageHeader
@@ -282,6 +327,9 @@ export function PlantDetailPage() {
             <button className="text-button text-button-danger" type="button" onClick={() => setIsDeactivateModalOpen(true)}>
               비활성화
             </button>
+            <button className="text-button text-button-danger" type="button" onClick={() => setIsDeletePlantModalOpen(true)}>
+              삭제
+            </button>
           </div>
         </section>
       ) : null}
@@ -324,6 +372,7 @@ export function PlantDetailPage() {
                   }}
                   onEdit={(selectedZone) => setSelectedZone(selectedZone)}
                   onDeactivate={(selectedZone) => setZoneToDeactivate(selectedZone)}
+                  onDelete={(selectedZone) => setZoneToDelete(selectedZone)}
                 />
               ))}
             </div>
@@ -433,6 +482,32 @@ export function PlantDetailPage() {
         onConfirm={handleDeactivateZone}
         onCancel={() => setZoneToDeactivate(null)}
       />
+      <ConfirmModal
+        isOpen={isDeletePlantModalOpen}
+        title="발전소 삭제"
+        description="이 발전소를 삭제하면 연결된 구역, 점검, 이미지, 분석 데이터가 함께 삭제됩니다."
+        confirmText="삭제"
+        cancelText="취소"
+        isConfirming={deletePlantMutation.isPending}
+        confirmDisabled={plantDeleteImpactQuery.isLoading || !plantDeleteImpactQuery.data?.data}
+        onConfirm={handleDeletePlant}
+        onCancel={() => setIsDeletePlantModalOpen(false)}
+      >
+        {plantDeleteImpactQuery.data?.data ? <DeleteImpactSummary impact={plantDeleteImpactQuery.data.data} /> : null}
+      </ConfirmModal>
+      <ConfirmModal
+        isOpen={Boolean(zoneToDelete)}
+        title="구역 삭제"
+        description={zoneToDelete ? `${zoneToDelete.name} 구역을 삭제할까요? 연결된 점검과 이미지도 함께 삭제됩니다.` : '선택한 구역을 삭제할까요?'}
+        confirmText="삭제"
+        cancelText="취소"
+        isConfirming={deleteZoneMutation.isPending}
+        confirmDisabled={zoneDeleteImpactQuery.isLoading || !zoneDeleteImpactQuery.data?.data}
+        onConfirm={handleDeleteZone}
+        onCancel={() => setZoneToDelete(null)}
+      >
+        {zoneDeleteImpactQuery.data?.data ? <DeleteImpactSummary impact={zoneDeleteImpactQuery.data.data} /> : null}
+      </ConfirmModal>
       <InspectionCreateWizard
         isOpen={isCreateInspectionWizardOpen}
         onClose={() => {
@@ -451,11 +526,13 @@ function ZoneEntryCard({
   onStartInspection,
   onEdit,
   onDeactivate,
+  onDelete,
 }: {
   zone: ZoneSummary
   onStartInspection: (zoneId: number) => void
   onEdit: (zone: ZoneSummary) => void
   onDeactivate: (zone: ZoneSummary) => void
+  onDelete: (zone: ZoneSummary) => void
 }) {
   return (
     <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -493,6 +570,9 @@ function ZoneEntryCard({
         </button>
         <button className="text-button text-button-danger" type="button" onClick={() => onDeactivate(zone)}>
           구역 비활성화
+        </button>
+        <button className="text-button text-button-danger" type="button" onClick={() => onDelete(zone)}>
+          삭제
         </button>
       </div>
     </article>

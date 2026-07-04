@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { z } from 'zod'
 import {
   useAnalysisJob,
@@ -25,7 +25,9 @@ import {
   type TargetType,
 } from '../features/images/types'
 import {
+  useDeleteImage,
   useDeactivateImage,
+  useImageDeleteImpact,
   useImagePreview,
   useImages,
   useUploadImage,
@@ -37,6 +39,8 @@ import {
   type UpdateInspectionRequest,
 } from '../features/inspections/types'
 import {
+  useDeleteInspection,
+  useInspectionDeleteImpact,
   useInspection,
   useUpdateInspection,
 } from '../features/inspections/hooks/useInspections'
@@ -54,6 +58,7 @@ import {
 import { useResults } from '../features/results/hooks/useResults'
 import { useZone } from '../features/zones/hooks/useZones'
 import { ConfirmModal } from '../shared/components/feedback/ConfirmModal'
+import { DeleteImpactSummary } from '../shared/components/feedback/DeleteImpactSummary'
 import { FormField } from '../shared/components/form/FormField'
 import { PageHeader } from '../shared/components/layout/PageHeader'
 import { ErrorState } from '../shared/components/state/ErrorState'
@@ -124,11 +129,14 @@ type WorkflowTab = 'progress' | 'images' | 'analysis' | 'results' | 'info'
 
 export function InspectionDetailPage() {
   const params = useParams()
+  const navigate = useNavigate()
   const toast = useToast()
   const inspectionId = parsePositiveNumber(params.inspectionId)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isDeleteInspectionModalOpen, setIsDeleteInspectionModalOpen] = useState(false)
   const [previewImageId, setPreviewImageId] = useState<number | null>(null)
   const [selectedImage, setSelectedImage] = useState<ImageSummary | null>(null)
+  const [imageToDelete, setImageToDelete] = useState<ImageSummary | null>(null)
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null)
   const [uploadFormVersion, setUploadFormVersion] = useState(0)
   const [showAdvancedUploadOptions, setShowAdvancedUploadOptions] = useState(false)
@@ -150,11 +158,15 @@ export function InspectionDetailPage() {
   )
   const selectedJobQuery = useAnalysisJob(selectedJobId ?? 0, Boolean(selectedJobId))
   const updateInspectionMutation = useUpdateInspection(inspectionId ?? 0)
+  const deleteInspectionMutation = useDeleteInspection(inspectionId ?? 0)
   const uploadImageMutation = useUploadImage(inspectionId ?? 0)
   const deactivateImageMutation = useDeactivateImage(inspectionId ?? 0)
+  const deleteImageMutation = useDeleteImage(inspectionId ?? 0)
   const previewQuery = useImagePreview(previewImageId ?? 0, Boolean(previewImageId))
   const createAnalysisJobMutation = useCreateAnalysisJob()
   const retryAnalysisJobMutation = useRetryAnalysisJob(selectedJobId ?? 0)
+  const inspectionDeleteImpactQuery = useInspectionDeleteImpact(inspectionId ?? 0, isDeleteInspectionModalOpen)
+  const imageDeleteImpactQuery = useImageDeleteImpact(imageToDelete?.imageId ?? 0, Boolean(imageToDelete))
 
   const inspectionForm = useForm<UpdateInspectionFormValues>({
     resolver: zodResolver(updateInspectionSchema),
@@ -407,6 +419,43 @@ export function InspectionDetailPage() {
       setSelectedImage(null)
     } catch (error) {
       toast.push(getApiErrorMessage(error, '이미지 비활성화에 실패했습니다.'))
+    }
+  }
+
+  const handleDeleteInspection = async () => {
+    if (!inspectionDeleteImpactQuery.data?.data) {
+      toast.push('삭제 영향 범위를 불러온 뒤 다시 시도해 주세요.')
+      return
+    }
+
+    try {
+      await deleteInspectionMutation.mutateAsync()
+      toast.push('점검이 삭제되었습니다.')
+      setIsDeleteInspectionModalOpen(false)
+      navigate('/inspections')
+    } catch (error) {
+      toast.push(getApiErrorMessage(error, '점검 삭제에 실패했습니다.'))
+    }
+  }
+
+  const handleDeleteImage = async () => {
+    if (!imageToDelete) {
+      return
+    }
+    if (!imageDeleteImpactQuery.data?.data) {
+      toast.push('삭제 영향 범위를 불러온 뒤 다시 시도해 주세요.')
+      return
+    }
+
+    try {
+      await deleteImageMutation.mutateAsync(imageToDelete.imageId)
+      await imagesQuery.refetch()
+      await analysisJobsQuery.refetch()
+      await resultsQuery.refetch()
+      toast.push('이미지가 삭제되었습니다.')
+      setImageToDelete(null)
+    } catch (error) {
+      toast.push(getApiErrorMessage(error, '이미지 삭제에 실패했습니다.'))
     }
   }
   const requestSingleAnalysis = async (image: ImageSummary) => {
@@ -722,7 +771,7 @@ export function InspectionDetailPage() {
               <div className="toolbar">
                 <div>
                   <h3 className="panel-title">업로드된 이미지</h3>
-                  <p className="panel-description">미리보기, 분석 요청, 비활성화를 진행할 수 있습니다.</p>
+                  <p className="panel-description">미리보기, 분석 요청, 관리 작업을 진행할 수 있습니다.</p>
                 </div>
               </div>
               {imageRows.length === 0 ? (
@@ -774,6 +823,9 @@ export function InspectionDetailPage() {
                           </button>
                           <button className="btn btn-secondary" type="button" onClick={() => setSelectedImage(image)}>
                             비활성화
+                          </button>
+                          <button className="btn btn-secondary" type="button" onClick={() => setImageToDelete(image)}>
+                            삭제
                           </button>
                         </div>
                       </article>
@@ -1035,6 +1087,20 @@ export function InspectionDetailPage() {
               <DetailItem label="메모" value={inspection.memo || '-'} />
               <DetailItem label="등록 시각" value={formatDateTime(inspection.createdAt)} />
             </div>
+            <div className="management-panel">
+              <div>
+                <h3 className="panel-title">관리 작업</h3>
+                <p className="panel-description">삭제는 연결된 이미지와 분석 데이터에 영향을 줍니다.</p>
+              </div>
+              <div className="management-actions management-actions-muted">
+                <button className="btn btn-secondary" type="button" onClick={() => setIsEditModalOpen(true)}>
+                  점검 정보 수정
+                </button>
+                <button className="text-button text-button-danger" type="button" onClick={() => setIsDeleteInspectionModalOpen(true)}>
+                  점검 삭제
+                </button>
+              </div>
+            </div>
           </div>
         ) : null}
       </section>
@@ -1083,6 +1149,32 @@ export function InspectionDetailPage() {
         onConfirm={handleDeactivateImage}
         onCancel={() => setSelectedImage(null)}
       />
+      <ConfirmModal
+        isOpen={Boolean(imageToDelete)}
+        title="이미지 삭제"
+        description={imageToDelete ? `${imageToDelete.originalFilename} 이미지를 삭제할까요? 연결된 분석 작업과 결과도 함께 삭제됩니다.` : '선택한 이미지를 삭제할까요?'}
+        confirmText="삭제"
+        cancelText="취소"
+        isConfirming={deleteImageMutation.isPending}
+        confirmDisabled={imageDeleteImpactQuery.isLoading || !imageDeleteImpactQuery.data?.data}
+        onConfirm={handleDeleteImage}
+        onCancel={() => setImageToDelete(null)}
+      >
+        {imageDeleteImpactQuery.data?.data ? <DeleteImpactSummary impact={imageDeleteImpactQuery.data.data} /> : null}
+      </ConfirmModal>
+      <ConfirmModal
+        isOpen={isDeleteInspectionModalOpen}
+        title="점검 삭제"
+        description="이 점검을 삭제하면 연결된 이미지와 분석 데이터가 함께 삭제됩니다."
+        confirmText="삭제"
+        cancelText="취소"
+        isConfirming={deleteInspectionMutation.isPending}
+        confirmDisabled={inspectionDeleteImpactQuery.isLoading || !inspectionDeleteImpactQuery.data?.data}
+        onConfirm={handleDeleteInspection}
+        onCancel={() => setIsDeleteInspectionModalOpen(false)}
+      >
+        {inspectionDeleteImpactQuery.data?.data ? <DeleteImpactSummary impact={inspectionDeleteImpactQuery.data.data} /> : null}
+      </ConfirmModal>
     </section>
   )
 

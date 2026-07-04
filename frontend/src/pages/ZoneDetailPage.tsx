@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMemo, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { z } from 'zod'
 import { EquipmentTree } from '../features/equipments/components/EquipmentTree'
 import {
@@ -31,12 +31,15 @@ import {
 } from '../features/plants/types'
 import { useTracking } from '../features/tracking/hooks/useTracking'
 import {
+  useDeleteZone,
   useDeactivateZone,
+  useZoneDeleteImpact,
   useUpdateZone,
   useZone,
 } from '../features/zones/hooks/useZones'
 import type { UpdateZoneRequest } from '../features/zones/types'
 import { ConfirmModal } from '../shared/components/feedback/ConfirmModal'
+import { DeleteImpactSummary } from '../shared/components/feedback/DeleteImpactSummary'
 import { FormField } from '../shared/components/form/FormField'
 import { PageHeader } from '../shared/components/layout/PageHeader'
 import { InspectionCreateWizard } from '../features/inspections/components/InspectionCreateWizard'
@@ -70,6 +73,7 @@ type EquipmentFormValues = z.infer<typeof equipmentFormSchema>
 
 export function ZoneDetailPage() {
   const params = useParams()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const toast = useToast()
   const zoneId = parsePositiveNumber(params.zoneId)
@@ -78,6 +82,7 @@ export function ZoneDetailPage() {
   const [isCreateEquipmentModalOpen, setIsCreateEquipmentModalOpen] = useState(false)
   const [selectedEquipment, setSelectedEquipment] = useState<EquipmentTreeNode | null>(null)
   const [isDeactivateZoneModalOpen, setIsDeactivateZoneModalOpen] = useState(false)
+  const [isDeleteZoneModalOpen, setIsDeleteZoneModalOpen] = useState(false)
   const [isCreateInspectionWizardOpen, setIsCreateInspectionWizardOpen] = useState(false)
   const [equipmentToDeactivate, setEquipmentToDeactivate] = useState<EquipmentTreeNode | null>(null)
 
@@ -99,9 +104,11 @@ export function ZoneDetailPage() {
   const trackingQuery = useTracking({ zoneId: zoneId ?? undefined }, Boolean(zoneId))
   const updateZoneMutation = useUpdateZone(zoneId ?? 0)
   const deactivateZoneMutation = useDeactivateZone(zoneId ?? 0)
+  const deleteZoneMutation = useDeleteZone(zoneId ?? 0)
   const createEquipmentMutation = useCreateEquipment(zoneId ?? 0, equipmentFilters)
   const updateEquipmentMutation = useUpdateEquipment(zoneId ?? 0, equipmentFilters)
   const deactivateEquipmentMutation = useDeactivateEquipment(zoneId ?? 0, equipmentFilters)
+  const zoneDeleteImpactQuery = useZoneDeleteImpact(zoneId ?? 0, isDeleteZoneModalOpen)
 
   const zoneForm = useForm<ZoneFormValues>({
     resolver: zodResolver(zoneFormSchema),
@@ -220,6 +227,22 @@ export function ZoneDetailPage() {
     }
   }
 
+  const handleDeleteZone = async () => {
+    if (!zoneDeleteImpactQuery.data?.data) {
+      toast.push('삭제 영향 범위를 불러온 뒤 다시 시도해 주세요.')
+      return
+    }
+
+    try {
+      await deleteZoneMutation.mutateAsync()
+      toast.push('구역이 삭제되었습니다.')
+      setIsDeleteZoneModalOpen(false)
+      navigate(zone?.plantId ? `/plants/${zone.plantId}` : '/plants')
+    } catch (error) {
+      toast.push(getApiErrorMessage(error, '구역 삭제에 실패했습니다.'))
+    }
+  }
+
   return (
     <section className="space-y-6">
       <PageHeader
@@ -284,6 +307,9 @@ export function ZoneDetailPage() {
             </button>
             <button className="text-button text-button-danger" type="button" onClick={() => setIsDeactivateZoneModalOpen(true)}>
               비활성화
+            </button>
+            <button className="text-button text-button-danger" type="button" onClick={() => setIsDeleteZoneModalOpen(true)}>
+              삭제
             </button>
           </div>
         </section>
@@ -395,6 +421,19 @@ export function ZoneDetailPage() {
       </EntityModal>
 
       <ConfirmModal isOpen={isDeactivateZoneModalOpen} title="구역 비활성화" description="이 구역을 비활성화하면 이후 점검 시작 전에 상태를 다시 확인해야 합니다. 계속할까요?" confirmText="비활성화" cancelText="취소" isConfirming={deactivateZoneMutation.isPending} onConfirm={handleDeactivateZone} onCancel={() => setIsDeactivateZoneModalOpen(false)} />
+      <ConfirmModal
+        isOpen={isDeleteZoneModalOpen}
+        title="구역 삭제"
+        description="이 구역을 삭제하면 연결된 점검, 이미지, 분석 데이터가 함께 삭제됩니다."
+        confirmText="삭제"
+        cancelText="취소"
+        isConfirming={deleteZoneMutation.isPending}
+        confirmDisabled={zoneDeleteImpactQuery.isLoading || !zoneDeleteImpactQuery.data?.data}
+        onConfirm={handleDeleteZone}
+        onCancel={() => setIsDeleteZoneModalOpen(false)}
+      >
+        {zoneDeleteImpactQuery.data?.data ? <DeleteImpactSummary impact={zoneDeleteImpactQuery.data.data} /> : null}
+      </ConfirmModal>
       <ConfirmModal isOpen={Boolean(equipmentToDeactivate)} title="설비 위치 비활성화" description={equipmentToDeactivate ? `${equipmentToDeactivate.name} 설비 위치를 비활성화할까요?` : '선택한 설비 위치를 비활성화할까요?'} confirmText="비활성화" cancelText="취소" isConfirming={deactivateEquipmentMutation.isPending} onConfirm={handleDeactivateEquipment} onCancel={() => setEquipmentToDeactivate(null)} />
       <InspectionCreateWizard
         isOpen={isCreateInspectionWizardOpen}
