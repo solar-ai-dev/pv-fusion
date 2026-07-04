@@ -1160,7 +1160,15 @@ export function InspectionDetailPage() {
         onConfirm={handleDeleteImage}
         onCancel={() => setImageToDelete(null)}
       >
-        {imageDeleteImpactQuery.data?.data ? <DeleteImpactSummary impact={imageDeleteImpactQuery.data.data} /> : null}
+        <DeleteImpactSummary
+          impact={imageDeleteImpactQuery.data?.data}
+          isLoading={imageDeleteImpactQuery.isLoading}
+          errorMessage={
+            imageDeleteImpactQuery.isError
+              ? getApiErrorMessage(imageDeleteImpactQuery.error, '삭제 영향 범위를 불러오지 못했습니다.')
+              : null
+          }
+        />
       </ConfirmModal>
       <ConfirmModal
         isOpen={isDeleteInspectionModalOpen}
@@ -1173,7 +1181,15 @@ export function InspectionDetailPage() {
         onConfirm={handleDeleteInspection}
         onCancel={() => setIsDeleteInspectionModalOpen(false)}
       >
-        {inspectionDeleteImpactQuery.data?.data ? <DeleteImpactSummary impact={inspectionDeleteImpactQuery.data.data} /> : null}
+        <DeleteImpactSummary
+          impact={inspectionDeleteImpactQuery.data?.data}
+          isLoading={inspectionDeleteImpactQuery.isLoading}
+          errorMessage={
+            inspectionDeleteImpactQuery.isError
+              ? getApiErrorMessage(inspectionDeleteImpactQuery.error, '삭제 영향 범위를 불러오지 못했습니다.')
+              : null
+          }
+        />
       </ConfirmModal>
     </section>
   )

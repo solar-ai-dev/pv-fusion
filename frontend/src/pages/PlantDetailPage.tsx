@@ -493,7 +493,15 @@ export function PlantDetailPage() {
         onConfirm={handleDeletePlant}
         onCancel={() => setIsDeletePlantModalOpen(false)}
       >
-        {plantDeleteImpactQuery.data?.data ? <DeleteImpactSummary impact={plantDeleteImpactQuery.data.data} /> : null}
+        <DeleteImpactSummary
+          impact={plantDeleteImpactQuery.data?.data}
+          isLoading={plantDeleteImpactQuery.isLoading}
+          errorMessage={
+            plantDeleteImpactQuery.isError
+              ? getApiErrorMessage(plantDeleteImpactQuery.error, '삭제 영향 범위를 불러오지 못했습니다.')
+              : null
+          }
+        />
       </ConfirmModal>
       <ConfirmModal
         isOpen={Boolean(zoneToDelete)}
@@ -506,7 +514,15 @@ export function PlantDetailPage() {
         onConfirm={handleDeleteZone}
         onCancel={() => setZoneToDelete(null)}
       >
-        {zoneDeleteImpactQuery.data?.data ? <DeleteImpactSummary impact={zoneDeleteImpactQuery.data.data} /> : null}
+        <DeleteImpactSummary
+          impact={zoneDeleteImpactQuery.data?.data}
+          isLoading={zoneDeleteImpactQuery.isLoading}
+          errorMessage={
+            zoneDeleteImpactQuery.isError
+              ? getApiErrorMessage(zoneDeleteImpactQuery.error, '삭제 영향 범위를 불러오지 못했습니다.')
+              : null
+          }
+        />
       </ConfirmModal>
       <InspectionCreateWizard
         isOpen={isCreateInspectionWizardOpen}

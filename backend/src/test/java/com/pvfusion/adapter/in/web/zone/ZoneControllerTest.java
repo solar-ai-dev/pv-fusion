@@ -14,6 +14,7 @@ import com.pvfusion.application.dto.zone.ZoneSummaryResponse;
 import com.pvfusion.application.port.in.zone.CreateZoneUseCase;
 import com.pvfusion.application.port.in.zone.DeactivateZoneUseCase;
 import com.pvfusion.application.port.in.zone.GetZoneUseCase;
+import com.pvfusion.application.port.in.zone.ManageZoneDeletionUseCase;
 import com.pvfusion.application.port.in.zone.QueryZoneUseCase;
 import com.pvfusion.application.port.in.zone.UpdateZoneUseCase;
 import com.pvfusion.domain.common.ResourceStatus;
@@ -40,6 +41,7 @@ class ZoneControllerTest {
     @Mock private GetZoneUseCase getZoneUseCase;
     @Mock private UpdateZoneUseCase updateZoneUseCase;
     @Mock private DeactivateZoneUseCase deactivateZoneUseCase;
+    @Mock private ManageZoneDeletionUseCase manageZoneDeletionUseCase;
 
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
@@ -56,7 +58,8 @@ class ZoneControllerTest {
                 queryZoneUseCase,
                 getZoneUseCase,
                 updateZoneUseCase,
-                deactivateZoneUseCase
+                deactivateZoneUseCase,
+                manageZoneDeletionUseCase
         ))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)

@@ -1,17 +1,24 @@
 ﻿import { useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { InspectionCreateWizard } from '../features/inspections/components/InspectionCreateWizard'
-import { useInspections } from '../features/inspections/hooks/useInspections'
+import {
+  useDeleteInspection,
+  useInspectionDeleteImpact,
+  useInspections,
+} from '../features/inspections/hooks/useInspections'
 import {
   INSPECTION_STATUS_OPTIONS,
   getCaptureMethodLabel,
   getInspectionStatusLabel,
   getInspectionStatusTone,
   type InspectionListParams,
+  type InspectionSummary,
   type InspectionStatus,
 } from '../features/inspections/types'
 import { usePlants } from '../features/plants/hooks/usePlants'
 import { useZonesByPlantId } from '../features/zones/hooks/useZones'
+import { ConfirmModal } from '../shared/components/feedback/ConfirmModal'
+import { DeleteImpactSummary } from '../shared/components/feedback/DeleteImpactSummary'
 import { FormField } from '../shared/components/form/FormField'
 import { PageHeader } from '../shared/components/layout/PageHeader'
 import { EmptyState } from '../shared/components/state/EmptyState'
@@ -20,6 +27,7 @@ import { LoadingState } from '../shared/components/state/LoadingState'
 import { StatusBadge } from '../shared/components/state/StatusBadge'
 import { DataTable } from '../shared/components/table/DataTable'
 import { Pagination } from '../shared/components/table/Pagination'
+import { useToast } from '../shared/hooks/useToast'
 import {
   formatDateTime,
   getApiErrorMessage,
@@ -30,8 +38,11 @@ const DEFAULT_PAGE = 1
 const DEFAULT_SIZE = 20
 
 export function InspectionListPage() {
+  const navigate = useNavigate()
+  const toast = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [inspectionToDelete, setInspectionToDelete] = useState<InspectionSummary | null>(null)
 
   const plantId = parsePositiveNumber(searchParams.get('plantId') ?? undefined)
   const zoneId = parsePositiveNumber(searchParams.get('zoneId') ?? undefined)
@@ -68,6 +79,11 @@ export function InspectionListPage() {
   const inspectionsQuery = useInspections(inspectionParams)
   const plantsQuery = usePlants({ page: 0, size: 100, status: 'ACTIVE' })
   const filterZonesQuery = useZonesByPlantId(plantId ?? 0)
+  const deleteInspectionMutation = useDeleteInspection(inspectionToDelete?.inspectionId ?? 0)
+  const inspectionDeleteImpactQuery = useInspectionDeleteImpact(
+    inspectionToDelete?.inspectionId ?? 0,
+    Boolean(inspectionToDelete),
+  )
 
   if (inspectionsQuery.isError && !inspectionsQuery.data) {
     return (
@@ -94,6 +110,25 @@ export function InspectionListPage() {
   }
 
   const rows = inspectionsQuery.data?.data.content ?? []
+
+  const handleDeleteInspection = async () => {
+    if (!inspectionToDelete) {
+      return
+    }
+    if (!inspectionDeleteImpactQuery.data?.data) {
+      toast.push('삭제 영향 범위를 불러온 뒤 다시 시도해 주세요.')
+      return
+    }
+
+    try {
+      await deleteInspectionMutation.mutateAsync()
+      toast.push('점검이 삭제되었습니다.')
+      setInspectionToDelete(null)
+      navigate('/inspections')
+    } catch (error) {
+      toast.push(getApiErrorMessage(error, '점검 삭제에 실패했습니다.'))
+    }
+  }
 
   return (
     <section className="space-y-6">
@@ -298,11 +333,20 @@ export function InspectionListPage() {
                   },
                   {
                     key: 'actions',
-                    header: '이동',
+                    header: '작업',
                     render: (inspection) => (
-                      <Link className="text-button" to={`/inspections/${inspection.inspectionId}`}>
-                        점검 상세
-                      </Link>
+                      <div className="management-actions management-actions-muted">
+                        <Link className="text-button" to={`/inspections/${inspection.inspectionId}`}>
+                          점검 상세
+                        </Link>
+                        <button
+                          className="text-button text-button-danger"
+                          type="button"
+                          onClick={() => setInspectionToDelete(inspection)}
+                        >
+                          삭제
+                        </button>
+                      </div>
                     ),
                   },
                 ]}
@@ -333,6 +377,36 @@ export function InspectionListPage() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
       />
+      <ConfirmModal
+        isOpen={Boolean(inspectionToDelete)}
+        title="점검 삭제"
+        description={
+          inspectionToDelete
+            ? `${inspectionToDelete.name} 점검을 삭제할까요? 연결된 이미지와 분석 데이터도 함께 삭제됩니다.`
+            : '선택한 점검을 삭제할까요?'
+        }
+        confirmText="삭제"
+        cancelText="취소"
+        isConfirming={deleteInspectionMutation.isPending}
+        confirmDisabled={
+          inspectionDeleteImpactQuery.isLoading || !inspectionDeleteImpactQuery.data?.data
+        }
+        onConfirm={handleDeleteInspection}
+        onCancel={() => setInspectionToDelete(null)}
+      >
+        <DeleteImpactSummary
+          impact={inspectionDeleteImpactQuery.data?.data}
+          isLoading={inspectionDeleteImpactQuery.isLoading}
+          errorMessage={
+            inspectionDeleteImpactQuery.isError
+              ? getApiErrorMessage(
+                  inspectionDeleteImpactQuery.error,
+                  '삭제 영향 범위를 불러오지 못했습니다.',
+                )
+              : null
+          }
+        />
+      </ConfirmModal>
     </section>
   )
 

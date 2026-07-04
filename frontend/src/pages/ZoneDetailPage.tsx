@@ -432,7 +432,15 @@ export function ZoneDetailPage() {
         onConfirm={handleDeleteZone}
         onCancel={() => setIsDeleteZoneModalOpen(false)}
       >
-        {zoneDeleteImpactQuery.data?.data ? <DeleteImpactSummary impact={zoneDeleteImpactQuery.data.data} /> : null}
+        <DeleteImpactSummary
+          impact={zoneDeleteImpactQuery.data?.data}
+          isLoading={zoneDeleteImpactQuery.isLoading}
+          errorMessage={
+            zoneDeleteImpactQuery.isError
+              ? getApiErrorMessage(zoneDeleteImpactQuery.error, '삭제 영향 범위를 불러오지 못했습니다.')
+              : null
+          }
+        />
       </ConfirmModal>
       <ConfirmModal isOpen={Boolean(equipmentToDeactivate)} title="설비 위치 비활성화" description={equipmentToDeactivate ? `${equipmentToDeactivate.name} 설비 위치를 비활성화할까요?` : '선택한 설비 위치를 비활성화할까요?'} confirmText="비활성화" cancelText="취소" isConfirming={deactivateEquipmentMutation.isPending} onConfirm={handleDeactivateEquipment} onCancel={() => setEquipmentToDeactivate(null)} />
       <InspectionCreateWizard

@@ -15,7 +15,27 @@ const IMPACT_FIELDS: Array<{ key: keyof DeleteImpact; label: string }> = [
   { key: 'storageFileCount', label: '저장소 파일' },
 ]
 
-export function DeleteImpactSummary({ impact }: { impact: DeleteImpact }) {
+export function DeleteImpactSummary({
+  impact,
+  isLoading = false,
+  errorMessage,
+}: {
+  impact?: DeleteImpact
+  isLoading?: boolean
+  errorMessage?: string | null
+}) {
+  if (isLoading) {
+    return <p className="panel-description">삭제 영향 범위를 불러오는 중입니다.</p>
+  }
+
+  if (errorMessage) {
+    return <p className="panel-description delete-impact-error">{errorMessage}</p>
+  }
+
+  if (!impact) {
+    return <p className="panel-description">삭제 영향 범위를 확인한 뒤 삭제할 수 있습니다.</p>
+  }
+
   const rows = IMPACT_FIELDS.filter(({ key }) => Number(impact[key] ?? 0) > 0)
 
   return (
