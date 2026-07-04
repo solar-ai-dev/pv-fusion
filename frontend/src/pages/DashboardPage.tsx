@@ -42,6 +42,15 @@ import { formatCount, formatDate, formatDateTime, getApiErrorMessage, parsePosit
 
 const CHART_COLORS = ['#0f766e', '#0369a1', '#f59e0b', '#dc2626', '#7c3aed']
 const RESULT_PAGE_SIZE = 8
+type FocusTaskTone = 'default' | 'success' | 'warning' | 'danger'
+type FocusTask = {
+  label: string
+  count: number
+  description: string
+  href: string
+  actionLabel: string
+  tone: FocusTaskTone
+}
 
 export function DashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -130,6 +139,42 @@ export function DashboardPage() {
   const severityChartData = severityStatsQuery.data?.data.items ?? []
   const trendChartData = trendQuery.data?.data.points ?? []
   const hasTrendChartData = trendChartData.length >= 2
+  const focusTasks: FocusTask[] = summary
+    ? [
+        {
+          label: '검토 대기 결과',
+          count: summary.pendingReviewCount,
+          description: summary.pendingReviewCount > 0 ? '결과 검토가 필요합니다.' : '대기 없음',
+          href: '/results?reviewStatus=UNCHECKED',
+          actionLabel: '결과 검토',
+          tone: summary.pendingReviewCount > 0 ? 'warning' : 'default',
+        },
+        {
+          label: '높은 우선순위',
+          count: summary.highPriorityCount,
+          description: summary.highPriorityCount > 0 ? '먼저 확인할 결과가 있습니다.' : '대기 없음',
+          href: '/results',
+          actionLabel: '우선 결과 보기',
+          tone: summary.highPriorityCount > 0 ? 'danger' : 'default',
+        },
+        {
+          label: '분석 실패',
+          count: summary.failedJobCount,
+          description: summary.failedJobCount > 0 ? '재요청 또는 재업로드가 필요합니다.' : '대기 없음',
+          href: '/inspections',
+          actionLabel: '점검 보기',
+          tone: summary.failedJobCount > 0 ? 'danger' : 'default',
+        },
+        {
+          label: '진행 중 점검',
+          count: summary.inProgressInspectionCount,
+          description: summary.inProgressInspectionCount > 0 ? '업로드와 분석 흐름을 이어갈 수 있습니다.' : '진행 중 없음',
+          href: '/inspections',
+          actionLabel: '점검 목록',
+          tone: summary.inProgressInspectionCount > 0 ? 'success' : 'default',
+        },
+      ]
+    : []
   const actionCandidateCount = actionChartData.reduce((sum, item) => sum + item.count, 0)
   const dashboardError =
     getFirstErrorMessage([
@@ -172,15 +217,18 @@ export function DashboardPage() {
   return (
     <section className="space-y-6">
       <PageHeader
-        title="운영 대시보드"
-        description="분석 결과와 운영 통계를 한눈에 확인하세요."
+        title="대시보드"
+        description="오늘 확인할 결과와 운영 통계를 함께 봅니다."
         actions={
           <div className="page-actions">
             <button className="btn btn-primary" type="button" onClick={() => setIsCreateWizardOpen(true)}>
               새 점검 시작
             </button>
+            <Link className="btn btn-secondary" to="/inspections">
+              점검 목록
+            </Link>
             <Link className="btn btn-secondary" to="/results">
-              결과 검토
+              결과 보기
             </Link>
             <button className="btn btn-secondary" type="button" onClick={handleRefresh}>
               새로고침
@@ -188,6 +236,75 @@ export function DashboardPage() {
           </div>
         }
       />
+
+      <section className="dashboard-home-grid">
+        <section className="panel page-hero">
+          <div className="eyebrow">운영 홈</div>
+          <h2 className="mt-4 text-2xl font-semibold text-slate-950">새 점검 시작과 결과 확인이 먼저 보이도록 정리했습니다.</h2>
+          <p className="mt-3 max-w-2xl text-sm text-slate-600">
+            점검 생성, 이미지 업로드, 분석 요청, 결과 검토 흐름은 점검 화면에서 이어집니다.
+            발전소와 구역 관리는 보조 영역으로 낮췄습니다.
+          </p>
+          <div className="mt-5 page-actions">
+            <button className="btn btn-primary" type="button" onClick={() => setIsCreateWizardOpen(true)}>
+              새 점검 시작
+            </button>
+            <Link className="btn btn-secondary" to="/inspections">
+              점검 목록
+            </Link>
+            <Link className="btn btn-secondary" to="/results">
+              결과 보기
+            </Link>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-500">
+            <span>구조 관리</span>
+            <Link className="text-button" to="/plants">
+              발전소 목록
+            </Link>
+          </div>
+        </section>
+
+        <section className="panel stack-md priority-panel">
+          <div className="section-header">
+            <div>
+              <h2 className="panel-title">우선 확인</h2>
+              <p className="panel-description">지금 바로 볼 항목만 먼저 모았습니다.</p>
+            </div>
+            {canQuery ? (
+              <StatusBadge label="조회 중" tone="success" />
+            ) : (
+              <StatusBadge label="범위 선택 필요" tone="warning" />
+            )}
+          </div>
+          {canQuery && focusTasks.length > 0 ? (
+            <div className="task-queue-list">
+              {focusTasks.map((task) => (
+                <article key={task.label} className="task-queue-card task-queue-item">
+                  <div>
+                    <div className="status-meta-row">
+                      <span className="text-sm font-semibold text-slate-900">{task.label}</span>
+                      <StatusBadge label={`${formatCount(task.count)}건`} tone={task.tone} />
+                    </div>
+                    <p className="mt-2 text-sm text-slate-600">{task.description}</p>
+                  </div>
+                  {task.count > 0 ? (
+                    <div className="task-queue-action">
+                      <Link className="btn btn-secondary" to={task.href}>
+                        {task.actionLabel}
+                      </Link>
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <CompactEmptyState
+              title="먼저 범위를 선택하세요."
+              description="발전소 또는 구역을 선택하면 우선 처리 대상과 최근 결과를 바로 볼 수 있습니다."
+            />
+          )}
+        </section>
+      </section>
 
       <details className="panel" open={!canQuery}>
         <summary className="cursor-pointer list-none">
@@ -475,6 +592,26 @@ export function DashboardPage() {
                 <MiniMetric label="이상 구역" value={summary.anomalyZoneCount} />
               </div>
             </section>
+          </section>
+
+          <section className="panel stack-md">
+            <div className="section-header">
+              <div>
+                <h2 className="panel-title">관리 바로가기</h2>
+                <p className="panel-description">발전소와 구역 관리는 운영 흐름 뒤에서 이어갑니다.</p>
+              </div>
+            </div>
+            <div className="inline-actions">
+              <Link className="btn btn-secondary" to="/plants">
+                발전소 보기
+              </Link>
+              <Link className="btn btn-secondary" to="/inspections">
+                점검 보기
+              </Link>
+              <Link className="btn btn-secondary" to="/results">
+                결과 보기
+              </Link>
+            </div>
           </section>
         </>
       ) : null}

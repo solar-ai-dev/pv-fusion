@@ -508,7 +508,7 @@ export function InspectionDetailPage() {
                 결과 보기
               </Link>
             ) : null}
-            <button className="btn btn-secondary" type="button" onClick={() => setIsEditModalOpen(true)}>
+            <button className="text-button" type="button" onClick={() => setIsEditModalOpen(true)}>
               점검 정보 수정
             </button>
           </>
@@ -814,17 +814,19 @@ export function InspectionDetailPage() {
                             미리보기
                           </button>
                           <button
-                            className="btn btn-secondary"
+                            className="btn btn-primary"
                             type="button"
                             disabled={!canRequest || createAnalysisJobMutation.isPending}
                             onClick={() => requestSingleAnalysis(image)}
                           >
                             {`${getUserImageTypeLabel(image.imageType)} 분석 요청`}
                           </button>
-                          <button className="btn btn-secondary" type="button" onClick={() => setSelectedImage(image)}>
+                        </div>
+                        <div className="action-row management-actions-muted">
+                          <button className="text-button muted-action" type="button" onClick={() => setSelectedImage(image)}>
                             비활성화
                           </button>
-                          <button className="btn btn-secondary" type="button" onClick={() => setImageToDelete(image)}>
+                          <button className="text-button text-button-danger muted-action" type="button" onClick={() => setImageToDelete(image)}>
                             삭제
                           </button>
                         </div>

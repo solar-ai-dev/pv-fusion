@@ -256,6 +256,9 @@ export function ZoneDetailPage() {
             <Link className="btn btn-secondary" to={`/results?zoneId=${zoneId}`}>
               결과 보기
             </Link>
+            <Link className="btn btn-secondary" to={`/tracking?zoneId=${zoneId}`}>
+              변화 추적
+            </Link>
           </div>
         }
       />
@@ -277,7 +280,7 @@ export function ZoneDetailPage() {
                 <p className="panel-description">{zone.location || '위치 정보가 없습니다.'}</p>
               </div>
             </div>
-            <Link className="btn btn-secondary" to={`/plants/${zone.plantId}`}>발전소 상세</Link>
+            <Link className="text-button" to={`/plants/${zone.plantId}`}>발전소 상세</Link>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SummaryCard label="발전소" value={plantName} />
@@ -292,28 +295,6 @@ export function ZoneDetailPage() {
         </section>
       ) : null}
 
-      {zone ? (
-        <section className="panel space-y-4">
-          <div>
-            <h2 className="panel-title">관리 작업</h2>
-            <p className="panel-description">설정 변경과 설비 위치 등록 같은 관리성 작업은 여기에서 진행하세요.</p>
-          </div>
-          <div className="management-actions management-actions-muted">
-            <button className="btn btn-secondary" type="button" onClick={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(true) }}>
-              하위 설비 추가
-            </button>
-            <button className="text-button" type="button" onClick={() => setIsEditZoneModalOpen(true)}>
-              구역 수정
-            </button>
-            <button className="text-button text-button-danger" type="button" onClick={() => setIsDeactivateZoneModalOpen(true)}>
-              비활성화
-            </button>
-            <button className="text-button text-button-danger" type="button" onClick={() => setIsDeleteZoneModalOpen(true)}>
-              삭제
-            </button>
-          </div>
-        </section>
-      ) : null}
       <section className="panel space-y-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -349,6 +330,29 @@ export function ZoneDetailPage() {
           )
         ) : null}
       </section>
+
+      {zone ? (
+        <section className="panel space-y-4">
+          <div>
+            <h2 className="panel-title">관리 작업</h2>
+            <p className="panel-description">설정 변경과 설비 위치 등록, 삭제 같은 관리 작업은 아래에서 진행하세요.</p>
+          </div>
+          <div className="management-actions management-actions-muted">
+            <button className="btn btn-secondary" type="button" onClick={() => { createEquipmentForm.reset(); setIsCreateEquipmentModalOpen(true) }}>
+              하위 설비 추가
+            </button>
+            <button className="text-button" type="button" onClick={() => setIsEditZoneModalOpen(true)}>
+              구역 수정
+            </button>
+            <button className="text-button text-button-danger muted-action" type="button" onClick={() => setIsDeactivateZoneModalOpen(true)}>
+              비활성화
+            </button>
+            <button className="text-button text-button-danger muted-action" type="button" onClick={() => setIsDeleteZoneModalOpen(true)}>
+              삭제
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <details className="panel" open={false}>
         <summary className="cursor-pointer list-none">

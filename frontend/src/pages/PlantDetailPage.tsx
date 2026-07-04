@@ -314,31 +314,11 @@ export function PlantDetailPage() {
         </section>
       ) : null}
 
-      {plant ? (
-        <section className="panel space-y-4">
-          <div>
-            <h2 className="panel-title">발전소 관리</h2>
-            <p className="panel-description">발전소 정보 수정과 비활성화는 필요할 때만 여기에서 진행하세요.</p>
-          </div>
-          <div className="management-actions management-actions-muted">
-            <button className="btn btn-secondary" type="button" onClick={() => setIsEditModalOpen(true)}>
-              정보 수정
-            </button>
-            <button className="text-button text-button-danger" type="button" onClick={() => setIsDeactivateModalOpen(true)}>
-              비활성화
-            </button>
-            <button className="text-button text-button-danger" type="button" onClick={() => setIsDeletePlantModalOpen(true)}>
-              삭제
-            </button>
-          </div>
-        </section>
-      ) : null}
-
       <section className="panel space-y-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="panel-title">구역</h2>
-            <p className="panel-description">구역을 등록하고 각 구역에서 바로 점검을 시작할 수 있습니다.</p>
+            <p className="panel-description">구역별 최근 상태를 보고 바로 점검을 시작하거나 결과를 확인할 수 있습니다.</p>
           </div>
           <div className="inline-actions">
             <button
@@ -398,6 +378,26 @@ export function PlantDetailPage() {
           )
         ) : null}
       </section>
+
+      {plant ? (
+        <section className="panel space-y-4">
+          <div>
+            <h2 className="panel-title">발전소 관리</h2>
+            <p className="panel-description">발전소 정보 수정과 비활성화, 삭제는 보조 관리 작업으로 분리했습니다.</p>
+          </div>
+          <div className="management-actions management-actions-muted">
+            <button className="btn btn-secondary" type="button" onClick={() => setIsEditModalOpen(true)}>
+              정보 수정
+            </button>
+            <button className="text-button text-button-danger muted-action" type="button" onClick={() => setIsDeactivateModalOpen(true)}>
+              비활성화
+            </button>
+            <button className="text-button text-button-danger muted-action" type="button" onClick={() => setIsDeletePlantModalOpen(true)}>
+              삭제
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <EntityModal
         isOpen={isEditModalOpen}
@@ -568,26 +568,28 @@ function ZoneEntryCard({
         <MiniInfo label="조치 후보" value={getActionCandidateText(zone.topActionCandidate)} />
         <MiniInfo label="점검 준비" value={zone.latestInspectionAt ? '이전 점검 이어서 확인 가능' : '첫 점검을 시작할 수 있습니다.'} />
       </div>
-      <div className="mt-5 flex flex-wrap gap-3">
+      <div className="mt-5 primary-action-block">
         <button className="btn btn-primary" type="button" onClick={() => onStartInspection(zone.zoneId)}>
           이 구역 점검 시작
         </button>
-        <Link className="btn btn-secondary" to={`/zones/${zone.zoneId}`}>
-          구역 상세
-        </Link>
-        <Link className="btn btn-secondary" to={`/results?zoneId=${zone.zoneId}`}>
-          결과 보기
-        </Link>
+        <div className="secondary-action-group">
+          <Link className="btn btn-secondary" to={`/zones/${zone.zoneId}`}>
+            구역 상세
+          </Link>
+          <Link className="btn btn-secondary" to={`/results?zoneId=${zone.zoneId}`}>
+            결과 보기
+          </Link>
+        </div>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+      <div className="mt-3 action-row">
         <span className="font-medium text-slate-500">관리</span>
         <button className="text-button" type="button" onClick={() => onEdit(zone)}>
           구역 수정
         </button>
-        <button className="text-button text-button-danger" type="button" onClick={() => onDeactivate(zone)}>
+        <button className="text-button text-button-danger muted-action" type="button" onClick={() => onDeactivate(zone)}>
           구역 비활성화
         </button>
-        <button className="text-button text-button-danger" type="button" onClick={() => onDelete(zone)}>
+        <button className="text-button text-button-danger muted-action" type="button" onClick={() => onDelete(zone)}>
           삭제
         </button>
       </div>

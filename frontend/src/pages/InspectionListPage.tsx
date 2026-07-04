@@ -84,6 +84,20 @@ export function InspectionListPage() {
     inspectionToDelete?.inspectionId ?? 0,
     Boolean(inspectionToDelete),
   )
+  const rows = useMemo(
+    () => inspectionsQuery.data?.data.content ?? [],
+    [inspectionsQuery.data],
+  )
+  const statusSummary = useMemo(
+    () => ({
+      ready: rows.filter((row) => row.inspectionStatus === 'READY').length,
+      uploading: rows.filter((row) => row.inspectionStatus === 'UPLOADING').length,
+      analyzing: rows.filter((row) => row.inspectionStatus === 'ANALYZING').length,
+      completed: rows.filter((row) => row.inspectionStatus === 'COMPLETED').length,
+      failed: rows.filter((row) => row.inspectionStatus === 'FAILED').length,
+    }),
+    [rows],
+  )
 
   if (inspectionsQuery.isError && !inspectionsQuery.data) {
     return (
@@ -108,8 +122,6 @@ export function InspectionListPage() {
       </section>
     )
   }
-
-  const rows = inspectionsQuery.data?.data.content ?? []
 
   const handleDeleteInspection = async () => {
     if (!inspectionToDelete) {
@@ -141,6 +153,13 @@ export function InspectionListPage() {
           </button>
         }
       />
+
+      <section className="card-grid card-grid-compact">
+        <SummaryCard label="진행 중" value={`${statusSummary.uploading + statusSummary.analyzing}건`} description="이미지 업로드와 분석을 이어갈 점검" />
+        <SummaryCard label="준비" value={`${statusSummary.ready}건`} description="업로드나 분석 요청을 시작할 점검" />
+        <SummaryCard label="완료" value={`${statusSummary.completed}건`} description="결과 검토가 가능한 점검" />
+        <SummaryCard label="실패" value={`${statusSummary.failed}건`} description="재확인 또는 재요청이 필요한 점검" tone={statusSummary.failed > 0 ? 'danger' : 'default'} />
+      </section>
 
       <section className="panel stack-md">
         <div className="toolbar">
@@ -267,7 +286,7 @@ export function InspectionListPage() {
           <div>
             <h2 className="panel-title">점검 목록</h2>
             <p className="panel-description">
-              진행 중인 점검을 이어가거나 완료된 점검의 촬영 시각과 상태를 빠르게 확인할 수 있습니다.
+              점검 상세, 결과 확인, 삭제 같은 다음 작업을 바로 이어갈 수 있습니다.
             </p>
           </div>
           {inspectionsQuery.isLoading ? (
@@ -315,10 +334,13 @@ export function InspectionListPage() {
                     key: 'status',
                     header: '상태',
                     render: (inspection) => (
-                      <StatusBadge
-                        label={getInspectionStatusLabel(inspection.inspectionStatus)}
-                        tone={getInspectionStatusTone(inspection.inspectionStatus)}
-                      />
+                      <div className="stack-sm">
+                        <StatusBadge
+                          label={getInspectionStatusLabel(inspection.inspectionStatus)}
+                          tone={getInspectionStatusTone(inspection.inspectionStatus)}
+                        />
+                        <span className="text-sm text-slate-500">{getInspectionNextActionLabel(inspection.inspectionStatus)}</span>
+                      </div>
                     ),
                   },
                   {
@@ -333,14 +355,25 @@ export function InspectionListPage() {
                   },
                   {
                     key: 'actions',
-                    header: '작업',
+                    header: '이동',
                     render: (inspection) => (
-                      <div className="management-actions management-actions-muted">
+                      <div className="secondary-action-group">
                         <Link className="text-button" to={`/inspections/${inspection.inspectionId}`}>
                           점검 상세
                         </Link>
+                        <Link className="text-button" to={`/results?inspectionId=${inspection.inspectionId}`}>
+                          결과 보기
+                        </Link>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'manage',
+                    header: '관리',
+                    render: (inspection) => (
+                      <div className="management-actions management-actions-muted">
                         <button
-                          className="text-button text-button-danger"
+                          className="text-button text-button-danger muted-action"
                           type="button"
                           onClick={() => setInspectionToDelete(inspection)}
                         >
@@ -422,5 +455,40 @@ export function InspectionListPage() {
     })
 
     setSearchParams(next)
+  }
+}
+
+function SummaryCard({
+  label,
+  value,
+  description,
+  tone = 'default',
+}: {
+  label: string
+  value: string
+  description: string
+  tone?: 'default' | 'danger'
+}) {
+  return (
+    <article className={`summary-card ${tone === 'danger' ? 'summary-card-danger' : ''}`}>
+      <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</div>
+      <div className="mt-2 text-2xl font-semibold text-slate-950">{value}</div>
+      <p className="mt-2 text-sm text-slate-600">{description}</p>
+    </article>
+  )
+}
+
+function getInspectionNextActionLabel(status: InspectionStatus) {
+  switch (status) {
+    case 'READY':
+      return '다음 작업: 이미지 업로드'
+    case 'UPLOADING':
+      return '다음 작업: 업로드 확인'
+    case 'ANALYZING':
+      return '다음 작업: 분석 상태 확인'
+    case 'COMPLETED':
+      return '다음 작업: 결과 검토'
+    case 'FAILED':
+      return '다음 작업: 재확인'
   }
 }
