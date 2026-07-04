@@ -395,7 +395,7 @@ export function AssetsPage({ forcedPlantId, forcedZoneId }: AssetsPageProps) {
                 </div>
                 <div className="asset-card-actions">
                   <button className="btn btn-primary" type="button" onClick={() => applySelection(selectedPlant.plantId, zone.zoneId)}>
-                    이 구역 점검 시작
+                    이 구역 선택
                   </button>
                   <button className="text-button" type="button" onClick={() => applySelection(selectedPlant.plantId, zone.zoneId)}>
                     상세 보기
@@ -436,7 +436,7 @@ export function AssetsPage({ forcedPlantId, forcedZoneId }: AssetsPageProps) {
     </section>
   ) : (
     <EmptyState
-      title="현장을 선택하세요."
+      title="발전소를 선택하세요."
       description="왼쪽에서 발전소를 선택하면 등록된 구역과 최근 상태를 확인할 수 있습니다."
     />
   )
@@ -444,8 +444,8 @@ export function AssetsPage({ forcedPlantId, forcedZoneId }: AssetsPageProps) {
   return (
     <section className="space-y-6">
       <PageHeader
-        title="현장"
-        description="발전소와 구역을 확인하고 점검을 시작합니다."
+      title="발전소"
+      description="발전소와 구역을 관리하고, 구역을 선택해 점검을 시작합니다."
         actions={
           <div className="page-actions">
             {selectedZone ? (
@@ -460,10 +460,10 @@ export function AssetsPage({ forcedPlantId, forcedZoneId }: AssetsPageProps) {
         }
       />
 
-      {plantsQuery.isLoading && plants.length === 0 ? <LoadingState message="현장 목록을 불러오는 중입니다." /> : null}
+      {plantsQuery.isLoading && plants.length === 0 ? <LoadingState message="발전소 목록을 불러오는 중입니다." /> : null}
       {plantsQuery.isError ? (
         <ErrorState
-          title="현장 목록을 불러오지 못했습니다."
+          title="발전소 목록을 불러오지 못했습니다."
           description={getApiErrorMessage(plantsQuery.error)}
         />
       ) : null}

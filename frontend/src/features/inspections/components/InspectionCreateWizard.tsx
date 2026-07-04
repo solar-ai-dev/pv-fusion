@@ -29,12 +29,11 @@ const createInspectionSchema = z.object({
 })
 
 type CreateInspectionFormValues = z.infer<typeof createInspectionSchema>
-type WizardStep = 1 | 2 | 3
+type WizardStep = 1 | 2
 
 const WIZARD_STEPS: Array<{ step: WizardStep; label: string }> = [
-  { step: 1, label: '발전소 선택' },
-  { step: 2, label: '구역 선택' },
-  { step: 3, label: '점검 정보 입력' },
+  { step: 1, label: '발전소·구역 선택' },
+  { step: 2, label: '점검 정보 입력' },
 ]
 
 type InspectionCreateWizardProps = {
@@ -102,7 +101,6 @@ export function InspectionCreateWizard({
         shouldDirty: false,
         shouldTouch: false,
       })
-      setCurrentStep((step) => (step < 2 ? 2 : step))
     }
   }, [form, isOpen, plants])
 
@@ -118,7 +116,6 @@ export function InspectionCreateWizard({
         shouldDirty: false,
         shouldTouch: false,
       })
-      setCurrentStep((step) => (step < 3 ? 3 : step))
     }
   }, [form, isOpen, selectedPlantId, zones])
 
@@ -247,6 +244,41 @@ export function InspectionCreateWizard({
                     ))}
                   </select>
                 </FormField>
+                {selectedPlant ? (
+                  hasZones ? (
+                    <FormField label="구역" error={form.formState.errors.zoneId?.message}>
+                      <select className="input-field" {...form.register('zoneId')}>
+                        <option value="">구역을 선택해 주세요.</option>
+                        {zones.map((zone) => (
+                          <option key={zone.zoneId} value={zone.zoneId}>
+                            {zone.name}
+                          </option>
+                        ))}
+                      </select>
+                    </FormField>
+                  ) : (
+                    <div className="stack-md">
+                      <EmptyState
+                        title="선택한 발전소에 등록된 구역이 없습니다."
+                        description="점검은 구역 단위로 시작됩니다. 먼저 구역을 등록해 주세요."
+                      />
+                      <div className="wizard-footer">
+                        <Link className="btn btn-secondary" to={`/plants/${selectedPlantId}`}>
+                          발전소 상세 보기
+                        </Link>
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  <div className="compact-empty">
+                    <div className="text-base font-semibold text-slate-900">
+                      발전소를 먼저 선택하세요.
+                    </div>
+                    <p className="mt-2 text-sm text-slate-600">
+                      선택한 발전소의 구역을 기준으로 새 점검이 생성됩니다.
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="stack-md">
@@ -264,45 +296,6 @@ export function InspectionCreateWizard({
           ) : null}
 
           {currentStep === 2 ? (
-            hasZones ? (
-              <div className="stack-md">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                  {selectedPlant
-                    ? `선택한 발전소: ${selectedPlant.name}`
-                    : '발전소를 먼저 선택해 주세요.'}
-                </div>
-                <FormField label="구역" error={form.formState.errors.zoneId?.message}>
-                  <select className="input-field" {...form.register('zoneId')}>
-                    <option value="">구역을 선택해 주세요.</option>
-                    {zones.map((zone) => (
-                      <option key={zone.zoneId} value={zone.zoneId}>
-                        {zone.name}
-                      </option>
-                    ))}
-                  </select>
-                </FormField>
-              </div>
-            ) : (
-              <div className="stack-md">
-                <EmptyState
-                  title="등록된 구역이 없습니다."
-                  description="먼저 구역을 등록하세요."
-                />
-                <div className="wizard-footer">
-                  <button className="btn btn-secondary" type="button" onClick={() => setCurrentStep(1)}>
-                    이전
-                  </button>
-                  {selectedPlantId ? (
-                    <Link className="btn btn-secondary" to={`/plants/${selectedPlantId}`}>
-                      발전소 상세 보기
-                    </Link>
-                  ) : null}
-                </div>
-              </div>
-            )
-          ) : null}
-
-          {currentStep === 3 ? (
             <div className="stack-md">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                 {selectedPlant?.name ?? '-'} · {selectedZone?.name ?? '-'}
@@ -357,15 +350,12 @@ export function InspectionCreateWizard({
                 이전
               </button>
             ) : null}
-            {currentStep < 3 ? (
+            {currentStep < 2 ? (
               <button
                 className="btn btn-primary"
                 type="button"
-                disabled={
-                  (currentStep === 1 && !selectedPlantId) ||
-                  (currentStep === 2 && !selectedZoneId)
-                }
-                onClick={() => setCurrentStep((current) => Math.min(3, current + 1) as WizardStep)}
+                disabled={!selectedPlantId || !selectedZoneId}
+                onClick={() => setCurrentStep(2)}
               >
                 다음
               </button>
@@ -391,10 +381,7 @@ function parsePositiveInteger(value?: string) {
 }
 
 function getInitialStep(plantId: number | null, zoneId: number | null): WizardStep {
-  if (zoneId) {
-    return 3
-  }
-  if (plantId) {
+  if (plantId && zoneId) {
     return 2
   }
   return 1
@@ -403,9 +390,6 @@ function getInitialStep(plantId: number | null, zoneId: number | null): WizardSt
 function canMoveToStep(step: WizardStep, plantId?: string, zoneId?: string) {
   if (step === 1) {
     return true
-  }
-  if (step === 2) {
-    return Boolean(parsePositiveInteger(plantId))
   }
   return Boolean(parsePositiveInteger(plantId) && parsePositiveInteger(zoneId))
 }

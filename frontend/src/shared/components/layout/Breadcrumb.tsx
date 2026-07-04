@@ -1,13 +1,12 @@
 ﻿import { Link, useLocation } from 'react-router-dom'
-
 const labels: Record<string, string> = {
-  dashboard: '홈',
-  assets: '현장',
-  plants: '현장',
-  zones: '현장',
-  inspections: '점검',
-  results: '결과',
-  tracking: '결과',
+  dashboard: '대시보드',
+  assets: '발전소',
+  plants: '발전소',
+  zones: '발전소',
+  inspections: '점검·결과',
+  results: '점검·결과',
+  tracking: '점검·결과',
   admin: '관리자',
   login: '로그인',
   pending: '승인 대기',
@@ -24,7 +23,7 @@ export function Breadcrumb() {
 
   return (
     <nav className="breadcrumb" aria-label="breadcrumb">
-      <Link to="/dashboard">홈</Link>
+      <Link to="/dashboard">대시보드</Link>
       {segments.map((segment, index) => {
         const href = `/${segments.slice(0, index + 1).join('/')}`
         const isLast = index === segments.length - 1

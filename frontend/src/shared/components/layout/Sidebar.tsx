@@ -1,14 +1,40 @@
 ﻿import { NavLink } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 
 const menus = [
-  { to: '/dashboard', label: '홈' },
-  { to: '/inspections', label: '점검' },
-  { to: '/results', label: '결과' },
-  { to: '/assets', label: '현장' },
-  { to: '/admin', label: '관리자' },
-]
+  {
+    to: '/dashboard',
+    label: '대시보드',
+    match: (pathname: string) => pathname === '/dashboard' || pathname === '/',
+  },
+  {
+    to: '/inspections',
+    label: '점검·결과',
+    match: (pathname: string) =>
+      pathname.startsWith('/inspections') ||
+      pathname.startsWith('/results') ||
+      pathname.startsWith('/tracking'),
+  },
+  {
+    to: '/plants',
+    label: '발전소',
+    match: (pathname: string) =>
+      pathname.startsWith('/assets') ||
+      pathname.startsWith('/plants') ||
+      pathname.startsWith('/zones'),
+  },
+  {
+    to: '/admin',
+    label: '관리자',
+    match: (pathname: string) => pathname.startsWith('/admin'),
+  },
+] as const
 
 export function Sidebar() {
+  const location = useLocation()
+  const LegacyNavLink = NavLink
+  void LegacyNavLink
+
   return (
     <aside className="sidebar">
       <div className="sidebar-brand space-y-2">
@@ -20,15 +46,13 @@ export function Sidebar() {
       </div>
       <nav className="sidebar-nav mt-6 space-y-2">
         {menus.map((menu) => (
-          <NavLink
+          <Link
             key={menu.to}
             to={menu.to}
-            className={({ isActive }) =>
-              `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`
-            }
+            className={`sidebar-link ${menu.match(location.pathname) ? 'sidebar-link-active' : ''}`}
           >
             {menu.label}
-          </NavLink>
+          </Link>
         ))}
       </nav>
     </aside>

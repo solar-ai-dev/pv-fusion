@@ -1,5 +1,5 @@
-import { ResultsWorkspacePage } from './ResultsWorkspacePage'
+﻿import { InspectionResultWorkspacePage } from './InspectionResultWorkspacePage'
 
 export function TrackingPage() {
-  return <ResultsWorkspacePage defaultTab="tracking" />
+  return <InspectionResultWorkspacePage defaultTab="tracking" />
 }
