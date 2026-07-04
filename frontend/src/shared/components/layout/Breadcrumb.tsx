@@ -1,12 +1,13 @@
-import { Link, useLocation } from 'react-router-dom'
+﻿import { Link, useLocation } from 'react-router-dom'
 
 const labels: Record<string, string> = {
-  dashboard: '대시보드',
-  plants: '발전소 관리',
-  zones: '구역 상세',
-  inspections: '점검 관리',
-  results: '점검 결과',
-  tracking: '변경 추적',
+  dashboard: '홈',
+  assets: '현장',
+  plants: '현장',
+  zones: '현장',
+  inspections: '점검',
+  results: '결과',
+  tracking: '결과',
   admin: '관리자',
   login: '로그인',
   pending: '승인 대기',

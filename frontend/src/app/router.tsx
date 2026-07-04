@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AdminRoute } from '../features/auth/components/AdminRoute'
 import { ProtectedRoute } from '../features/auth/components/ProtectedRoute'
 import { AdminPage } from '../pages/AdminPage'
+import { AssetsPage } from '../pages/AssetsPage'
 import { DashboardPage } from '../pages/DashboardPage'
 import { ForbiddenPage } from '../pages/ForbiddenPage'
 import { InspectionDetailPage } from '../pages/InspectionDetailPage'
@@ -37,6 +38,7 @@ export function AppRouter() {
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/assets" element={<AssetsPage />} />
         <Route path="/plants" element={<PlantListPage />} />
         <Route path="/plants/:plantId" element={<PlantDetailPage />} />
         <Route path="/zones/:zoneId" element={<ZoneDetailPage />} />

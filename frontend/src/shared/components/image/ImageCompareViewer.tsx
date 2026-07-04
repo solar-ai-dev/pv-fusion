@@ -1,4 +1,4 @@
-type ImageCompareViewerProps = {
+﻿type ImageCompareViewerProps = {
   leftLabel?: string
   rightLabel?: string
   leftImageUrl?: string | null
@@ -17,16 +17,8 @@ export function ImageCompareViewer({
 }: ImageCompareViewerProps) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <ImagePane
-        label={leftLabel}
-        imageUrl={leftImageUrl}
-        description={leftDescription}
-      />
-      <ImagePane
-        label={rightLabel}
-        imageUrl={rightImageUrl}
-        description={rightDescription}
-      />
+      <ImagePane label={leftLabel} imageUrl={leftImageUrl} description={leftDescription} />
+      <ImagePane label={rightLabel} imageUrl={rightImageUrl} description={rightDescription} />
     </div>
   )
 }

@@ -1,5 +1,10 @@
 import { apiClient } from '../../../shared/api/client'
-import { ApiSuccessResponse, PageResponse } from '../../../shared/api/types'
+import {
+  ApiSuccessResponse,
+  DeleteImpact,
+  DeleteResourceResult,
+  PageResponse,
+} from '../../../shared/api/types'
 import type {
   CreateInspectionRequest,
   Inspection,
@@ -35,6 +40,18 @@ export const inspectionApi = {
     const response = await apiClient.patch<ApiSuccessResponse<Inspection>>(
       `/inspections/${inspectionId}`,
       payload,
+    )
+    return response.data
+  },
+  fetchDeleteImpact: async (inspectionId: string | number) => {
+    const response = await apiClient.get<ApiSuccessResponse<DeleteImpact>>(
+      `/inspections/${inspectionId}/delete-impact`,
+    )
+    return response.data
+  },
+  deleteInspection: async (inspectionId: string | number) => {
+    const response = await apiClient.delete<ApiSuccessResponse<DeleteResourceResult>>(
+      `/inspections/${inspectionId}`,
     )
     return response.data
   },
