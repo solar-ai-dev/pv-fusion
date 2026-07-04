@@ -89,3 +89,4 @@ experiments/
 experiments/**
 
 ai-worker/.pytest-tmp/
+front_sample/
