@@ -277,7 +277,7 @@ def build_settings(**overrides):
 
     payload = {
         "rgbModelManifestPath": "models/rgb/model-manifest.dev.yaml",
-        "thermalModelManifestPath": "models/thermal/model-manifest.dev.yaml",
+        "thermalModelManifestPath": "models/thermal/model-manifest.yaml",
     }
     payload.update(overrides)
     return Settings(**payload)

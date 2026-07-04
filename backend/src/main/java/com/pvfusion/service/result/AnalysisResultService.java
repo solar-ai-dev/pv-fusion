@@ -279,7 +279,7 @@ public class AnalysisResultService implements
         if (!isBlank(target.fileUrl())) {
             return new ResultVisualizationResponse(target.type(), target.fileUrl(), null);
         }
-        throw new BusinessException(ErrorCode.NOT_FOUND, "Visualization not found for type: " + query.type());
+        throw new BusinessException(ErrorCode.VISUALIZATION_NOT_FOUND, "Visualization not found for type: " + query.type());
     }
 
     @Override
@@ -357,6 +357,7 @@ public class AnalysisResultService implements
                 context.plantId(),
                 context.zoneId(),
                 context.inspectionId(),
+                context.imageId(),
                 context.targetType(),
                 context.equipmentId(),
                 context.inputType(),
@@ -370,15 +371,15 @@ public class AnalysisResultService implements
                 result.getActionCandidate(),
                 result.getPriorityLevel(),
                 result.getReviewStatus(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
+                result.getBboxBucketName(),
+                result.getBboxObjectKey(),
+                result.getBboxFileUrl(),
+                result.getHeatmapBucketName(),
+                result.getHeatmapObjectKey(),
+                result.getHeatmapFileUrl(),
+                result.getMaskBucketName(),
+                result.getMaskObjectKey(),
+                result.getMaskFileUrl(),
                 result.getAnalyzedAt(),
                 result.getCreatedAt(),
                 result.getUpdatedAt(),
@@ -527,7 +528,7 @@ public class AnalysisResultService implements
     private ResultContext resolveContext(AnalysisResult result) {
         AnalysisJob job = loadAnalysisJobPort.loadAnalysisJob(result.getAnalysisJobId()).orElse(null);
         if (job == null) {
-            return new ResultContext(null, null, null, null, null, null, null);
+            return new ResultContext(null, null, null, null, null, null, null, null);
         }
 
         Long inspectionId;
@@ -535,7 +536,7 @@ public class AnalysisResultService implements
         TargetType targetType;
         InspectionImage image = loadImagePort.loadImage(job.getImageId()).orElse(null);
         if (image == null) {
-            return new ResultContext(null, null, null, null, null, job.getInputType(), job.getJobStatus());
+            return new ResultContext(null, null, null, job.getImageId(), null, null, job.getInputType(), job.getJobStatus());
         }
         inspectionId = image.getInspectionId();
         equipmentId = image.getEquipmentId();
@@ -543,16 +544,17 @@ public class AnalysisResultService implements
 
         Inspection inspection = inspectionId != null ? loadInspectionPort.loadInspection(inspectionId).orElse(null) : null;
         if (inspection == null) {
-            return new ResultContext(inspectionId, null, null, equipmentId, targetType, job.getInputType(), job.getJobStatus());
+            return new ResultContext(inspectionId, null, null, image.getId(), equipmentId, targetType, job.getInputType(), job.getJobStatus());
         }
         if (loadZonePort.isEmpty()) {
-            return new ResultContext(inspectionId, inspection.getZoneId(), null, equipmentId, targetType, job.getInputType(), job.getJobStatus());
+            return new ResultContext(inspectionId, inspection.getZoneId(), null, image.getId(), equipmentId, targetType, job.getInputType(), job.getJobStatus());
         }
         Zone zone = loadZonePort.get().loadZone(inspection.getZoneId()).orElse(null);
         return new ResultContext(
                 inspectionId,
                 inspection.getZoneId(),
                 zone != null ? zone.getPlantId() : null,
+                image.getId(),
                 equipmentId,
                 targetType,
                 job.getInputType(),
@@ -664,6 +666,7 @@ public class AnalysisResultService implements
             Long inspectionId,
             Long zoneId,
             Long plantId,
+            Long imageId,
             Long equipmentId,
             TargetType targetType,
             com.pvfusion.domain.analysis.AnalysisInputType inputType,

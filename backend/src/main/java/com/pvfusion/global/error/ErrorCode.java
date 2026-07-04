@@ -17,9 +17,11 @@ public enum ErrorCode {
     USER_DEACTIVATED(HttpStatus.FORBIDDEN, "USER_DEACTIVATED", "비활성화된 사용자입니다."),
 
     NOT_FOUND(HttpStatus.NOT_FOUND, "NOT_FOUND", "요청한 리소스를 찾을 수 없습니다."),
+    VISUALIZATION_NOT_FOUND(HttpStatus.NOT_FOUND, "VISUALIZATION_NOT_FOUND", "요청한 시각화 결과를 찾을 수 없습니다."),
+    STORAGE_OBJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "STORAGE_OBJECT_NOT_FOUND", "저장소 객체를 찾을 수 없습니다."),
 
     DUPLICATE_RESOURCE(HttpStatus.CONFLICT, "DUPLICATE_RESOURCE", "중복된 리소스입니다."),
-    DUPLICATE_IMAGE_UPLOAD(HttpStatus.CONFLICT, "DUPLICATE_IMAGE_UPLOAD", "동일 검사·동일 대상·동일 이미지 유형 업로드가 이미 존재합니다."),
+    DUPLICATE_IMAGE_UPLOAD(HttpStatus.CONFLICT, "DUPLICATE_IMAGE_UPLOAD", "같은 작업에 동일한 파일명이 이미 업로드되어 있습니다."),
     PAIR_ALREADY_EXISTS(HttpStatus.CONFLICT, "PAIR_ALREADY_EXISTS", "이미 Pair가 존재합니다."),
     ANALYSIS_JOB_ALREADY_RUNNING(HttpStatus.CONFLICT, "ANALYSIS_JOB_ALREADY_RUNNING", "동일 대상 분석 작업이 이미 진행 중입니다."),
 

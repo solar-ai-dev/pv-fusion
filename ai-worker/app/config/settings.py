@@ -70,7 +70,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("rgbModelManifestPath", "RGB_MODEL_MANIFEST_PATH"),
     )
     thermalModelManifestPath: str = Field(
-        default="models/thermal/model-manifest.dev.yaml",
+        default="models/thermal/model-manifest.yaml",
         validation_alias=AliasChoices("thermalModelManifestPath", "THERMAL_MODEL_MANIFEST_PATH"),
     )
 

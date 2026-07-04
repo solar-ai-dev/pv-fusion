@@ -200,10 +200,14 @@ class AnalysisJobProcessor:
         bucket_name: str,
         image_bytes: bytes,
         inference_result: InferenceResult,
-    ) -> tuple[str, str]:
+    ) -> tuple[str | None, str | None]:
+        detections = self._defects_to_detections(inference_result)
+        if not detections:
+            return None, None
+
         overlay_bytes = draw_bbox_overlay(
             image_bytes=image_bytes,
-            detections=self._defects_to_detections(inference_result),
+            detections=detections,
             image_format="PNG",
         )
         object_key = self._build_bbox_object_key(job_id)

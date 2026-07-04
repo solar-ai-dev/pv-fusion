@@ -142,6 +142,8 @@ class AnalysisResultServiceTest {
 
         verify(saveDetectedDefectPort).saveDetectedDefect(any());
         assertThat(response.resultId()).isEqualTo(1L);
+        assertThat(response.imageId()).isEqualTo(20L);
+        assertThat(response.bboxObjectKey()).isEqualTo("bbox-key");
         assertThat(response.reviewStatus()).isEqualTo(ReviewStatus.UNCHECKED);
     }
 
@@ -222,6 +224,24 @@ class AnalysisResultServiceTest {
                 .isEqualTo(ErrorCode.FORBIDDEN);
 
         verify(generateImageAccessUrlPort, never()).generate(any());
+    }
+
+    @Test
+    void getVisualizationReturnsNotFoundWhenObjectReferenceIsMissing() {
+        AnalysisResult result = new AnalysisResult(
+                1L, 10L, AnalysisModelType.RGB_ONLY, "model-a", "1.0", "onnx", "cpu", 640, BigDecimal.valueOf(0.75),
+                AnalysisResultStatus.ANOMALY, 2, BigDecimal.valueOf(0.95), BigDecimal.valueOf(0.11), BigDecimal.valueOf(0.88),
+                SeverityLevel.HIGH, ActionCandidate.CLEANING, PriorityLevel.HIGH, ReviewStatus.UNCHECKED,
+                null, null, null, null, null, null, null, null, null,
+                OffsetDateTime.now(), OffsetDateTime.now(), OffsetDateTime.now()
+        );
+        when(loadAnalysisResultPort.loadAnalysisResult(1L)).thenReturn(Optional.of(result));
+        when(accessChecker.checkResultAccess(1L, 1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> analysisResultService.execute(new GetResultVisualizationQuery(1L, 1L, "bbox", null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.VISUALIZATION_NOT_FOUND);
     }
 
     @Test

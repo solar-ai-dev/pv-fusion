@@ -87,6 +87,28 @@ def test_load_model_manifest_resolves_models_prefix_relative_to_manifest_directo
     assert manifest.modelPath == str((tmp_path / "models" / "thermal.onnx").resolve())
 
 
+def test_load_model_manifest_resolves_legacy_models_prefix_without_duplicating_manifest_directory(tmp_path: Path):
+    manifest_dir = tmp_path / "models" / "rgb"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = _write_manifest(
+        manifest_dir / "model-manifest.dev.yaml",
+        model_name="pv-rgb",
+        model_version="v1.0.0",
+        input_type="RGB_SINGLE",
+        model_type="RGB_ONLY",
+        input_size=640,
+        confidence_threshold="0.55",
+        model_path="models/rgb/rgb.onnx",
+        class_names=["A", "B"],
+    )
+    expected_model_path = tmp_path / "models" / "rgb" / "rgb.onnx"
+    expected_model_path.write_bytes(b"fake")
+
+    manifest = load_model_manifest(str(manifest_path))
+
+    assert manifest.modelPath == str(expected_model_path.resolve())
+
+
 def test_resolve_returns_rgb_model_for_rgb_single(tmp_path: Path):
     registry = ModelRegistry(_build_settings(tmp_path))
 

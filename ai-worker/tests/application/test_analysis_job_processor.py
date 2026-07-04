@@ -413,6 +413,37 @@ def test_skips_mask_overlay_when_rgb_result_has_no_restored_masks():
     assert result_repository.saved_results[0].maskObjectKey is None
 
 
+def test_skips_bbox_overlay_when_result_has_no_detected_defects():
+    result_without_defects = build_inference_result().model_copy(
+        update={
+            "resultStatus": ResultStatus.NORMAL,
+            "anomalyCount": 0,
+            "maxConfidence": None,
+            "defects": [],
+            "restoredMasks": [],
+        }
+    )
+    job_repository = FakeJobRepository(build_job(JobStatus.QUEUED))
+    storage = FakeStorage()
+    result_repository = FakeResultRepository()
+    processor = AnalysisJobProcessor(
+        job_repository,
+        FakeImageMetadata(single_image=build_single_image()),
+        storage,
+        FakeModelRunner(result=result_without_defects),
+        result_repository,
+    )
+
+    result = processor.process(build_message())
+
+    assert result.status == "processed"
+    assert storage.write_calls == []
+    assert result_repository.saved_results[0].bboxBucketName is None
+    assert result_repository.saved_results[0].bboxObjectKey is None
+    assert result_repository.saved_results[0].maskBucketName is None
+    assert result_repository.saved_results[0].maskObjectKey is None
+
+
 def test_returns_skipped_when_mark_running_transition_fails():
     processor = AnalysisJobProcessor(
         FakeJobRepository(build_job(JobStatus.QUEUED), running_error=JobStateTransitionError("transition failed")),

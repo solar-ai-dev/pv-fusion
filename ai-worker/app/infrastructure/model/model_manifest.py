@@ -147,4 +147,31 @@ def _resolve_model_path(manifest_path: Path, model_path: str) -> str:
     candidate = Path(model_path)
     if candidate.is_absolute():
         return str(candidate)
-    return str((manifest_path.parent / candidate).resolve())
+    return str(_resolve_relative_model_path(manifest_path.parent, candidate).resolve())
+
+
+def _resolve_relative_model_path(manifest_dir: Path, candidate: Path) -> Path:
+    direct_path = manifest_dir / candidate
+    if direct_path.exists():
+        return direct_path
+
+    overlapping_parts = _count_overlapping_parts(manifest_dir, candidate)
+    if overlapping_parts > 0:
+        anchor = manifest_dir
+        for _ in range(overlapping_parts):
+            anchor = anchor.parent
+        deduplicated_path = anchor.joinpath(*candidate.parts)
+        if deduplicated_path.exists():
+            return deduplicated_path
+
+    return direct_path
+
+
+def _count_overlapping_parts(manifest_dir: Path, candidate: Path) -> int:
+    manifest_parts = manifest_dir.parts
+    candidate_parts = candidate.parts
+    max_overlap = min(len(manifest_parts), len(candidate_parts))
+    for overlap in range(max_overlap, 0, -1):
+        if manifest_parts[-overlap:] == candidate_parts[:overlap]:
+            return overlap
+    return 0

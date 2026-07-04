@@ -64,7 +64,7 @@ def test_thermal_output_uses_allowed_manifest_class_name_as_defect_type():
         build_model_info(ModelType.THERMAL_ONLY, class_names=["HotSpot"]),
     )
 
-    assert result.defects[0].defectType == "HotSpot"
+    assert result.defects[0].defectType == "HOTSPOT"
 
 
 def test_thermal_output_restores_bbox_from_letterboxed_coordinates():

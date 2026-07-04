@@ -1,5 +1,6 @@
 package com.pvfusion.adapter.out.storage;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -9,6 +10,8 @@ import com.pvfusion.application.dto.image.ImageAccessUrlRequest;
 import com.pvfusion.application.dto.image.ImageStorageRequest;
 import com.pvfusion.domain.common.TargetType;
 import com.pvfusion.domain.image.ImageType;
+import com.pvfusion.global.error.BusinessException;
+import com.pvfusion.global.error.ErrorCode;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -17,8 +20,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
@@ -71,6 +76,8 @@ class S3ImageStorageAdapterTest {
                 Duration.ofMinutes(15)
         );
 
+        when(s3Client.headObject(any(software.amazon.awssdk.services.s3.model.HeadObjectRequest.class)))
+                .thenReturn(HeadObjectResponse.builder().build());
         when(s3Presigner.presignGetObject(any(GetObjectPresignRequest.class))).thenReturn(presignedGetObjectRequest);
         when(presignedGetObjectRequest.url()).thenReturn(URI.create("https://example.com/image").toURL());
         when(presignedGetObjectRequest.expiration()).thenReturn(Instant.parse("2026-06-05T01:00:00Z"));
@@ -79,5 +86,23 @@ class S3ImageStorageAdapterTest {
 
         assertThat(result.accessUrl()).isEqualTo("https://example.com/image");
         assertThat(result.expiresAt()).isNotNull();
+    }
+
+    @Test
+    void generateReturnsNotFoundWhenObjectDoesNotExist() {
+        S3ImageStorageAdapter adapter = new S3ImageStorageAdapter(
+                s3Client,
+                s3Presigner,
+                "bucket",
+                Duration.ofMinutes(15)
+        );
+
+        when(s3Client.headObject(any(software.amazon.awssdk.services.s3.model.HeadObjectRequest.class)))
+                .thenThrow((S3Exception) S3Exception.builder().statusCode(404).build());
+
+        assertThatThrownBy(() -> adapter.generate(new ImageAccessUrlRequest("bucket", "missing-object")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.STORAGE_OBJECT_NOT_FOUND);
     }
 }

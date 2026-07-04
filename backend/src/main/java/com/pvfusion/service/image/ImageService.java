@@ -75,7 +75,7 @@ public class ImageService implements
         Inspection inspection = loadInspection(command.inspectionId());
         ensureAllowed(accessChecker.checkInspectionAccess(currentUserId, command.inspectionId()));
         validateTargetAndEquipment(command.targetType(), command.equipmentId(), inspection);
-        validateDuplicateUpload(command.inspectionId(), command.targetType(), command.equipmentId(), command.imageType());
+        validateDuplicateUpload(command.inspectionId(), command.originalFilename());
 
         ImageStorageResult storageResult = storeImageFilePort.store(new ImageStorageRequest(
                 command.inspectionId(),
@@ -113,7 +113,7 @@ public class ImageService implements
 
         loadInspection(command.inspectionId());
         validateTargetAndEquipment(command.targetType(), command.equipmentId(), null);
-        validateDuplicateUpload(command.inspectionId(), command.targetType(), command.equipmentId(), command.imageType());
+        validateDuplicateUpload(command.inspectionId(), command.originalFilename());
 
         return saveMetadata(command, currentUserId);
     }
@@ -221,22 +221,18 @@ public class ImageService implements
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Inspection not found: " + inspectionId));
     }
 
-    private void validateDuplicateUpload(
-            Long inspectionId,
-            TargetType targetType,
-            Long equipmentId,
-            com.pvfusion.domain.image.ImageType imageType
-    ) {
+    private void validateDuplicateUpload(Long inspectionId, String originalFilename) {
         boolean duplicated = loadImagePort.loadImage(
                 inspectionId,
-                targetType,
-                equipmentId,
-                imageType,
+                originalFilename,
                 ResourceStatus.ACTIVE
         ).isPresent();
 
         if (duplicated) {
-            throw new BusinessException(ErrorCode.DUPLICATE_IMAGE_UPLOAD);
+            throw new BusinessException(
+                    ErrorCode.DUPLICATE_IMAGE_UPLOAD,
+                    "같은 작업에 동일한 파일명이 이미 업로드되어 있습니다. 파일명을 변경하거나 기존 이미지를 비활성화한 뒤 다시 업로드해 주세요."
+            );
         }
     }
 

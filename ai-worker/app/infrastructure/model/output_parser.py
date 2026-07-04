@@ -27,6 +27,12 @@ ALLOWED_DEFECT_TYPES = {
     "UNKNOWN",
 }
 
+DEFECT_TYPE_ALIASES = {
+    "HotSpot": "HOTSPOT",
+    "Diode_ByPassed": "UNKNOWN",
+    "String_Fault": "UNKNOWN",
+}
+
 
 @dataclass(frozen=True)
 class ParsedDetection:
@@ -427,6 +433,8 @@ def _resolve_raw_class_name(class_id: int, class_names: list[str]) -> str | None
 
 
 def _resolve_defect_type(raw_value: str | None) -> str:
+    if raw_value in DEFECT_TYPE_ALIASES:
+        return DEFECT_TYPE_ALIASES[raw_value]
     if raw_value in ALLOWED_DEFECT_TYPES:
         return raw_value
     return "UNKNOWN"
