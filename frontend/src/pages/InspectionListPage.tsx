@@ -1,19 +1,13 @@
 ﻿import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { InspectionCreateWizard } from '../features/inspections/components/InspectionCreateWizard'
+import { useDeleteInspection, useInspectionDeleteImpact, useInspections } from '../features/inspections/hooks/useInspections'
 import {
-  useDeleteInspection,
-  useInspectionDeleteImpact,
-  useInspections,
-} from '../features/inspections/hooks/useInspections'
-import {
-  INSPECTION_STATUS_OPTIONS,
   getCaptureMethodLabel,
   getInspectionStatusLabel,
   getInspectionStatusTone,
   type InspectionListParams,
   type InspectionSummary,
-  type InspectionStatus,
 } from '../features/inspections/types'
 import { usePlants } from '../features/plants/hooks/usePlants'
 import { useZonesByPlantId } from '../features/zones/hooks/useZones'
@@ -25,17 +19,21 @@ import { EmptyState } from '../shared/components/state/EmptyState'
 import { ErrorState } from '../shared/components/state/ErrorState'
 import { LoadingState } from '../shared/components/state/LoadingState'
 import { StatusBadge } from '../shared/components/state/StatusBadge'
-import { DataTable } from '../shared/components/table/DataTable'
 import { Pagination } from '../shared/components/table/Pagination'
 import { useToast } from '../shared/hooks/useToast'
-import {
-  formatDateTime,
-  getApiErrorMessage,
-  parsePositiveNumber,
-} from '../shared/utils'
+import { formatDateTime, getApiErrorMessage, parsePositiveNumber } from '../shared/utils'
 
 const DEFAULT_PAGE = 1
 const DEFAULT_SIZE = 20
+const VIEWS = [
+  { id: 'all', label: '전체' },
+  { id: 'in-progress', label: '진행 중' },
+  { id: 'ready', label: '준비' },
+  { id: 'completed', label: '완료' },
+  { id: 'failed', label: '실패' },
+] as const
+
+type InspectionView = (typeof VIEWS)[number]['id']
 
 export function InspectionListPage() {
   const navigate = useNavigate()
@@ -44,97 +42,65 @@ export function InspectionListPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [inspectionToDelete, setInspectionToDelete] = useState<InspectionSummary | null>(null)
 
+  const view = toInspectionView(searchParams.get('view'))
   const plantId = parsePositiveNumber(searchParams.get('plantId') ?? undefined)
   const zoneId = parsePositiveNumber(searchParams.get('zoneId') ?? undefined)
-  const statusParam = searchParams.get('inspectionStatus')
-  const inspectionStatus = INSPECTION_STATUS_OPTIONS.includes(
-    statusParam as InspectionStatus,
-  )
-    ? (statusParam as InspectionStatus)
-    : undefined
   const from = searchParams.get('from') || undefined
   const to = searchParams.get('to') || undefined
-  const page = Math.max(
-    parsePositiveNumber(searchParams.get('page') ?? undefined) ?? DEFAULT_PAGE,
-    DEFAULT_PAGE,
-  )
-  const size = Math.max(
-    parsePositiveNumber(searchParams.get('size') ?? undefined) ?? DEFAULT_SIZE,
-    1,
-  )
+  const page = Math.max(parsePositiveNumber(searchParams.get('page') ?? undefined) ?? DEFAULT_PAGE, DEFAULT_PAGE)
+  const size = Math.max(parsePositiveNumber(searchParams.get('size') ?? undefined) ?? DEFAULT_SIZE, 1)
+  const selectedInspectionId = parsePositiveNumber(searchParams.get('selectedId') ?? undefined)
 
   const inspectionParams = useMemo<InspectionListParams>(
     () => ({
       plantId: plantId ?? undefined,
       zoneId: zoneId ?? undefined,
-      inspectionStatus,
+      inspectionStatus:
+        view === 'ready'
+          ? 'READY'
+          : view === 'completed'
+            ? 'COMPLETED'
+            : view === 'failed'
+              ? 'FAILED'
+              : undefined,
       from,
       to,
       page: page - 1,
       size,
     }),
-    [from, inspectionStatus, page, plantId, size, to, zoneId],
+    [from, page, plantId, size, to, view, zoneId],
   )
 
   const inspectionsQuery = useInspections(inspectionParams)
   const plantsQuery = usePlants({ page: 0, size: 100, status: 'ACTIVE' })
-  const filterZonesQuery = useZonesByPlantId(plantId ?? 0)
+  const zonesQuery = useZonesByPlantId(plantId ?? 0)
   const deleteInspectionMutation = useDeleteInspection(inspectionToDelete?.inspectionId ?? 0)
   const inspectionDeleteImpactQuery = useInspectionDeleteImpact(
     inspectionToDelete?.inspectionId ?? 0,
     Boolean(inspectionToDelete),
   )
-  const rows = useMemo(
-    () => inspectionsQuery.data?.data.content ?? [],
-    [inspectionsQuery.data],
-  )
-  const statusSummary = useMemo(
-    () => ({
-      ready: rows.filter((row) => row.inspectionStatus === 'READY').length,
-      uploading: rows.filter((row) => row.inspectionStatus === 'UPLOADING').length,
-      analyzing: rows.filter((row) => row.inspectionStatus === 'ANALYZING').length,
-      completed: rows.filter((row) => row.inspectionStatus === 'COMPLETED').length,
-      failed: rows.filter((row) => row.inspectionStatus === 'FAILED').length,
-    }),
-    [rows],
-  )
 
-  if (inspectionsQuery.isError && !inspectionsQuery.data) {
-    return (
-      <section className="space-y-6">
-        <PageHeader
-          title="점검"
-          description="등록된 점검을 확인하고 이미지 업로드와 분석 흐름을 이어서 진행하세요."
-          actions={
-            <button className="btn btn-primary" type="button" onClick={() => setIsCreateModalOpen(true)}>
-              새 점검 시작
-            </button>
-          }
-        />
-        <ErrorState
-          title="점검 목록을 불러오지 못했습니다."
-          description={getApiErrorMessage(inspectionsQuery.error)}
-        />
-        <InspectionCreateWizard
-          isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
-        />
-      </section>
-    )
-  }
+  const rows = inspectionsQuery.data?.data.content ?? []
+  const displayedRows = rows.filter((row) => {
+    if (view === 'in-progress') {
+      return row.inspectionStatus === 'UPLOADING' || row.inspectionStatus === 'ANALYZING'
+    }
+    return true
+  })
+  const selectedInspection = displayedRows.find((row) => row.inspectionId === selectedInspectionId) ?? displayedRows[0] ?? null
 
   const handleDeleteInspection = async () => {
     if (!inspectionToDelete) {
       return
     }
     if (!inspectionDeleteImpactQuery.data?.data) {
-      toast.push('삭제 영향 범위를 불러온 뒤 다시 시도해 주세요.')
+      toast.push('삭제 영향 범위를 불러오지 못했습니다. 다시 시도해 주세요.')
       return
     }
 
     try {
       await deleteInspectionMutation.mutateAsync()
-      toast.push('점검이 삭제되었습니다.')
+      toast.push('점검을 삭제했습니다.')
       setInspectionToDelete(null)
       navigate('/inspections')
     } catch (error) {
@@ -154,30 +120,24 @@ export function InspectionListPage() {
         }
       />
 
-      <section className="card-grid card-grid-compact">
-        <SummaryCard label="진행 중" value={`${statusSummary.uploading + statusSummary.analyzing}건`} description="이미지 업로드와 분석을 이어갈 점검" />
-        <SummaryCard label="준비" value={`${statusSummary.ready}건`} description="업로드나 분석 요청을 시작할 점검" />
-        <SummaryCard label="완료" value={`${statusSummary.completed}건`} description="결과 검토가 가능한 점검" />
-        <SummaryCard label="실패" value={`${statusSummary.failed}건`} description="재확인 또는 재요청이 필요한 점검" tone={statusSummary.failed > 0 ? 'danger' : 'default'} />
-      </section>
-
       <section className="panel stack-md">
-        <div className="toolbar">
-          <div>
-            <h2 className="panel-title">조회 조건</h2>
-            <p className="panel-description">
-              기본 조건만 노출하고, 범위나 기간은 필요할 때만 조정할 수 있게 유지했습니다.
-            </p>
-          </div>
-          <div className="inline-actions">
+        <div className="workspace-tabs">
+          {VIEWS.map((item) => (
             <button
-              className="btn btn-secondary"
+              key={item.id}
+              className={`workspace-tab ${view === item.id ? 'workspace-tab-active' : ''}`}
               type="button"
-              onClick={() => setSearchParams(new URLSearchParams())}
+              onClick={() => {
+                const next = new URLSearchParams(searchParams)
+                if (item.id === 'all') next.delete('view')
+                else next.set('view', item.id)
+                next.delete('page')
+                setSearchParams(next)
+              }}
             >
-              초기화
+              {item.label}
             </button>
-          </div>
+          ))}
         </div>
         <div className="filter-grid">
           <FormField label="발전소">
@@ -185,58 +145,36 @@ export function InspectionListPage() {
               className="input-field"
               value={plantId ? String(plantId) : ''}
               onChange={(event) => {
-                const nextPlantId = event.target.value
-                updateSearchParams({
-                  plantId: nextPlantId,
-                  zoneId: '',
-                  page: String(DEFAULT_PAGE),
-                })
+                const next = new URLSearchParams(searchParams)
+                if (event.target.value) next.set('plantId', event.target.value)
+                else next.delete('plantId')
+                next.delete('zoneId')
+                next.delete('page')
+                setSearchParams(next)
               }}
             >
               <option value="">전체</option>
               {plantsQuery.data?.data.content.map((plant) => (
-                <option key={plant.plantId} value={plant.plantId}>
-                  {plant.name}
-                </option>
+                <option key={plant.plantId} value={plant.plantId}>{plant.name}</option>
               ))}
             </select>
           </FormField>
           <FormField label="구역">
             <select
               className="input-field"
-              value={zoneId ? String(zoneId) : ''}
-              onChange={(event) =>
-                updateSearchParams({
-                  zoneId: event.target.value,
-                  page: String(DEFAULT_PAGE),
-                })
-              }
               disabled={!plantId}
+              value={zoneId ? String(zoneId) : ''}
+              onChange={(event) => {
+                const next = new URLSearchParams(searchParams)
+                if (event.target.value) next.set('zoneId', event.target.value)
+                else next.delete('zoneId')
+                next.delete('page')
+                setSearchParams(next)
+              }}
             >
-              <option value="">{plantId ? '전체' : '발전소를 먼저 선택해 주세요.'}</option>
-              {filterZonesQuery.data?.data.map((zone) => (
-                <option key={zone.zoneId} value={zone.zoneId}>
-                  {zone.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="상태">
-            <select
-              className="input-field"
-              value={inspectionStatus ?? ''}
-              onChange={(event) =>
-                updateSearchParams({
-                  inspectionStatus: event.target.value,
-                  page: String(DEFAULT_PAGE),
-                })
-              }
-            >
-              <option value="">전체</option>
-              {INSPECTION_STATUS_OPTIONS.map((status) => (
-                <option key={status} value={status}>
-                  {getInspectionStatusLabel(status)}
-                </option>
+              <option value="">{plantId ? '전체' : '발전소를 먼저 선택하세요.'}</option>
+              {zonesQuery.data?.data.map((zone) => (
+                <option key={zone.zoneId} value={zone.zoneId}>{zone.name}</option>
               ))}
             </select>
           </FormField>
@@ -245,9 +183,13 @@ export function InspectionListPage() {
               className="input-field"
               type="date"
               value={from ?? ''}
-              onChange={(event) =>
-                updateSearchParams({ from: event.target.value, page: String(DEFAULT_PAGE) })
-              }
+              onChange={(event) => {
+                const next = new URLSearchParams(searchParams)
+                if (event.target.value) next.set('from', event.target.value)
+                else next.delete('from')
+                next.delete('page')
+                setSearchParams(next)
+              }}
             />
           </FormField>
           <FormField label="종료일">
@@ -255,240 +197,158 @@ export function InspectionListPage() {
               className="input-field"
               type="date"
               value={to ?? ''}
-              onChange={(event) =>
-                updateSearchParams({ to: event.target.value, page: String(DEFAULT_PAGE) })
-              }
+              onChange={(event) => {
+                const next = new URLSearchParams(searchParams)
+                if (event.target.value) next.set('to', event.target.value)
+                else next.delete('to')
+                next.delete('page')
+                setSearchParams(next)
+              }}
             />
-          </FormField>
-          <FormField label="페이지 크기">
-            <select
-              className="input-field"
-              value={String(size)}
-              onChange={(event) =>
-                updateSearchParams({
-                  size: event.target.value,
-                  page: String(DEFAULT_PAGE),
-                })
-              }
-            >
-              {[10, 20, 50].map((option) => (
-                <option key={option} value={option}>
-                  {option}개
-                </option>
-              ))}
-            </select>
           </FormField>
         </div>
       </section>
 
-      <section className="panel stack-md">
-        <div className="toolbar">
-          <div>
-            <h2 className="panel-title">점검 목록</h2>
-            <p className="panel-description">
-              점검 상세, 결과 확인, 삭제 같은 다음 작업을 바로 이어갈 수 있습니다.
-            </p>
-          </div>
-          {inspectionsQuery.isLoading ? (
-            <span className="text-sm text-slate-500">점검 목록을 불러오는 중입니다.</span>
-          ) : null}
-        </div>
+      {inspectionsQuery.isLoading && !inspectionsQuery.data ? <LoadingState message="점검 목록을 불러오는 중입니다." /> : null}
+      {inspectionsQuery.isError ? <ErrorState title="점검 목록을 불러오지 못했습니다." description={getApiErrorMessage(inspectionsQuery.error)} /> : null}
 
-        {inspectionsQuery.isLoading && !inspectionsQuery.data ? (
-          <LoadingState message="점검 목록을 불러오는 중입니다." />
-        ) : null}
-
-        {inspectionsQuery.data ? (
-          rows.length > 0 ? (
-            <>
-              <DataTable
-                columns={[
-                  {
-                    key: 'name',
-                    header: '점검명',
-                    render: (inspection) => (
-                      <div className="stack-sm">
-                        <Link
-                          className="text-base font-semibold text-sky-700"
-                          to={`/inspections/${inspection.inspectionId}`}
-                        >
-                          {inspection.name}
-                        </Link>
-                        <span className="text-sm text-slate-500">
-                          {getCaptureMethodLabel(inspection.captureMethod)} 촬영
-                        </span>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: 'scope',
-                    header: '연결 대상',
-                    render: (inspection) => (
-                      <div className="stack-sm text-sm text-slate-600">
-                        <span>{inspection.plantId ? '발전소 연결됨' : '발전소 정보 없음'}</span>
-                        <span>구역 연결됨</span>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: 'status',
-                    header: '상태',
-                    render: (inspection) => (
-                      <div className="stack-sm">
-                        <StatusBadge
-                          label={getInspectionStatusLabel(inspection.inspectionStatus)}
-                          tone={getInspectionStatusTone(inspection.inspectionStatus)}
-                        />
-                        <span className="text-sm text-slate-500">{getInspectionNextActionLabel(inspection.inspectionStatus)}</span>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: 'capturedAt',
-                    header: '촬영 시각',
-                    render: (inspection) => formatDateTime(inspection.capturedAt),
-                  },
-                  {
-                    key: 'createdAt',
-                    header: '등록 시각',
-                    render: (inspection) => formatDateTime(inspection.createdAt),
-                  },
-                  {
-                    key: 'actions',
-                    header: '이동',
-                    render: (inspection) => (
-                      <div className="secondary-action-group">
-                        <Link className="text-button" to={`/inspections/${inspection.inspectionId}`}>
-                          점검 상세
-                        </Link>
-                        <Link className="text-button" to={`/results?inspectionId=${inspection.inspectionId}`}>
-                          결과 보기
-                        </Link>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: 'manage',
-                    header: '관리',
-                    render: (inspection) => (
-                      <div className="management-actions management-actions-muted">
-                        <button
-                          className="text-button text-button-danger muted-action"
-                          type="button"
-                          onClick={() => setInspectionToDelete(inspection)}
-                        >
-                          삭제
-                        </button>
-                      </div>
-                    ),
-                  },
-                ]}
-                rows={rows}
-                rowKey={(inspection) => inspection.inspectionId}
-              />
+      {inspectionsQuery.data ? (
+        displayedRows.length > 0 ? (
+          <section className="workspace-grid inspection-workspace-grid">
+            <section className="panel workspace-sidebar stack-md">
+              <div className="section-header">
+                <div>
+                  <h2 className="panel-title">점검 목록</h2>
+                  <p className="panel-description">선택한 점검은 오른쪽 패널에서 바로 이어집니다.</p>
+                </div>
+              </div>
+              <div className="workspace-nav-list">
+                {displayedRows.map((inspection) => (
+                  <button
+                    key={inspection.inspectionId}
+                    className={`workspace-nav-item ${selectedInspection?.inspectionId === inspection.inspectionId ? 'workspace-nav-item-active' : ''}`}
+                    type="button"
+                    onClick={() => {
+                      const next = new URLSearchParams(searchParams)
+                      next.set('selectedId', String(inspection.inspectionId))
+                      setSearchParams(next)
+                    }}
+                  >
+                    <span className="workspace-nav-title">{inspection.name}</span>
+                    <span className="workspace-nav-meta">
+                      {getInspectionStatusLabel(inspection.inspectionStatus)} · {formatDateTime(inspection.createdAt)}
+                    </span>
+                  </button>
+                ))}
+              </div>
               <Pagination
                 page={(inspectionsQuery.data.data.page ?? 0) + 1}
                 totalPages={inspectionsQuery.data.data.totalPages}
                 totalElements={inspectionsQuery.data.data.totalElements}
-                onPageChange={(nextPage) =>
-                  updateSearchParams({ page: String(Math.max(nextPage, DEFAULT_PAGE)) })
-                }
+                onPageChange={(nextPage) => {
+                  const next = new URLSearchParams(searchParams)
+                  next.set('page', String(nextPage))
+                  setSearchParams(next)
+                }}
               />
-            </>
-          ) : (
-            <div className="state-card">
-              <EmptyState
-                title="아직 등록된 점검이 없습니다."
-                description="상단의 새 점검 시작 버튼으로 촬영과 분석 흐름을 시작해 주세요."
-              />
-            </div>
-          )
-        ) : null}
-      </section>
+            </section>
 
-      <InspectionCreateWizard
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-      />
+            <section className="panel stack-md">
+              {selectedInspection ? (
+                <>
+                  <div className="section-header">
+                    <div>
+                      <div className="flex flex-wrap gap-2">
+                        <StatusBadge label={getInspectionStatusLabel(selectedInspection.inspectionStatus)} tone={getInspectionStatusTone(selectedInspection.inspectionStatus)} />
+                      </div>
+                      <h2 className="mt-3 text-xl font-semibold text-slate-950">{selectedInspection.name}</h2>
+                      <p className="mt-1 text-sm text-slate-600">
+                        촬영 방식 {getCaptureMethodLabel(selectedInspection.captureMethod)} · 등록 {formatDateTime(selectedInspection.createdAt)}
+                      </p>
+                    </div>
+                    <div className="page-actions">
+                      <Link className="btn btn-primary" to={`/inspections/${selectedInspection.inspectionId}`}>
+                        작업 열기
+                      </Link>
+                    </div>
+                  </div>
+                  <div className="asset-summary-grid">
+                    <InfoItem label="다음 작업" value={getNextActionLabel(selectedInspection)} />
+                    <InfoItem label="발전소" value={selectedInspection.plantId ? `#${selectedInspection.plantId}` : '-'} />
+                    <InfoItem label="구역" value={`#${selectedInspection.zoneId}`} />
+                    <InfoItem label="촬영 시각" value={formatDateTime(selectedInspection.capturedAt)} />
+                  </div>
+                  <div className="management-panel">
+                    <div>
+                      <h3 className="panel-title">관리 작업</h3>
+                      <p className="panel-description">삭제는 관리 작업에서만 진행합니다.</p>
+                    </div>
+                    <div className="management-actions management-actions-muted">
+                      <button className="text-button text-button-danger muted-action" type="button" onClick={() => setInspectionToDelete(selectedInspection)}>
+                        점검 삭제
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <EmptyState title="선택한 점검이 없습니다." description="왼쪽 목록에서 점검을 선택하면 요약과 다음 작업이 표시됩니다." />
+              )}
+            </section>
+          </section>
+        ) : (
+          <EmptyState
+            title="조건에 맞는 점검이 없습니다."
+            description="필터를 바꾸거나 새 점검을 시작하세요."
+            action={<button className="btn btn-primary" type="button" onClick={() => setIsCreateModalOpen(true)}>새 점검 시작</button>}
+          />
+        )
+      ) : null}
+
+      <InspectionCreateWizard isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
       <ConfirmModal
         isOpen={Boolean(inspectionToDelete)}
-        title="점검 삭제"
-        description={
-          inspectionToDelete
-            ? `${inspectionToDelete.name} 점검을 삭제할까요? 연결된 이미지와 분석 데이터도 함께 삭제됩니다.`
-            : '선택한 점검을 삭제할까요?'
-        }
+        title="점검을 삭제할까요?"
+        description="삭제 전 연결된 이미지와 결과 영향을 확인하세요."
         confirmText="삭제"
-        cancelText="취소"
-        isConfirming={deleteInspectionMutation.isPending}
-        confirmDisabled={
-          inspectionDeleteImpactQuery.isLoading || !inspectionDeleteImpactQuery.data?.data
-        }
+        tone="danger"
+        onClose={() => setInspectionToDelete(null)}
         onConfirm={handleDeleteInspection}
-        onCancel={() => setInspectionToDelete(null)}
+        isConfirming={deleteInspectionMutation.isPending}
       >
-        <DeleteImpactSummary
-          impact={inspectionDeleteImpactQuery.data?.data}
-          isLoading={inspectionDeleteImpactQuery.isLoading}
-          errorMessage={
-            inspectionDeleteImpactQuery.isError
-              ? getApiErrorMessage(
-                  inspectionDeleteImpactQuery.error,
-                  '삭제 영향 범위를 불러오지 못했습니다.',
-                )
-              : null
-          }
-        />
+        {inspectionDeleteImpactQuery.data?.data ? <DeleteImpactSummary impact={inspectionDeleteImpactQuery.data.data} /> : null}
       </ConfirmModal>
     </section>
   )
-
-  function updateSearchParams(nextValues: Record<string, string>) {
-    const next = new URLSearchParams(searchParams)
-
-    Object.entries(nextValues).forEach(([key, value]) => {
-      if (value) {
-        next.set(key, value)
-      } else {
-        next.delete(key)
-      }
-    })
-
-    setSearchParams(next)
-  }
 }
 
-function SummaryCard({
-  label,
-  value,
-  description,
-  tone = 'default',
-}: {
-  label: string
-  value: string
-  description: string
-  tone?: 'default' | 'danger'
-}) {
-  return (
-    <article className={`summary-card ${tone === 'danger' ? 'summary-card-danger' : ''}`}>
-      <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</div>
-      <div className="mt-2 text-2xl font-semibold text-slate-950">{value}</div>
-      <p className="mt-2 text-sm text-slate-600">{description}</p>
-    </article>
-  )
-}
-
-function getInspectionNextActionLabel(status: InspectionStatus) {
-  switch (status) {
+function getNextActionLabel(inspection: InspectionSummary) {
+  switch (inspection.inspectionStatus) {
     case 'READY':
-      return '다음 작업: 이미지 업로드'
+      return '이미지 업로드'
     case 'UPLOADING':
-      return '다음 작업: 업로드 확인'
+      return '업로드 이어가기'
     case 'ANALYZING':
-      return '다음 작업: 분석 상태 확인'
+      return '분석 상태 확인'
     case 'COMPLETED':
-      return '다음 작업: 결과 검토'
+      return '결과 확인'
     case 'FAILED':
-      return '다음 작업: 재확인'
+      return '재확인 또는 재요청'
   }
+}
+
+function toInspectionView(value: string | null): InspectionView {
+  if (value === 'in-progress' || value === 'ready' || value === 'completed' || value === 'failed') {
+    return value
+  }
+
+  return 'all'
+}
+
+function InfoItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="asset-summary-item">
+      <span className="detail-label">{label}</span>
+      <span className="detail-value">{value}</span>
+    </div>
+  )
 }
