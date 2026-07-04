@@ -2,9 +2,9 @@
 
 const labels: Record<string, string> = {
   dashboard: '홈',
-  assets: '자산',
-  plants: '자산',
-  zones: '자산',
+  assets: '현장',
+  plants: '현장',
+  zones: '현장',
   inspections: '점검',
   results: '결과',
   tracking: '결과',

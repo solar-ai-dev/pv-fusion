@@ -324,8 +324,8 @@ export function AssetsPage({ forcedPlantId, forcedZoneId }: AssetsPageProps) {
           <button className="btn btn-primary" type="button" onClick={() => setIsInspectionWizardOpen(true)}>
             이 구역 점검 시작
           </button>
-          <Link className="text-button" to={`/results?zoneId=${selectedZone.zoneId}`}>
-            결과 보기
+          <Link className="text-button" to={`/zones/${selectedZone.zoneId}`}>
+            상세 보기
           </Link>
         </div>
       </div>
@@ -375,29 +375,35 @@ export function AssetsPage({ forcedPlantId, forcedZoneId }: AssetsPageProps) {
         <AssetSummaryItem label="설명" value={selectedPlant.description || '-'} />
       </div>
       {zones.length > 0 ? (
-        <div className="asset-card-list">
-          {zones.map((zone) => (
-            <article key={zone.zoneId} className={`asset-card ${zone.zoneId === selectedZoneId ? 'asset-card-active' : ''}`}>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {zone.priorityLevel ? <StatusBadge label={getPriorityLabel(zone.priorityLevel)} tone="warning" /> : null}
-                  {zone.anomalyCandidateCount > 0 ? <StatusBadge label={`이상 ${zone.anomalyCandidateCount}건`} tone="warning" /> : null}
+        <div className="stack-md">
+          <div className="compact-empty">
+            <div className="text-base font-semibold text-slate-900">구역을 선택해 점검을 시작하세요.</div>
+            <p className="mt-2 text-sm text-slate-600">선택한 구역은 오른쪽 패널에서 바로 이어집니다.</p>
+          </div>
+          <div className="asset-card-list">
+            {zones.map((zone) => (
+              <article key={zone.zoneId} className={`asset-card ${zone.zoneId === selectedZoneId ? 'asset-card-active' : ''}`}>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {zone.priorityLevel ? <StatusBadge label={getPriorityLabel(zone.priorityLevel)} tone="warning" /> : null}
+                    {zone.anomalyCandidateCount > 0 ? <StatusBadge label={`이상 ${zone.anomalyCandidateCount}건`} tone="warning" /> : null}
+                  </div>
+                  <h3 className="mt-3 text-lg font-semibold text-slate-950">{zone.name}</h3>
+                  <p className="mt-1 text-sm text-slate-600">
+                    최근 점검 {formatDateTime(zone.latestInspectionAt)} · 어레이 {zone.arrayCount} · 패널 {zone.panelCount}
+                  </p>
                 </div>
-                <h3 className="mt-3 text-lg font-semibold text-slate-950">{zone.name}</h3>
-                <p className="mt-1 text-sm text-slate-600">
-                  최근 점검 {formatDateTime(zone.latestInspectionAt)} · 어레이 {zone.arrayCount} · 패널 {zone.panelCount}
-                </p>
-              </div>
-              <div className="asset-card-actions">
-                <button className="btn btn-primary" type="button" onClick={() => applySelection(selectedPlant.plantId, zone.zoneId)}>
-                  이 구역 점검 시작
-                </button>
-                <button className="text-button" type="button" onClick={() => applySelection(selectedPlant.plantId, zone.zoneId)}>
-                  상세 보기
-                </button>
-              </div>
-            </article>
-          ))}
+                <div className="asset-card-actions">
+                  <button className="btn btn-primary" type="button" onClick={() => applySelection(selectedPlant.plantId, zone.zoneId)}>
+                    이 구역 점검 시작
+                  </button>
+                  <button className="text-button" type="button" onClick={() => applySelection(selectedPlant.plantId, zone.zoneId)}>
+                    상세 보기
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
         </div>
       ) : (
         <EmptyState
@@ -430,7 +436,7 @@ export function AssetsPage({ forcedPlantId, forcedZoneId }: AssetsPageProps) {
     </section>
   ) : (
     <EmptyState
-      title="자산을 선택하세요."
+      title="현장을 선택하세요."
       description="왼쪽에서 발전소를 선택하면 등록된 구역과 최근 상태를 확인할 수 있습니다."
     />
   )
@@ -438,8 +444,8 @@ export function AssetsPage({ forcedPlantId, forcedZoneId }: AssetsPageProps) {
   return (
     <section className="space-y-6">
       <PageHeader
-        title="자산"
-        description="발전소를 선택하고 구역을 확인한 뒤 바로 점검을 시작하세요."
+        title="현장"
+        description="발전소와 구역을 확인하고 점검을 시작합니다."
         actions={
           <div className="page-actions">
             {selectedZone ? (
@@ -454,10 +460,10 @@ export function AssetsPage({ forcedPlantId, forcedZoneId }: AssetsPageProps) {
         }
       />
 
-      {plantsQuery.isLoading && plants.length === 0 ? <LoadingState message="자산 목록을 불러오는 중입니다." /> : null}
+      {plantsQuery.isLoading && plants.length === 0 ? <LoadingState message="현장 목록을 불러오는 중입니다." /> : null}
       {plantsQuery.isError ? (
         <ErrorState
-          title="자산 목록을 불러오지 못했습니다."
+          title="현장 목록을 불러오지 못했습니다."
           description={getApiErrorMessage(plantsQuery.error)}
         />
       ) : null}
@@ -480,7 +486,7 @@ export function AssetsPage({ forcedPlantId, forcedZoneId }: AssetsPageProps) {
             <div className="section-header">
               <div>
                 <h2 className="panel-title">발전소</h2>
-                <p className="panel-description">발전소를 선택하면 등록된 구역을 확인할 수 있습니다.</p>
+                <p className="panel-description">발전소를 선택하면 등록된 구역을 볼 수 있습니다.</p>
               </div>
             </div>
             <div className="workspace-nav-list">

@@ -4,7 +4,7 @@ const menus = [
   { to: '/dashboard', label: '홈' },
   { to: '/inspections', label: '점검' },
   { to: '/results', label: '결과' },
-  { to: '/assets', label: '자산' },
+  { to: '/assets', label: '현장' },
   { to: '/admin', label: '관리자' },
 ]
 

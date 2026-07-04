@@ -228,7 +228,7 @@ export function ResultsWorkspacePage({ defaultTab = 'all' }: ResultsWorkspacePag
           <CompactEmptyState
             title="먼저 발전소 또는 구역을 선택하세요."
             description="범위를 정하면 검토 대기 결과와 변화 추적을 같은 화면에서 확인할 수 있습니다."
-            action={<Link className="btn btn-secondary" to="/assets">자산 선택</Link>}
+            action={<Link className="btn btn-secondary" to="/assets">현장 선택</Link>}
           />
         ) : null}
 

@@ -969,6 +969,11 @@ textarea {
     align-items: start;
   }
 
+  .home-workspace-grid {
+    grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.9fr);
+    align-items: start;
+  }
+
   .task-queue-item {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
@@ -987,6 +992,15 @@ textarea {
 .home-workspace-grid,
 .results-workspace-grid {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.home-summary-panel {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.home-summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 180px));
 }
 
 .assets-workspace-grid,
