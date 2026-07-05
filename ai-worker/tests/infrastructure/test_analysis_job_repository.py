@@ -45,11 +45,14 @@ class FakeConnection:
 
 
 def test_get_by_id_maps_row_to_analysis_job():
+    from datetime import datetime, timezone
+
+    started = datetime(2026, 7, 5, 10, 0, 0, tzinfo=timezone.utc)
+    updated = datetime(2026, 7, 5, 10, 5, 0, tzinfo=timezone.utc)
     cursor = FakeCursor(
         fetchone_result={
             "id": 1000,
             "image_id": 201,
-            "image_pair_id": None,
             "input_type": "RGB_SINGLE",
             "requested_model_type": "RGB_ONLY",
             "model_type": "RGB_ONLY",
@@ -58,6 +61,8 @@ def test_get_by_id_maps_row_to_analysis_job():
             "trace_id": "req-1",
             "failure_code": None,
             "failure_message": None,
+            "started_at": started,
+            "updated_at": updated,
         }
     )
     repository = PostgresAnalysisJobRepository(lambda: FakeConnection(cursor))
@@ -70,6 +75,62 @@ def test_get_by_id_maps_row_to_analysis_job():
     assert job.requestedModelType.value == "RGB_ONLY"
     assert job.modelType.value == "RGB_ONLY"
     assert job.jobStatus.value == "QUEUED"
+    assert job.startedAt == started
+    assert job.updatedAt == updated
+
+
+def test_get_by_id_maps_null_timestamps():
+    """started_at / updated_at 이 NULL인 경우 None 으로 매핑되어야 한다."""
+    cursor = FakeCursor(
+        fetchone_result={
+            "id": 2000,
+            "image_id": 301,
+            "input_type": "THERMAL_SINGLE",
+            "requested_model_type": "THERMAL_ONLY",
+            "model_type": None,
+            "job_status": "QUEUED",
+            "requested_by_user_id": 2,
+            "trace_id": "req-2",
+            "failure_code": None,
+            "failure_message": None,
+            "started_at": None,
+            "updated_at": None,
+        }
+    )
+    repository = PostgresAnalysisJobRepository(lambda: FakeConnection(cursor))
+
+    job = repository.get_by_id(2000)
+
+    assert job is not None
+    assert job.startedAt is None
+    assert job.updatedAt is None
+
+
+def test_get_by_id_query_includes_started_at_and_updated_at():
+    """get_by_id 쿼리가 started_at, updated_at 컬럼을 SELECT 해야 한다."""
+    cursor = FakeCursor(
+        fetchone_result={
+            "id": 1000,
+            "image_id": 201,
+            "input_type": "RGB_SINGLE",
+            "requested_model_type": "RGB_ONLY",
+            "model_type": None,
+            "job_status": "QUEUED",
+            "requested_by_user_id": 1,
+            "trace_id": "req-1",
+            "failure_code": None,
+            "failure_message": None,
+            "started_at": None,
+            "updated_at": None,
+        }
+    )
+    repository = PostgresAnalysisJobRepository(lambda: FakeConnection(cursor))
+
+    repository.get_by_id(1000)
+
+    query, _ = cursor.executed[0]
+    assert "started_at" in query
+    assert "updated_at" in query
 
 
 def test_get_by_id_returns_none_when_row_is_missing():

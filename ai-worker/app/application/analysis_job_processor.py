@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import logging
 import time
@@ -13,6 +14,7 @@ from app.application.ports import (
     ResultRepositoryPort,
     StoragePort,
 )
+from app.domain.analysis_job import AnalysisJob
 from app.domain.analysis_result import AnalysisResultDraft
 from app.domain.enums import ActionCandidate, InputType, JobStatus, ModelType, RequestedModelType, ResultStatus
 from app.domain.image_input import SingleImageInput
@@ -33,6 +35,12 @@ class ProcessingResult(BaseModel):
     message: str
     failureCode: str | None = None
     failureMessage: str | None = None
+    # True 이면 처리 성공/실패 여부와 관계없이 SQS 메시지를 삭제해야 함을 나타낸다.
+    # job이 DB에서 FAILED로 확정된 경우 또는 재처리가 불가능한 경우에 설정한다.
+    terminal: bool = False
+
+
+_DEFAULT_STALE_RUNNING_THRESHOLD_SECONDS = 900
 
 
 class AnalysisJobProcessor:
@@ -43,16 +51,46 @@ class AnalysisJobProcessor:
         storage: StoragePort,
         model_runner: ModelRunnerPort,
         result_repository: ResultRepositoryPort,
+        stale_running_threshold_seconds: int = _DEFAULT_STALE_RUNNING_THRESHOLD_SECONDS,
     ) -> None:
         self._job_repository = job_repository
         self._image_metadata = image_metadata
         self._storage = storage
         self._model_runner = model_runner
         self._result_repository = result_repository
+        self._stale_running_threshold_seconds = stale_running_threshold_seconds
 
     def process(self, message: WorkerMessage) -> ProcessingResult:
         started_at = time.perf_counter()
-        job = self._job_repository.get_by_id(message.jobId)
+        logger.info(
+            "job.process.start jobId=%s imageId=%s inputType=%s requestedModelType=%s traceId=%s",
+            message.jobId,
+            message.imageId,
+            message.inputType.value,
+            message.requestedModelType.value,
+            message.traceId,
+        )
+
+        try:
+            job = self._job_repository.get_by_id(message.jobId)
+        except Exception as exc:
+            logger.exception(
+                "worker.unexpected_exception phase=job_load jobId=%s traceId=%s "
+                "exceptionClass=%s exceptionMessage=%s",
+                message.jobId,
+                message.traceId,
+                type(exc).__name__,
+                str(exc),
+            )
+            return ProcessingResult(
+                status="failed",
+                jobId=message.jobId,
+                message="Failed to load job from database.",
+                failureCode="JOB_LOAD_ERROR",
+                failureMessage="Failed to load job from database.",
+                terminal=False,
+            )
+
         if job is None:
             logger.warning(
                 "Analysis job was not found. jobId=%s traceId=%s",
@@ -65,32 +103,72 @@ class AnalysisJobProcessor:
                 message="Analysis job was not found.",
                 failureCode="JOB_NOT_FOUND",
                 failureMessage="Analysis job was not found.",
+                terminal=True,
             )
 
         if job.jobStatus is JobStatus.SUCCEEDED:
-            logger.info("Skipping analysis job. jobId=%s traceId=%s jobStatus=%s", message.jobId, message.traceId, job.jobStatus.value)
-            return ProcessingResult(status="skipped", jobId=message.jobId, message="Job already succeeded.")
-        if job.jobStatus is JobStatus.RUNNING:
-            logger.info("Skipping analysis job. jobId=%s traceId=%s jobStatus=%s", message.jobId, message.traceId, job.jobStatus.value)
-            return ProcessingResult(status="skipped", jobId=message.jobId, message="Job is already running.")
-        if job.jobStatus is JobStatus.FAILED:
-            logger.info("Skipping analysis job. jobId=%s traceId=%s jobStatus=%s", message.jobId, message.traceId, job.jobStatus.value)
-            return ProcessingResult(status="skipped", jobId=message.jobId, message="Job is already failed.")
-
-        try:
-            self._job_repository.mark_running(message.jobId)
-        except JobStateTransitionError:
-            logger.warning(
-                "Analysis job state transition to RUNNING was not applied. jobId=%s traceId=%s",
+            logger.info(
+                "Skipping analysis job. jobId=%s traceId=%s jobStatus=%s",
                 message.jobId,
                 message.traceId,
+                job.jobStatus.value,
+            )
+            return ProcessingResult(status="skipped", jobId=message.jobId, message="Job already succeeded.")
+        if job.jobStatus is JobStatus.RUNNING:
+            return self._handle_running_job(message, job)
+        if job.jobStatus is JobStatus.FAILED:
+            logger.info(
+                "Skipping analysis job. jobId=%s traceId=%s jobStatus=%s",
+                message.jobId,
+                message.traceId,
+                job.jobStatus.value,
+            )
+            return ProcessingResult(status="skipped", jobId=message.jobId, message="Job is already failed.")
+
+        logger.info(
+            "job.mark_running.before jobId=%s traceId=%s",
+            message.jobId,
+            message.traceId,
+        )
+        try:
+            self._job_repository.mark_running(message.jobId)
+        except JobStateTransitionError as exc:
+            logger.warning(
+                "job.mark_running.failed jobId=%s traceId=%s "
+                "exceptionClass=%s exceptionMessage=%s",
+                message.jobId,
+                message.traceId,
+                type(exc).__name__,
+                str(exc),
             )
             return ProcessingResult(
                 status="skipped",
                 jobId=message.jobId,
                 message="Job state transition to RUNNING was not applied.",
             )
+        except Exception as exc:
+            logger.exception(
+                "job.mark_running.failed jobId=%s traceId=%s "
+                "exceptionClass=%s exceptionMessage=%s",
+                message.jobId,
+                message.traceId,
+                type(exc).__name__,
+                str(exc),
+            )
+            return ProcessingResult(
+                status="failed",
+                jobId=message.jobId,
+                message="Failed to mark job as running.",
+                failureCode="MARK_RUNNING_ERROR",
+                failureMessage="Failed to mark job as running.",
+                terminal=False,
+            )
 
+        logger.info(
+            "job.mark_running.after jobId=%s traceId=%s",
+            message.jobId,
+            message.traceId,
+        )
         logger.info(
             "Started analysis job. jobId=%s traceId=%s inputType=%s requestedModelType=%s",
             message.jobId,
@@ -98,15 +176,9 @@ class AnalysisJobProcessor:
             message.inputType.value,
             message.requestedModelType.value,
         )
+
         try:
             image_input = self._load_image_input(message)
-            logger.info(
-                "Loaded image metadata. jobId=%s traceId=%s imageId=%s imageType=%s",
-                message.jobId,
-                message.traceId,
-                image_input.imageId,
-                image_input.imageType,
-            )
             inference_result, overlay_input = self._run_inference(message, image_input)
             bbox_bucket_name, bbox_object_key = self._store_bbox_overlay(
                 message.jobId,
@@ -129,17 +201,28 @@ class AnalysisJobProcessor:
                 mask_bucket_name=mask_bucket_name,
                 mask_object_key=mask_object_key,
             )
+            logger.info(
+                "result.save.start jobId=%s traceId=%s anomalyCount=%s defectCount=%s",
+                message.jobId,
+                message.traceId,
+                inference_result.anomalyCount,
+                len(inference_result.defects),
+            )
             analysis_result_id = self._result_repository.save_completed_result(
                 result_draft,
                 inference_result.defects,
             )
             logger.info(
-                "Saved analysis result and finalized job. jobId=%s traceId=%s analysisResultId=%s anomalyCount=%s defectCount=%s",
+                "result.save.complete jobId=%s traceId=%s analysisResultId=%s",
                 message.jobId,
                 message.traceId,
                 analysis_result_id,
-                inference_result.anomalyCount,
-                len(inference_result.defects),
+            )
+            logger.info(
+                "job.mark_succeeded.after jobId=%s traceId=%s analysisResultId=%s",
+                message.jobId,
+                message.traceId,
+                analysis_result_id,
             )
             logger.info(
                 "Completed analysis job. jobId=%s traceId=%s modelType=%s anomalyCount=%s durationMs=%s",
@@ -162,7 +245,8 @@ class AnalysisJobProcessor:
             return self._fail_job(message.jobId, error.code, error.message)
         except Exception:
             logger.exception(
-                "Analysis job failed with unexpected error. jobId=%s traceId=%s inputType=%s durationMs=%s",
+                "worker.unexpected_exception phase=processing jobId=%s traceId=%s "
+                "inputType=%s durationMs=%s",
                 message.jobId,
                 message.traceId,
                 message.inputType.value,
@@ -170,11 +254,24 @@ class AnalysisJobProcessor:
             )
             return self._fail_job(message.jobId, "UNKNOWN_WORKER_ERROR", "Unexpected worker processing error.")
 
-    def _load_image_input(self, message: WorkerMessage):
+    def _load_image_input(self, message: WorkerMessage) -> SingleImageInput:
+        logger.info(
+            "image.metadata.load.before jobId=%s imageId=%s traceId=%s",
+            message.jobId,
+            message.imageId,
+            message.traceId,
+        )
         image_input = self._image_metadata.get_single_image(message.imageId)
         if image_input is None:
             raise ProcessingError("IMAGE_METADATA_NOT_FOUND", "Image metadata was not found.")
         self._validate_image_type(message.inputType, image_input.imageType)
+        logger.info(
+            "image.metadata.load.after jobId=%s imageId=%s imageType=%s traceId=%s",
+            message.jobId,
+            image_input.imageId,
+            image_input.imageType,
+            message.traceId,
+        )
         return image_input
 
     def _build_model_info(
@@ -201,28 +298,38 @@ class AnalysisJobProcessor:
         image_input: SingleImageInput,
     ) -> tuple[InferenceResult, dict[str, object]]:
         model_info = self._build_model_info(message.inputType, message.requestedModelType)
-        image_bytes = self._storage.read_object(image_input.bucketName, image_input.objectKey)
         logger.info(
-            "Downloaded source image. jobId=%s imageId=%s bucket=%s objectKey=%s",
+            "storage.read.before jobId=%s imageId=%s bucket=%s objectKey=%s traceId=%s",
             message.jobId,
             image_input.imageId,
             image_input.bucketName,
             image_input.objectKey,
+            message.traceId,
+        )
+        image_bytes = self._storage.read_object(image_input.bucketName, image_input.objectKey)
+        logger.info(
+            "storage.read.after jobId=%s imageId=%s bytesLength=%s traceId=%s",
+            message.jobId,
+            image_input.imageId,
+            len(image_bytes),
+            message.traceId,
         )
         logger.info(
-            "Starting inference. jobId=%s imageId=%s modelType=%s requestedModelType=%s",
+            "inference.start jobId=%s imageId=%s modelType=%s requestedModelType=%s traceId=%s",
             message.jobId,
             image_input.imageId,
             model_info.modelType.value,
             model_info.requestedModelType.value,
+            message.traceId,
         )
         inference_result = self._model_runner.run(image_input, model_info, image_bytes)
         logger.info(
-            "Inference completed. jobId=%s imageId=%s resultStatus=%s anomalyCount=%s",
+            "inference.complete jobId=%s imageId=%s resultStatus=%s anomalyCount=%s traceId=%s",
             message.jobId,
             image_input.imageId,
             inference_result.resultStatus.value,
             inference_result.anomalyCount,
+            message.traceId,
         )
         return inference_result, {
             "bucket_name": image_input.bucketName,
@@ -259,7 +366,7 @@ class AnalysisJobProcessor:
     def _to_result_draft(
         self,
         message: WorkerMessage,
-        inference_result,
+        inference_result: InferenceResult,
         bbox_bucket_name: str | None,
         bbox_object_key: str | None,
         mask_bucket_name: str | None,
@@ -310,17 +417,85 @@ class AnalysisJobProcessor:
         if input_type is InputType.THERMAL_SINGLE and image_type != "THERMAL":
             raise ProcessingError("IMAGE_TYPE_MISMATCH", "THERMAL inputType requires THERMAL image metadata.")
 
+    def _handle_running_job(self, message: WorkerMessage, job: AnalysisJob) -> ProcessingResult:
+        """
+        RUNNING 상태 Job 수신 시 처리 정책.
+
+        - 최근 RUNNING(stale 미만): 다른 worker가 처리 중일 수 있으므로 SQS 삭제 금지,
+          visibility timeout 후 재수신 허용.
+        - 오래된 RUNNING(stale 이상): worker가 도중에 중단된 것으로 판단,
+          FAILED 처리 후 SQS 삭제 가능.
+        - 타임스탬프 없음: 불확실 상태로 보수적으로 stale 처리.
+        """
+        reference_time: datetime | None = job.startedAt or job.updatedAt
+        stale_cutoff = datetime.now(timezone.utc) - timedelta(seconds=self._stale_running_threshold_seconds)
+
+        if reference_time is None:
+            logger.warning(
+                "RUNNING job has no startedAt/updatedAt — treating as stale. "
+                "jobId=%s traceId=%s staleThresholdSeconds=%s",
+                message.jobId,
+                message.traceId,
+                self._stale_running_threshold_seconds,
+            )
+            is_stale = True
+        else:
+            ref_aware = reference_time if reference_time.tzinfo is not None else reference_time.replace(tzinfo=timezone.utc)
+            is_stale = ref_aware < stale_cutoff
+
+        if is_stale:
+            logger.warning(
+                "Detected stale RUNNING job. jobId=%s traceId=%s "
+                "startedAt=%s staleThresholdSeconds=%s",
+                message.jobId,
+                message.traceId,
+                reference_time,
+                self._stale_running_threshold_seconds,
+            )
+            return self._fail_job(
+                message.jobId,
+                "STALE_RUNNING_JOB",
+                "Job exceeded the stale RUNNING threshold. A worker may have died mid-processing.",
+            )
+
+        logger.warning(
+            "RUNNING job detected — possible concurrent worker or recent restart. "
+            "SQS message will NOT be deleted. "
+            "jobId=%s traceId=%s startedAt=%s",
+            message.jobId,
+            message.traceId,
+            reference_time,
+        )
+        return ProcessingResult(
+            status="failed",
+            jobId=message.jobId,
+            message="Job is currently running by another worker.",
+            failureCode="JOB_ALREADY_RUNNING",
+            failureMessage="Job is currently running by another worker.",
+            terminal=False,
+        )
+
     def _fail_job(self, job_id: int, failure_code: str, failure_message: str) -> ProcessingResult:
+        terminal = False
         try:
             self._job_repository.mark_failed(job_id, failure_code, failure_message)
             logger.warning(
-                "Marked analysis job as FAILED. jobId=%s failureCode=%s",
+                "job.mark_failed.after jobId=%s failureCode=%s",
                 job_id,
                 failure_code,
             )
-        except JobStateTransitionError:
+            terminal = True
+        except JobStateTransitionError as exc:
             logger.warning(
-                "Failed to mark analysis job as FAILED because state transition was not applied. jobId=%s failureCode=%s",
+                "Failed to mark analysis job as FAILED because state transition was not applied. "
+                "jobId=%s failureCode=%s exceptionMessage=%s",
+                job_id,
+                failure_code,
+                str(exc),
+            )
+        except Exception:
+            logger.exception(
+                "worker.unexpected_exception phase=mark_failed jobId=%s failureCode=%s",
                 job_id,
                 failure_code,
             )
@@ -330,6 +505,7 @@ class AnalysisJobProcessor:
             message=failure_message,
             failureCode=failure_code,
             failureMessage=failure_message,
+            terminal=terminal,
         )
 
     def _build_bbox_object_key(self, job_id: int) -> str:

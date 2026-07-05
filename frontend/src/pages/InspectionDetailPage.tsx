@@ -67,6 +67,7 @@ import { StatusBadge } from '../shared/components/state/StatusBadge'
 import { useToast } from '../shared/hooks/useToast'
 import {
   formatDateTime,
+  getApiErrorCode,
   getApiErrorMessage,
   isActiveResource,
   isRunningAnalysisJob,
@@ -138,6 +139,7 @@ export function InspectionDetailPage() {
   const [selectedImage, setSelectedImage] = useState<ImageSummary | null>(null)
   const [imageToDelete, setImageToDelete] = useState<ImageSummary | null>(null)
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null)
+  const [pendingRetryImageId, setPendingRetryImageId] = useState<number | null>(null)
   const [uploadFormVersion, setUploadFormVersion] = useState(0)
   const [showAdvancedUploadOptions, setShowAdvancedUploadOptions] = useState(false)
   const [activeTab, setActiveTab] = useState<WorkflowTab>('progress')
@@ -164,7 +166,7 @@ export function InspectionDetailPage() {
   const deleteImageMutation = useDeleteImage(inspectionId ?? 0)
   const previewQuery = useImagePreview(previewImageId ?? 0, Boolean(previewImageId))
   const createAnalysisJobMutation = useCreateAnalysisJob()
-  const retryAnalysisJobMutation = useRetryAnalysisJob(selectedJobId ?? 0)
+  const retryAnalysisJobMutation = useRetryAnalysisJob()
   const inspectionDeleteImpactQuery = useInspectionDeleteImpact(inspectionId ?? 0, isDeleteInspectionModalOpen)
   const imageDeleteImpactQuery = useImageDeleteImpact(imageToDelete?.imageId ?? 0, Boolean(imageToDelete))
 
@@ -222,6 +224,7 @@ export function InspectionDetailPage() {
     [resultsQuery.data],
   )
   const selectedJob = selectedJobQuery.data?.data ?? null
+  const imageJobStateMap = useMemo(() => computeImageJobStateMap(jobRows), [jobRows])
   const runningImageJobIds = useMemo(
     () =>
       new Set(
@@ -252,7 +255,17 @@ export function InspectionDetailPage() {
     latestThermalImage && canRequestAnalysis(latestThermalImage, runningImageJobIds)
       ? latestThermalImage
       : null
-  const latestFailedJob = jobRows.find((job) => job.jobStatus === 'FAILED') ?? null
+  // imageId별 canRetry가 true인 가장 최신 FAILED job (상단 배너 + workflowStatus 용)
+  const retryableBannerJob = useMemo(
+    () =>
+      jobRows.find(
+        (job) =>
+          job.jobStatus === 'FAILED' &&
+          job.imageId != null &&
+          imageJobStateMap.get(job.imageId)?.canRetry === true,
+      ) ?? null,
+    [jobRows, imageJobStateMap],
+  )
   const latestResult = resultRows[0] ?? null
   const queuedJobs = useMemo(
     () => jobRows.filter((job) => job.jobStatus === 'QUEUED'),
@@ -275,14 +288,14 @@ export function InspectionDetailPage() {
         hasRequestableImage,
         queuedCount: queuedJobs.length,
         runningCount: runningJobs.length,
-        failedJob: latestFailedJob,
+        failedJob: retryableBannerJob,
         hasResults,
       }),
     [
       hasRequestableImage,
       hasResults,
       imageRows.length,
-      latestFailedJob,
+      retryableBannerJob,
       queuedJobs.length,
       runningJobs.length,
     ],
@@ -467,7 +480,12 @@ export function InspectionDetailPage() {
       )
       await analysisJobsQuery.refetch()
     } catch (error) {
-      toast.push(getApiErrorMessage(error, '분석 요청에 실패했습니다.'))
+      if (getApiErrorCode(error) === 'ANALYSIS_JOB_ALREADY_RUNNING') {
+        toast.push('이미 분석이 진행 중입니다.')
+        await analysisJobsQuery.refetch()
+      } else {
+        toast.push(getApiErrorMessage(error, '분석 요청에 실패했습니다.'))
+      }
     }
   }
 
@@ -479,18 +497,23 @@ export function InspectionDetailPage() {
     }
   }
 
-  const handleRetryJob = async () => {
-    if (!selectedJobId) {
-      return
-    }
-
+  const handleRetryJob = async (jobId: number, imageId: number) => {
+    setPendingRetryImageId(imageId)
+    setSelectedJobId(jobId)
     try {
-      const response = await retryAnalysisJobMutation.mutateAsync(undefined)
+      const response = await retryAnalysisJobMutation.mutateAsync({ jobId })
       setSelectedJobId(response.data.jobId)
-      toast.push(response.message || '분석을 다시 요청했습니다.')
+      toast.push(response.message || '분석 요청이 등록되었습니다.')
       await handleRefreshJobs()
     } catch (error) {
-      toast.push(getApiErrorMessage(error, '다시 요청에 실패했습니다.'))
+      if (getApiErrorCode(error) === 'ANALYSIS_JOB_ALREADY_RUNNING') {
+        toast.push('이미 분석이 진행 중입니다.')
+        await handleRefreshJobs()
+      } else {
+        toast.push(getApiErrorMessage(error, '다시 요청에 실패했습니다.'))
+      }
+    } finally {
+      setPendingRetryImageId(null)
     }
   }
 
@@ -890,11 +913,11 @@ export function InspectionDetailPage() {
               />
             ) : null}
 
-            {latestFailedJob ? (
+            {retryableBannerJob ? (
               <div className="rounded-3xl border border-rose-200 bg-rose-50 p-5 text-rose-900">
                 <div className="text-base font-semibold">실패한 분석이 있습니다.</div>
                 <p className="mt-2 text-sm">
-                  {selectedJobId === latestFailedJob.jobId && selectedJob?.failureMessage
+                  {selectedJobId === retryableBannerJob.jobId && selectedJob?.failureMessage
                     ? sanitizeFailureMessage(selectedJob.failureMessage)
                     : '잠시 후 다시 요청하거나 이미지를 다시 업로드해 주세요.'}
                 </p>
@@ -902,13 +925,16 @@ export function InspectionDetailPage() {
                   <button
                     className="btn btn-primary"
                     type="button"
-                    onClick={() => {
-                      setSelectedJobId(latestFailedJob.jobId)
-                      void handleRetryJob()
-                    }}
-                    disabled={retryAnalysisJobMutation.isPending}
+                    onClick={() =>
+                      retryableBannerJob.imageId != null &&
+                      void handleRetryJob(retryableBannerJob.jobId, retryableBannerJob.imageId)
+                    }
+                    disabled={
+                      pendingRetryImageId != null ||
+                      retryAnalysisJobMutation.isPending
+                    }
                   >
-                    다시 요청
+                    {pendingRetryImageId != null ? '요청 중...' : '다시 요청'}
                   </button>
                   <button className="btn btn-secondary" type="button" onClick={() => setActiveTab('images')}>
                     이미지 다시 업로드
@@ -940,55 +966,81 @@ export function InspectionDetailPage() {
 
             {jobRows.length > 0 ? (
               <div className="grid gap-4 xl:grid-cols-2">
-                {jobRows.map((job) => (
-                  <article key={job.jobId} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="toolbar gap-3">
-                      <div>
-                        <div className="text-base font-semibold text-slate-900">{getUserInputTypeLabel(job.inputType)}</div>
-                        <p className="mt-1 text-sm text-slate-500">요청 {formatDateTime(job.requestedAt)}</p>
+                {jobRows.map((job) => {
+                  const imageState = job.imageId != null ? imageJobStateMap.get(job.imageId) : null
+                  const isActiveImageJob = imageState?.hasActiveJob ?? false
+                  const isLatestFailedForImage =
+                    imageState?.latestFailedJob?.jobId === job.jobId
+                  const isRetryableCard =
+                    job.jobStatus === 'FAILED' &&
+                    isLatestFailedForImage &&
+                    (imageState?.canRetry ?? false)
+                  const isHistoricalFailed =
+                    job.jobStatus === 'FAILED' && !isLatestFailedForImage
+
+                  return (
+                    <article key={job.jobId} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="toolbar gap-3">
+                        <div>
+                          <div className="text-base font-semibold text-slate-900">{getUserInputTypeLabel(job.inputType)}</div>
+                          <p className="mt-1 text-sm text-slate-500">요청 {formatDateTime(job.requestedAt)}</p>
+                        </div>
+                        <StatusBadge label={getUserJobStatusLabel(job.jobStatus)} tone={getUserJobStatusTone(job.jobStatus)} />
                       </div>
-                      <StatusBadge label={getUserJobStatusLabel(job.jobStatus)} tone={getUserJobStatusTone(job.jobStatus)} />
-                    </div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <MiniInfo label="대상 이미지" value={getImageNameById(imageRows, job.imageId)} />
-                      <MiniInfo label="진행 상태" value={getUserJobStatusLabel(job.jobStatus)} />
-                      <MiniInfo label="시작 시각" value={formatDateTime(job.startedAt)} />
-                      <MiniInfo label="완료 시각" value={formatDateTime(job.completedAt)} />
-                    </div>
-                    {job.jobStatus === 'FAILED' ? (
-                      <p className="mt-4 text-sm text-rose-700">
-                        {sanitizeFailureMessage(
-                          selectedJobId === job.jobId && selectedJob?.failureMessage
-                            ? selectedJob.failureMessage
-                            : '분석에 실패했습니다. 다시 요청하거나 이미지를 다시 업로드해 주세요.',
-                        )}
-                      </p>
-                    ) : null}
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      <button className="btn btn-secondary" type="button" onClick={() => setSelectedJobId(job.jobId)}>
-                        작업 보기
-                      </button>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <MiniInfo label="대상 이미지" value={getImageNameById(imageRows, job.imageId)} />
+                        <MiniInfo label="진행 상태" value={getUserJobStatusLabel(job.jobStatus)} />
+                        <MiniInfo label="시작 시각" value={formatDateTime(job.startedAt)} />
+                        <MiniInfo label="완료 시각" value={formatDateTime(job.completedAt)} />
+                      </div>
                       {job.jobStatus === 'FAILED' ? (
-                        <button
-                          className="btn btn-primary"
-                          type="button"
-                          disabled={retryAnalysisJobMutation.isPending}
-                          onClick={() => {
-                            setSelectedJobId(job.jobId)
-                            void handleRetryJob()
-                          }}
-                        >
-                          다시 요청
+                        <p className="mt-4 text-sm text-rose-700">
+                          {sanitizeFailureMessage(
+                            selectedJobId === job.jobId && selectedJob?.failureMessage
+                              ? selectedJob.failureMessage
+                              : '분석에 실패했습니다. 다시 요청하거나 이미지를 다시 업로드해 주세요.',
+                          )}
+                        </p>
+                      ) : null}
+                      <div className="mt-4 flex flex-wrap items-center gap-3">
+                        <button className="btn btn-secondary" type="button" onClick={() => setSelectedJobId(job.jobId)}>
+                          작업 보기
                         </button>
-                      ) : null}
-                      {job.jobStatus === 'SUCCEEDED' ? (
-                        <Link className="btn btn-secondary" to={`/results?inspectionId=${inspectionId}`}>
-                          분석 결과 보기
-                        </Link>
-                      ) : null}
-                    </div>
-                  </article>
-                ))}
+
+                        {isRetryableCard ? (
+                          <button
+                            className="btn btn-primary"
+                            type="button"
+                            disabled={
+                              pendingRetryImageId === job.imageId ||
+                              retryAnalysisJobMutation.isPending
+                            }
+                            onClick={() =>
+                              job.imageId != null &&
+                              void handleRetryJob(job.jobId, job.imageId)
+                            }
+                          >
+                            {pendingRetryImageId === job.imageId ? '요청 중...' : '다시 요청'}
+                          </button>
+                        ) : null}
+
+                        {isHistoricalFailed ? (
+                          <span className="text-xs text-slate-400">과거 실패 이력</span>
+                        ) : null}
+
+                        {job.jobStatus === 'FAILED' && isActiveImageJob ? (
+                          <span className="text-xs text-slate-500">분석 진행 중 — 완료 후 확인하세요</span>
+                        ) : null}
+
+                        {job.jobStatus === 'SUCCEEDED' ? (
+                          <Link className="btn btn-secondary" to={`/results?inspectionId=${inspectionId}`}>
+                            분석 결과 보기
+                          </Link>
+                        ) : null}
+                      </div>
+                    </article>
+                  )
+                })}
               </div>
             ) : null}
           </div>
@@ -1366,6 +1418,47 @@ function PreviewModal({ isOpen, imageName, previewUrl, expiresAt, isLoading, err
       </section>
     </div>
   )
+}
+
+type ImageJobState = {
+  hasActiveJob: boolean
+  latestJob: AnalysisJobSummary | null
+  latestSucceededJob: AnalysisJobSummary | null
+  latestFailedJob: AnalysisJobSummary | null
+  canRetry: boolean
+}
+
+function computeImageJobStateMap(jobs: AnalysisJobSummary[]): Map<number, ImageJobState> {
+  const grouped = new Map<number, AnalysisJobSummary[]>()
+  for (const job of jobs) {
+    if (job.imageId == null) continue
+    const list = grouped.get(job.imageId) ?? []
+    list.push(job)
+    grouped.set(job.imageId, list)
+  }
+
+  const map = new Map<number, ImageJobState>()
+  for (const [imageId, imageJobs] of grouped) {
+    // imageJobs는 API 반환 순서(최신 우선) 그대로 사용
+    const hasActiveJob = imageJobs.some(
+      (j) => j.jobStatus === 'QUEUED' || j.jobStatus === 'RUNNING',
+    )
+    const latestJob = imageJobs[0] ?? null
+    const latestSucceededJob = imageJobs.find((j) => j.jobStatus === 'SUCCEEDED') ?? null
+    const latestFailedJob = imageJobs.find((j) => j.jobStatus === 'FAILED') ?? null
+
+    // SUCCEEDED가 FAILED보다 최신(높은 jobId)이면 재시도 불필요
+    const hasNewerSucceedThanFailed =
+      latestSucceededJob != null && latestFailedJob != null
+        ? latestSucceededJob.jobId > latestFailedJob.jobId
+        : false
+
+    const canRetry = !hasActiveJob && latestFailedJob != null && !hasNewerSucceedThanFailed
+
+    map.set(imageId, { hasActiveJob, latestJob, latestSucceededJob, latestFailedJob, canRetry })
+  }
+
+  return map
 }
 
 function getLatestImageByType(images: ImageSummary[], imageType: ImageType) {

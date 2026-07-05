@@ -101,6 +101,15 @@ export function getApiErrorStatus(error: unknown) {
   return null
 }
 
+export function getApiErrorCode(error: unknown): string | null {
+  if (axios.isAxiosError(error)) {
+    const code = error.response?.data?.error?.code
+    return typeof code === 'string' ? code : null
+  }
+
+  return null
+}
+
 export function parsePositiveNumber(value?: string) {
   if (!value) {
     return null

@@ -24,7 +24,9 @@ class PostgresAnalysisJobRepository(JobRepositoryPort):
                 requested_by_user_id,
                 trace_id,
                 failure_code,
-                failure_message
+                failure_message,
+                started_at,
+                updated_at
             FROM analysis_jobs
             WHERE id = %s
         """
@@ -45,6 +47,8 @@ class PostgresAnalysisJobRepository(JobRepositoryPort):
             traceId=row["trace_id"],
             failureCode=row["failure_code"],
             failureMessage=row["failure_message"],
+            startedAt=row["started_at"],
+            updatedAt=row["updated_at"],
         )
 
     def mark_running(self, job_id: int) -> None:
