@@ -100,6 +100,13 @@ class AnalysisJobProcessor:
         )
         try:
             image_input = self._load_image_input(message)
+            logger.info(
+                "Loaded image metadata. jobId=%s traceId=%s imageId=%s imageType=%s",
+                message.jobId,
+                message.traceId,
+                image_input.imageId,
+                image_input.imageType,
+            )
             inference_result, overlay_input = self._run_inference(message, image_input)
             bbox_bucket_name, bbox_object_key = self._store_bbox_overlay(
                 message.jobId,
@@ -122,9 +129,18 @@ class AnalysisJobProcessor:
                 mask_bucket_name=mask_bucket_name,
                 mask_object_key=mask_object_key,
             )
-            analysis_result_id = self._result_repository.save_result(result_draft)
-            self._result_repository.save_defects(analysis_result_id, inference_result.defects)
-            self._job_repository.mark_succeeded(message.jobId)
+            analysis_result_id = self._result_repository.save_completed_result(
+                result_draft,
+                inference_result.defects,
+            )
+            logger.info(
+                "Saved analysis result and finalized job. jobId=%s traceId=%s analysisResultId=%s anomalyCount=%s defectCount=%s",
+                message.jobId,
+                message.traceId,
+                analysis_result_id,
+                inference_result.anomalyCount,
+                len(inference_result.defects),
+            )
             logger.info(
                 "Completed analysis job. jobId=%s traceId=%s modelType=%s anomalyCount=%s durationMs=%s",
                 message.jobId,
@@ -186,7 +202,28 @@ class AnalysisJobProcessor:
     ) -> tuple[InferenceResult, dict[str, object]]:
         model_info = self._build_model_info(message.inputType, message.requestedModelType)
         image_bytes = self._storage.read_object(image_input.bucketName, image_input.objectKey)
+        logger.info(
+            "Downloaded source image. jobId=%s imageId=%s bucket=%s objectKey=%s",
+            message.jobId,
+            image_input.imageId,
+            image_input.bucketName,
+            image_input.objectKey,
+        )
+        logger.info(
+            "Starting inference. jobId=%s imageId=%s modelType=%s requestedModelType=%s",
+            message.jobId,
+            image_input.imageId,
+            model_info.modelType.value,
+            model_info.requestedModelType.value,
+        )
         inference_result = self._model_runner.run(image_input, model_info, image_bytes)
+        logger.info(
+            "Inference completed. jobId=%s imageId=%s resultStatus=%s anomalyCount=%s",
+            message.jobId,
+            image_input.imageId,
+            inference_result.resultStatus.value,
+            inference_result.anomalyCount,
+        )
         return inference_result, {
             "bucket_name": image_input.bucketName,
             "image_bytes": image_bytes,
@@ -276,8 +313,17 @@ class AnalysisJobProcessor:
     def _fail_job(self, job_id: int, failure_code: str, failure_message: str) -> ProcessingResult:
         try:
             self._job_repository.mark_failed(job_id, failure_code, failure_message)
+            logger.warning(
+                "Marked analysis job as FAILED. jobId=%s failureCode=%s",
+                job_id,
+                failure_code,
+            )
         except JobStateTransitionError:
-            pass
+            logger.warning(
+                "Failed to mark analysis job as FAILED because state transition was not applied. jobId=%s failureCode=%s",
+                job_id,
+                failure_code,
+            )
         return ProcessingResult(
             status="failed",
             jobId=job_id,

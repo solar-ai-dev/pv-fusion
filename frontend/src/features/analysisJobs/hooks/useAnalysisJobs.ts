@@ -58,8 +58,11 @@ export function useRetryAnalysisJob(jobId: number) {
   return useMutation({
     mutationFn: (payload?: RetryAnalysisJobRequest) =>
       analysisJobApi.retryAnalysisJob(jobId, payload),
-    onSuccess: () => {
+    onSuccess: (response) => {
       void queryClient.invalidateQueries({ queryKey: analysisJobQueryKeys.lists() })
+      void queryClient.invalidateQueries({
+        queryKey: analysisJobQueryKeys.detail(response.data.jobId),
+      })
       void queryClient.invalidateQueries({
         queryKey: analysisJobQueryKeys.detail(jobId),
       })

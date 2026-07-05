@@ -72,13 +72,13 @@ public class AnalysisJobPersistenceAdapter implements LoadAnalysisJobPort, SaveA
 
     @Override
     public AnalysisJob saveAnalysisJob(AnalysisJob analysisJob) {
-        AnalysisJobJpaEntity saved = analysisJobJpaRepository.save(AnalysisJobPersistenceMapper.toEntity(analysisJob));
+        AnalysisJobJpaEntity saved = analysisJobJpaRepository.saveAndFlush(AnalysisJobPersistenceMapper.toEntity(analysisJob));
         return AnalysisJobPersistenceMapper.toDomain(saved);
     }
 
     @Override
     public AnalysisJob updateAnalysisJob(AnalysisJob analysisJob) {
-        AnalysisJobJpaEntity saved = analysisJobJpaRepository.save(AnalysisJobPersistenceMapper.toEntity(analysisJob));
+        AnalysisJobJpaEntity saved = analysisJobJpaRepository.saveAndFlush(AnalysisJobPersistenceMapper.toEntity(analysisJob));
         return AnalysisJobPersistenceMapper.toDomain(saved);
     }
 }

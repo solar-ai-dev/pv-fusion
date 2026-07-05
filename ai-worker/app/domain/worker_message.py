@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
@@ -22,6 +22,13 @@ class WorkerMessage(BaseModel):
     def validate_positive_int(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("must be a positive integer")
+        return value
+
+    @field_validator("createdAt", mode="before")
+    @classmethod
+    def normalize_created_at(cls, value: object) -> object:
+        if value is None:
+            return datetime.now(timezone.utc)
         return value
 
     @field_validator("traceId")

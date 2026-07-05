@@ -53,6 +53,12 @@ def test_blank_trace_id_fails():
         WorkerMessage(**build_message(traceId="   "))
 
 
+def test_null_created_at_is_normalized():
+    message = WorkerMessage(**build_message(createdAt=None))
+
+    assert message.createdAt is not None
+
+
 def test_rgb_and_thermal_model_type_mismatch_fails():
     with pytest.raises(ValidationError):
         WorkerMessage(**build_message(requestedModelType="THERMAL_ONLY"))

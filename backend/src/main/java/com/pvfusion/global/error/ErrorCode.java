@@ -24,6 +24,7 @@ public enum ErrorCode {
     DUPLICATE_IMAGE_UPLOAD(HttpStatus.CONFLICT, "DUPLICATE_IMAGE_UPLOAD", "같은 작업에 동일한 파일명이 이미 업로드되어 있습니다."),
     PAIR_ALREADY_EXISTS(HttpStatus.CONFLICT, "PAIR_ALREADY_EXISTS", "이미 Pair가 존재합니다."),
     ANALYSIS_JOB_ALREADY_RUNNING(HttpStatus.CONFLICT, "ANALYSIS_JOB_ALREADY_RUNNING", "동일 대상 분석 작업이 이미 진행 중입니다."),
+    ANALYSIS_JOB_RETRY_NOT_ALLOWED(HttpStatus.CONFLICT, "ANALYSIS_JOB_RETRY_NOT_ALLOWED", "현재 상태의 분석 작업은 다시 요청할 수 없습니다."),
 
     FILE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "FILE_UPLOAD_FAILED", "파일 업로드 처리에 실패했습니다."),
     FILE_STORAGE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "FILE_STORAGE_FAILED", "파일 저장에 실패했습니다."),

@@ -127,6 +127,7 @@ class FakeResultRepository:
         self.save_defects_error = save_defects_error
         self.saved_results = []
         self.saved_defects = []
+        self.saved_completed_results: list[tuple[object, list[DetectedDefectDraft]]] = []
 
     def save_result(self, result):
         if self.save_result_error:
@@ -138,6 +139,16 @@ class FakeResultRepository:
         if self.save_defects_error:
             raise self.save_defects_error
         self.saved_defects.append((analysis_result_id, defects))
+
+    def save_completed_result(self, result, defects: list[DetectedDefectDraft]) -> int:
+        if self.save_result_error:
+            raise self.save_result_error
+        if self.save_defects_error:
+            raise self.save_defects_error
+        self.saved_results.append(result)
+        self.saved_defects.append((999, defects))
+        self.saved_completed_results.append((result, defects))
+        return 999
 
 
 def build_single_image(image_type: str = "RGB", image_id: int = 201, object_key: str | None = None) -> SingleImageInput:
@@ -252,12 +263,13 @@ def test_processes_queued_rgb_single_job():
 
     assert result.status == "processed"
     assert job_repository.running_ids == [1000]
-    assert job_repository.succeeded_ids == [1000]
+    assert job_repository.succeeded_ids == []
     assert storage.calls == [("images", "originals/201.jpg")]
     assert storage.write_calls[0][1] == "analysis-results/1000/bbox_overlay.png"
     assert storage.write_calls[1][1] == "analysis-results/1000/mask_overlay.png"
     assert result_repository.saved_results[0].bboxObjectKey == "analysis-results/1000/bbox_overlay.png"
     assert result_repository.saved_results[0].maskObjectKey == "analysis-results/1000/mask_overlay.png"
+    assert result_repository.saved_completed_results[0][0].analysisJobId == 1000
 
 
 def test_processes_queued_thermal_single_job():

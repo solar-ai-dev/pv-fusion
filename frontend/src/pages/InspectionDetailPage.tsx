@@ -486,6 +486,7 @@ export function InspectionDetailPage() {
 
     try {
       const response = await retryAnalysisJobMutation.mutateAsync(undefined)
+      setSelectedJobId(response.data.jobId)
       toast.push(response.message || '분석을 다시 요청했습니다.')
       await handleRefreshJobs()
     } catch (error) {

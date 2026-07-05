@@ -50,6 +50,11 @@ class SqsWorkerRunner:
                 "Received invalid analysis job message. messageId=%s",
                 queue_message.messageId,
             )
+            self._queue_port.delete_message(queue_message.receiptHandle)
+            logger.info(
+                "Deleted invalid analysis job message. messageId=%s",
+                queue_message.messageId,
+            )
             return ProcessingResult(
                 status="failed",
                 jobId=0,

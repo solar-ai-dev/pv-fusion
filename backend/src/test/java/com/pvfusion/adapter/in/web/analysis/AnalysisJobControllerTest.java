@@ -191,6 +191,15 @@ class AnalysisJobControllerTest {
                 .andExpect(jsonPath("$.data.traceId").value("trace"));
     }
 
+    @Test
+    void retryAnalysisJobReturnsOkWithoutRequestBody() throws Exception {
+        when(retryAnalysisJobUseCase.execute(any())).thenReturn(sampleResponse());
+
+        mockMvc.perform(post("/api/v1/analysis-jobs/1/retry"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.jobId").value(1L));
+    }
+
     private AnalysisJobResponse sampleResponse() {
         return new AnalysisJobResponse(
                 1L,

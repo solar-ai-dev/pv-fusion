@@ -97,7 +97,7 @@ def test_failed_result_does_not_delete_message():
     assert queue.deleted_receipts == []
 
 
-def test_invalid_json_body_is_not_deleted():
+def test_invalid_json_body_is_deleted():
     queue = FakeQueuePort([build_queue_message("{invalid-json}")])
     processor = FakeProcessor(ProcessingResult(status="processed", jobId=1000, message="ok"))
     runner = SqsWorkerRunner(queue, processor)
@@ -105,11 +105,11 @@ def test_invalid_json_body_is_not_deleted():
     result = runner.handle_message(queue.messages[0])
 
     assert result.failureCode == "INVALID_WORKER_MESSAGE"
-    assert queue.deleted_receipts == []
+    assert queue.deleted_receipts == ["receipt-1"]
     assert processor.messages == []
 
 
-def test_invalid_worker_message_is_not_deleted():
+def test_invalid_worker_message_is_deleted():
     queue = FakeQueuePort([build_queue_message(build_valid_body(traceId="  "))])
     processor = FakeProcessor(ProcessingResult(status="processed", jobId=1000, message="ok"))
     runner = SqsWorkerRunner(queue, processor)
@@ -117,8 +117,20 @@ def test_invalid_worker_message_is_not_deleted():
     result = runner.handle_message(queue.messages[0])
 
     assert result.failureCode == "INVALID_WORKER_MESSAGE"
-    assert queue.deleted_receipts == []
+    assert queue.deleted_receipts == ["receipt-1"]
     assert processor.messages == []
+
+
+def test_created_at_null_message_is_processed():
+    queue = FakeQueuePort([build_queue_message(build_valid_body(createdAt=None))])
+    processor = FakeProcessor(ProcessingResult(status="processed", jobId=1000, message="ok"))
+    runner = SqsWorkerRunner(queue, processor)
+
+    result = runner.handle_message(queue.messages[0])
+
+    assert result.status == "processed"
+    assert processor.messages[0].createdAt is not None
+    assert queue.deleted_receipts == ["receipt-1"]
 
 
 def test_backend_legacy_image_pair_id_null_field_is_ignored():
@@ -152,7 +164,7 @@ def test_pair_message_is_rejected():
 
     assert result.failureCode == "INVALID_WORKER_MESSAGE"
     assert processor.messages == []
-    assert queue.deleted_receipts == []
+    assert queue.deleted_receipts == ["receipt-1"]
 
 
 def test_run_forever_stops_after_stop_is_requested():

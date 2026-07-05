@@ -186,32 +186,40 @@ public class AnalysisJobService implements
         AnalysisJob existing = loadAnalysisJob(command.jobId());
         validateJobAccess(currentUserId, existing);
         if (existing.getJobStatus() != AnalysisJobStatus.FAILED) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "Only failed jobs can be retried.");
+            throw new BusinessException(ErrorCode.ANALYSIS_JOB_RETRY_NOT_ALLOWED, "Only failed jobs can be retried.");
         }
 
-        AnalysisJob retried = updateAnalysisJobPort.updateAnalysisJob(new AnalysisJob(
-                existing.getId(),
-                existing.getImageId(),
-                existing.getInputType(),
-                existing.getRequestedModelType(),
-                existing.getModelType(),
+        AnalysisTarget target = validateTarget(currentUserId, existing.getImageId());
+        validateDuplicateJobs(target);
+
+        RequestedModelType requestedModelType = resolveRequestedModelType(target.imageType());
+        AnalysisInputType inputType = resolveInputType(target.imageType());
+        AnalysisModelType modelType = resolveModelType(target.imageType());
+
+        AnalysisJob retried = saveAnalysisJobPort.saveAnalysisJob(new AnalysisJob(
+                null,
+                target.imageId(),
+                inputType,
+                requestedModelType,
+                modelType,
                 AnalysisJobStatus.QUEUED,
-                existing.getRequestedByUserId(),
-                existing.getRequestedAt(),
+                currentUserId,
+                OffsetDateTime.now(),
                 null,
                 null,
                 existing.getRetryCount() + 1,
                 resolveTraceId(command.traceId()),
                 null,
                 null,
-                existing.getCreatedAt(),
-                existing.getUpdatedAt()
+                null,
+                null
         ));
 
         try {
             publishAnalysisJobPort.publish(toMessage(retried));
             log.info(
-                    "Analysis job retried and published. jobId={}, traceId={}, inputType={}, imageId={}, retryCount={}",
+                    "Analysis job retried and published. originalJobId={}, retriedJobId={}, traceId={}, inputType={}, imageId={}, retryCount={}",
+                    existing.getId(),
                     retried.getId(),
                     retried.getTraceId(),
                     retried.getInputType(),
@@ -221,7 +229,8 @@ public class AnalysisJobService implements
             return toResponse(retried);
         } catch (BusinessException exception) {
             log.warn(
-                    "Analysis job retry publish failed. jobId={}, traceId={}, inputType={}, imageId={}, retryCount={}, errorCode={}",
+                    "Analysis job retry publish failed. originalJobId={}, retriedJobId={}, traceId={}, inputType={}, imageId={}, retryCount={}, errorCode={}",
+                    existing.getId(),
                     retried.getId(),
                     retried.getTraceId(),
                     retried.getInputType(),
@@ -305,8 +314,21 @@ public class AnalysisJobService implements
                 analysisJob.getRequestedModelType(),
                 analysisJob.getRequestedByUserId(),
                 analysisJob.getTraceId(),
-                analysisJob.getCreatedAt()
+                resolveMessageCreatedAt(analysisJob)
         );
+    }
+
+    private OffsetDateTime resolveMessageCreatedAt(AnalysisJob analysisJob) {
+        if (analysisJob.getCreatedAt() != null) {
+            return analysisJob.getCreatedAt();
+        }
+
+        log.warn(
+                "Analysis job createdAt was null when building queue message. jobId={}, traceId={}",
+                analysisJob.getId(),
+                analysisJob.getTraceId()
+        );
+        return OffsetDateTime.now();
     }
 
     private AnalysisJobResponse toResponse(AnalysisJob analysisJob) {
@@ -357,20 +379,31 @@ public class AnalysisJobService implements
     }
 
     private Context resolveContext(AnalysisJob analysisJob) {
-        InspectionImage image = loadImagePort.loadImage(analysisJob.getImageId()).orElse(null);
-        Long inspectionId = image != null ? image.getInspectionId() : null;
-        if (inspectionId == null) {
+        try {
+            InspectionImage image = loadImagePort.loadImage(analysisJob.getImageId()).orElse(null);
+            Long inspectionId = image != null ? image.getInspectionId() : null;
+            if (inspectionId == null) {
+                return new Context(null, null, null);
+            }
+            Inspection inspection = loadInspectionPort.loadInspection(inspectionId).orElse(null);
+            if (inspection == null) {
+                return new Context(inspectionId, null, null);
+            }
+            if (loadZonePort.isEmpty()) {
+                return new Context(inspectionId, inspection.getZoneId(), null);
+            }
+            Zone zone = loadZonePort.get().loadZone(inspection.getZoneId()).orElse(null);
+            return new Context(inspectionId, inspection.getZoneId(), zone != null ? zone.getPlantId() : null);
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Failed to resolve analysis job response context. jobId={}, imageId={}, traceId={}",
+                    analysisJob.getId(),
+                    analysisJob.getImageId(),
+                    analysisJob.getTraceId(),
+                    exception
+            );
             return new Context(null, null, null);
         }
-        Inspection inspection = loadInspectionPort.loadInspection(inspectionId).orElse(null);
-        if (inspection == null) {
-            return new Context(inspectionId, null, null);
-        }
-        if (loadZonePort.isEmpty()) {
-            return new Context(inspectionId, inspection.getZoneId(), null);
-        }
-        Zone zone = loadZonePort.get().loadZone(inspection.getZoneId()).orElse(null);
-        return new Context(inspectionId, inspection.getZoneId(), zone != null ? zone.getPlantId() : null);
     }
 
     private AnalysisJob loadAnalysisJob(Long jobId) {
