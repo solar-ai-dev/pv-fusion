@@ -216,7 +216,7 @@ export function InspectionDetailPage() {
 
   const imageRows = useMemo(() => imagesQuery.data?.data ?? [], [imagesQuery.data])
   const jobRows = useMemo(
-    () => analysisJobsQuery.data?.data.content ?? [],
+    () => sortJobsDescending(analysisJobsQuery.data?.data.content ?? []),
     [analysisJobsQuery.data],
   )
   const resultRows = useMemo(
@@ -655,11 +655,11 @@ export function InspectionDetailPage() {
               />
             </div>
 
-            {latestFailedJob ? (
+            {retryableBannerJob ? (
               <div className="rounded-3xl border border-rose-200 bg-rose-50 p-5 text-rose-900">
                 <div className="text-base font-semibold">실패한 분석이 있습니다.</div>
                 <p className="mt-2 text-sm">
-                  {selectedJobId === latestFailedJob.jobId && selectedJob?.failureMessage
+                  {selectedJobId === retryableBannerJob.jobId && selectedJob?.failureMessage
                     ? sanitizeFailureMessage(selectedJob.failureMessage)
                     : '분석 탭에서 다시 요청하거나 이미지를 다시 업로드할 수 있습니다.'}
                 </p>
@@ -1418,6 +1418,15 @@ function PreviewModal({ isOpen, imageName, previewUrl, expiresAt, isLoading, err
       </section>
     </div>
   )
+}
+
+function sortJobsDescending(jobs: AnalysisJobSummary[]): AnalysisJobSummary[] {
+  return [...jobs].sort((a, b) => {
+    const timeA = a.requestedAt ?? ''
+    const timeB = b.requestedAt ?? ''
+    if (timeB !== timeA) return timeB.localeCompare(timeA)
+    return b.jobId - a.jobId
+  })
 }
 
 type ImageJobState = {
