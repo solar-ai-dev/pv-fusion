@@ -71,6 +71,7 @@ class AnalysisJobProcessor:
             message.traceId,
         )
 
+        logger.info("job.load.before jobId=%s traceId=%s", message.jobId, message.traceId)
         try:
             job = self._job_repository.get_by_id(message.jobId)
         except Exception as exc:
@@ -90,6 +91,14 @@ class AnalysisJobProcessor:
                 failureMessage="Failed to load job from database.",
                 terminal=False,
             )
+        logger.info(
+            "job.load.after jobId=%s currentStatus=%s startedAt=%s updatedAt=%s traceId=%s",
+            message.jobId,
+            job.jobStatus.value if job else "NOT_FOUND",
+            job.startedAt if job else None,
+            job.updatedAt if job else None,
+            message.traceId,
+        )
 
         if job is None:
             logger.warning(
@@ -202,27 +211,35 @@ class AnalysisJobProcessor:
                 mask_object_key=mask_object_key,
             )
             logger.info(
-                "result.save.start jobId=%s traceId=%s anomalyCount=%s defectCount=%s",
+                "result.save.start jobId=%s imageId=%s anomalyCount=%s defectCount=%s traceId=%s",
                 message.jobId,
-                message.traceId,
+                message.imageId,
                 inference_result.anomalyCount,
                 len(inference_result.defects),
+                message.traceId,
             )
+            result_save_started = time.perf_counter()
             analysis_result_id = self._result_repository.save_completed_result(
                 result_draft,
                 inference_result.defects,
             )
+            result_save_elapsed_ms = self._duration_ms(result_save_started)
             logger.info(
-                "result.save.complete jobId=%s traceId=%s analysisResultId=%s",
+                "result.save.complete jobId=%s imageId=%s analysisResultId=%s "
+                "defectCount=%s elapsedMs=%s traceId=%s",
                 message.jobId,
-                message.traceId,
+                message.imageId,
                 analysis_result_id,
+                len(inference_result.defects),
+                result_save_elapsed_ms,
+                message.traceId,
             )
             logger.info(
-                "job.mark_succeeded.after jobId=%s traceId=%s analysisResultId=%s",
+                "job.mark_succeeded.after jobId=%s imageId=%s analysisResultId=%s traceId=%s",
                 message.jobId,
-                message.traceId,
+                message.imageId,
                 analysis_result_id,
+                message.traceId,
             )
             logger.info(
                 "Completed analysis job. jobId=%s traceId=%s modelType=%s anomalyCount=%s durationMs=%s",
@@ -266,10 +283,13 @@ class AnalysisJobProcessor:
             raise ProcessingError("IMAGE_METADATA_NOT_FOUND", "Image metadata was not found.")
         self._validate_image_type(message.inputType, image_input.imageType)
         logger.info(
-            "image.metadata.load.after jobId=%s imageId=%s imageType=%s traceId=%s",
+            "image.metadata.load.after jobId=%s imageId=%s imageType=%s "
+            "bucketName=%s objectKey=%s traceId=%s",
             message.jobId,
             image_input.imageId,
             image_input.imageType,
+            image_input.bucketName,
+            image_input.objectKey,
             message.traceId,
         )
         return image_input
@@ -306,12 +326,15 @@ class AnalysisJobProcessor:
             image_input.objectKey,
             message.traceId,
         )
+        storage_started = time.perf_counter()
         image_bytes = self._storage.read_object(image_input.bucketName, image_input.objectKey)
+        storage_elapsed_ms = self._duration_ms(storage_started)
         logger.info(
-            "storage.read.after jobId=%s imageId=%s bytesLength=%s traceId=%s",
+            "storage.read.after jobId=%s imageId=%s bytesLength=%s elapsedMs=%s traceId=%s",
             message.jobId,
             image_input.imageId,
             len(image_bytes),
+            storage_elapsed_ms,
             message.traceId,
         )
         logger.info(
@@ -322,13 +345,18 @@ class AnalysisJobProcessor:
             model_info.requestedModelType.value,
             message.traceId,
         )
+        inference_started = time.perf_counter()
         inference_result = self._model_runner.run(image_input, model_info, image_bytes)
+        inference_elapsed_ms = self._duration_ms(inference_started)
         logger.info(
-            "inference.complete jobId=%s imageId=%s resultStatus=%s anomalyCount=%s traceId=%s",
+            "inference.complete jobId=%s imageId=%s resultStatus=%s anomalyCount=%s "
+            "defectCount=%s elapsedMs=%s traceId=%s",
             message.jobId,
             image_input.imageId,
             inference_result.resultStatus.value,
             inference_result.anomalyCount,
+            len(inference_result.defects),
+            inference_elapsed_ms,
             message.traceId,
         )
         return inference_result, {
@@ -476,6 +504,11 @@ class AnalysisJobProcessor:
         )
 
     def _fail_job(self, job_id: int, failure_code: str, failure_message: str) -> ProcessingResult:
+        logger.warning(
+            "job.mark_failed.before jobId=%s failureCode=%s",
+            job_id,
+            failure_code,
+        )
         terminal = False
         try:
             self._job_repository.mark_failed(job_id, failure_code, failure_message)

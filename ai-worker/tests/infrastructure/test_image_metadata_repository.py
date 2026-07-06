@@ -24,9 +24,17 @@ class FakeCursor:
 class FakeConnection:
     def __init__(self, cursor: FakeCursor):
         self._cursor = cursor
+        self.closed = False
+        self.rolled_back = False
 
     def cursor(self):
         return self._cursor
+
+    def close(self):
+        self.closed = True
+
+    def rollback(self):
+        self.rolled_back = True
 
     def __enter__(self):
         return self
@@ -80,3 +88,36 @@ def test_repository_queries_inspection_images_only():
     assert len(cursor.executed) == 1
     assert "FROM inspection_images" in cursor.executed[0][0]
     assert "image_pairs" not in cursor.executed[0][0]
+
+
+def test_get_single_image_calls_factory_exactly_once():
+    """get_single_image 호출 1회당 factory 도 1회 호출돼야 한다."""
+    call_count = [0]
+
+    def counting_factory():
+        call_count[0] += 1
+        return FakeConnection(FakeCursor([None]))
+
+    repository = PostgresImageMetadataRepository(counting_factory)
+    repository.get_single_image(42)
+
+    assert call_count[0] == 1
+
+
+def test_sequential_calls_do_not_accumulate_connections():
+    """
+    연속 호출 시 각 호출이 독립적인 connection 을 사용하는지 확인한다.
+    factory 호출 횟수 = 호출 횟수가 되어야 한다.
+    """
+    call_count = [0]
+
+    def counting_factory():
+        call_count[0] += 1
+        return FakeConnection(FakeCursor([None]))
+
+    repository = PostgresImageMetadataRepository(counting_factory)
+    repository.get_single_image(1)
+    repository.get_single_image(2)
+    repository.get_single_image(3)
+
+    assert call_count[0] == 3, "각 조회마다 factory 가 1회씩 호출돼야 한다."

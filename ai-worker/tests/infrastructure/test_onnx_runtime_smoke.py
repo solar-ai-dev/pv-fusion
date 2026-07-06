@@ -422,6 +422,7 @@ class _SmokeResultRepository:
     def __init__(self) -> None:
         self.saved_results = []
         self.saved_defects = []
+        self.saved_completed_results: list[tuple[object, list[DetectedDefectDraft]]] = []
 
     def save_result(self, result):
         self.saved_results.append(result)
@@ -429,3 +430,9 @@ class _SmokeResultRepository:
 
     def save_defects(self, analysis_result_id: int, defects: list[DetectedDefectDraft]) -> None:
         self.saved_defects.append((analysis_result_id, defects))
+
+    def save_completed_result(self, result, defects: list[DetectedDefectDraft]) -> int:
+        self.saved_results.append(result)
+        self.saved_defects.append((999, defects))
+        self.saved_completed_results.append((result, defects))
+        return 999

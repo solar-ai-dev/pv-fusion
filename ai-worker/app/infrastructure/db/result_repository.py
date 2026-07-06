@@ -1,3 +1,5 @@
+import logging
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -6,6 +8,12 @@ from app.application.ports import ResultRepositoryPort
 from app.domain.analysis_result import AnalysisResultDraft
 from app.domain.detected_defect import DetectedDefectDraft
 from app.domain.enums import JobStatus
+
+logger = logging.getLogger(__name__)
+
+
+def _ms(t0: float) -> int:
+    return int((time.perf_counter() - t0) * 1000)
 
 
 class PostgresResultRepository(ResultRepositoryPort):
@@ -134,14 +142,56 @@ class PostgresResultRepository(ResultRepositoryPort):
                     )
             connection.commit()
 
-    def save_completed_result(self, result: AnalysisResultDraft, defects: list[DetectedDefectDraft]) -> int:
-        with self._connection_factory() as connection:
-            with connection.cursor() as cursor:
-                analysis_result_id = self._insert_result(cursor, result)
-                self._insert_defects(cursor, analysis_result_id, defects)
-                self._mark_job_succeeded(cursor, result.analysisJobId)
-            connection.commit()
-        return analysis_result_id
+    def save_completed_result(
+        self, result: AnalysisResultDraft, defects: list[DetectedDefectDraft]
+    ) -> int:
+        """
+        analysis_results INSERT + detected_defects INSERT + analysis_jobs SUCCEEDED 전이를
+        하나의 트랜잭션으로 원자적으로 커밋한다.
+        """
+        operation = "analysis_result.save_completed"
+        logger.info(
+            "db.acquire.before operation=%s jobId=%s defectCount=%s",
+            operation, result.analysisJobId, len(defects),
+        )
+        t_acquire = time.perf_counter()
+        analysis_result_id: int | None = None
+        try:
+            with self._connection_factory() as connection:
+                logger.info(
+                    "db.acquire.after operation=%s jobId=%s elapsedMs=%s",
+                    operation, result.analysisJobId, _ms(t_acquire),
+                )
+
+                logger.info(
+                    "db.execute.before operation=%s jobId=%s defectCount=%s",
+                    operation, result.analysisJobId, len(defects),
+                )
+                t_exec = time.perf_counter()
+                with connection.cursor() as cursor:
+                    analysis_result_id = self._insert_result(cursor, result)
+                    self._insert_defects(cursor, analysis_result_id, defects)
+                    self._mark_job_succeeded(cursor, result.analysisJobId)
+                logger.info(
+                    "db.execute.after operation=%s jobId=%s analysisResultId=%s elapsedMs=%s",
+                    operation, result.analysisJobId, analysis_result_id, _ms(t_exec),
+                )
+
+                logger.info(
+                    "db.commit.before operation=%s jobId=%s", operation, result.analysisJobId
+                )
+                t_commit = time.perf_counter()
+                connection.commit()
+                logger.info(
+                    "db.commit.after operation=%s jobId=%s elapsedMs=%s",
+                    operation, result.analysisJobId, _ms(t_commit),
+                )
+        finally:
+            logger.info(
+                "db.release.after operation=%s jobId=%s", operation, result.analysisJobId
+            )
+
+        return analysis_result_id  # type: ignore[return-value]
 
     def _insert_result(self, cursor: Any, result: AnalysisResultDraft) -> int:
         query = """

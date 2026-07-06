@@ -668,13 +668,14 @@ def test_marks_failed_when_image_type_mismatches_input_type():
     assert job_repository.failed_calls[0][1] == "IMAGE_TYPE_MISMATCH"
 
 
-def test_marks_failed_when_model_runner_raises():
+def test_marks_failed_when_storage_read_raises():
+    """storage read 실패 시 mark_failed 가 호출되어야 한다 (mark_running 이후 단계)."""
     job_repository = FakeJobRepository(build_job(JobStatus.QUEUED))
     processor = AnalysisJobProcessor(
         job_repository,
         FakeImageMetadata(single_image=build_single_image()),
-        FakeStorage(),
-        FakeModelRunner(error=RuntimeError("boom")),
+        FakeStorage(read_error=RuntimeError("MinIO connection timeout")),
+        FakeModelRunner(),
         FakeResultRepository(),
     )
 
@@ -682,9 +683,80 @@ def test_marks_failed_when_model_runner_raises():
 
     assert result.status == "failed"
     assert job_repository.failed_calls[0][1] == "UNKNOWN_WORKER_ERROR"
+    assert job_repository.running_ids == [1000]
+
+
+def test_storage_read_failure_result_is_terminal_when_mark_failed_succeeds():
+    """storage read 실패 + mark_failed 성공 → terminal=True (SQS 즉시 삭제)."""
+    job_repository = FakeJobRepository(build_job(JobStatus.QUEUED))
+    processor = AnalysisJobProcessor(
+        job_repository,
+        FakeImageMetadata(single_image=build_single_image()),
+        FakeStorage(read_error=RuntimeError("timeout")),
+        FakeModelRunner(),
+        FakeResultRepository(),
+    )
+
+    result = processor.process(build_message())
+
+    assert result.terminal is True
+
+
+def test_storage_read_failure_result_is_not_terminal_when_mark_failed_fails():
+    """storage read 실패 + mark_failed 실패 → terminal=False (SQS 삭제 금지)."""
+    job_repository = FakeJobRepository(
+        build_job(JobStatus.QUEUED),
+        failed_error=RuntimeError("db crash"),
+    )
+    processor = AnalysisJobProcessor(
+        job_repository,
+        FakeImageMetadata(single_image=build_single_image()),
+        FakeStorage(read_error=RuntimeError("timeout")),
+        FakeModelRunner(),
+        FakeResultRepository(),
+    )
+
+    result = processor.process(build_message())
+
+    assert result.terminal is False
+
+
+def test_marks_failed_when_model_runner_raises():
+    """inference 실패 시 mark_failed 가 호출되어야 한다."""
+    job_repository = FakeJobRepository(build_job(JobStatus.QUEUED))
+    processor = AnalysisJobProcessor(
+        job_repository,
+        FakeImageMetadata(single_image=build_single_image()),
+        FakeStorage(),
+        FakeModelRunner(error=RuntimeError("ONNX session.run() hang")),
+        FakeResultRepository(),
+    )
+
+    result = processor.process(build_message())
+
+    assert result.status == "failed"
+    assert job_repository.failed_calls[0][1] == "UNKNOWN_WORKER_ERROR"
+    assert job_repository.running_ids == [1000]
+
+
+def test_inference_failure_result_is_terminal_when_mark_failed_succeeds():
+    """inference 실패 + mark_failed 성공 → terminal=True."""
+    job_repository = FakeJobRepository(build_job(JobStatus.QUEUED))
+    processor = AnalysisJobProcessor(
+        job_repository,
+        FakeImageMetadata(single_image=build_single_image()),
+        FakeStorage(),
+        FakeModelRunner(error=RuntimeError("onnx error")),
+        FakeResultRepository(),
+    )
+
+    result = processor.process(build_message())
+
+    assert result.terminal is True
 
 
 def test_marks_failed_when_result_save_raises():
+    """result save 실패 시 mark_failed 가 호출되어야 한다."""
     job_repository = FakeJobRepository(build_job(JobStatus.QUEUED))
     processor = AnalysisJobProcessor(
         job_repository,
@@ -698,9 +770,27 @@ def test_marks_failed_when_result_save_raises():
 
     assert result.status == "failed"
     assert job_repository.failed_calls[0][1] == "UNKNOWN_WORKER_ERROR"
+    assert job_repository.running_ids == [1000]
+
+
+def test_result_save_failure_result_is_terminal_when_mark_failed_succeeds():
+    """result save 실패 + mark_failed 성공 → terminal=True."""
+    job_repository = FakeJobRepository(build_job(JobStatus.QUEUED))
+    processor = AnalysisJobProcessor(
+        job_repository,
+        FakeImageMetadata(single_image=build_single_image()),
+        FakeStorage(),
+        FakeModelRunner(),
+        FakeResultRepository(save_result_error=RuntimeError("save failed")),
+    )
+
+    result = processor.process(build_message())
+
+    assert result.terminal is True
 
 
 def test_marks_failed_when_storage_write_raises():
+    """storage write (overlay) 실패 시 mark_failed 가 호출되어야 한다."""
     job_repository = FakeJobRepository(build_job(JobStatus.QUEUED))
     processor = AnalysisJobProcessor(
         job_repository,
