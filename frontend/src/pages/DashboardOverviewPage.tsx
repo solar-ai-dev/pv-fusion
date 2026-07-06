@@ -83,6 +83,30 @@ export function DashboardOverviewPage() {
       hint: `${item.severityLevel} 등급`,
     }),
   );
+
+  const plantAnomalySummary = useMemo(() => {
+    const results = summaryQuery.data?.data.recentResults ?? [];
+    const map = new Map<string, { anomaly: number; total: number; criticalOrHigh: number }>();
+    for (const result of results) {
+      const key = result.plantName ?? "미지정";
+      const entry = map.get(key) ?? { anomaly: 0, total: 0, criticalOrHigh: 0 };
+      entry.total += 1;
+      if (result.severityLevel != null) {
+        entry.anomaly += 1;
+      }
+      if (
+        result.severityLevel === "CRITICAL" ||
+        result.severityLevel === "HIGH"
+      ) {
+        entry.criticalOrHigh += 1;
+      }
+      map.set(key, entry);
+    }
+    return Array.from(map.entries()).map(([name, stats]) => ({
+      name,
+      ...stats,
+    }));
+  }, [summaryQuery.data]);
   const actionItems = (actionStatsQuery.data?.data.items ?? []).map((item) => ({
     label: getActionCandidateLabel(item.actionCandidate),
     value: item.count,
@@ -375,21 +399,9 @@ export function DashboardOverviewPage() {
               <article className="panel dashboard-card dashboard-card-compact">
                 <div className="section-header">
                   <div>
-                    <h2 className="panel-title">이상 심각도 분포</h2>
-                    <p className="panel-description">
-                      현재 범위에서 많이 나타나는 심각도를 확인합니다.
-                    </p>
-                  </div>
-                </div>
-                <DistributionPanel items={severityItems} tone="danger" />
-              </article>
-
-              <article className="panel dashboard-card dashboard-card-compact">
-                <div className="section-header">
-                  <div>
                     <h2 className="panel-title">분석/검토 상태</h2>
                     <p className="panel-description">
-                      검토 대기와 처리 상태를 compact stat으로 확인합니다.
+                      검토 대기·처리 상태를 항목별로 확인합니다.
                     </p>
                   </div>
                 </div>
@@ -436,69 +448,124 @@ export function DashboardOverviewPage() {
           </section>
 
           <section className="dashboard-bottom-grid">
+            {/* 발전소별 이상 현황 */}
             <article className="panel dashboard-card dashboard-card-compact">
               <div className="section-header">
                 <div>
-                  <h2 className="panel-title">권장 조치 분포</h2>
+                  <h2 className="panel-title">발전소별 이상 현황</h2>
                   <p className="panel-description">
-                    어떤 조치 후보가 많이 발생하는지 빠르게 파악합니다.
+                    최근 결과 기준 발전소별 이상·결함 집계입니다.
                   </p>
                 </div>
               </div>
-              <DistributionPanel items={actionItems} tone="sky" />
+              {plantAnomalySummary.length > 0 ? (
+                <div className="plant-anomaly-table">
+                  <div className="plant-anomaly-header">
+                    <span>발전소</span>
+                    <span>결과 수</span>
+                    <span>이상</span>
+                    <span>고위험</span>
+                  </div>
+                  {plantAnomalySummary.map((row) => (
+                    <div key={row.name} className="plant-anomaly-row">
+                      <span className="plant-anomaly-name">{row.name}</span>
+                      <span className="plant-anomaly-num">{row.total}</span>
+                      <span className={`plant-anomaly-num ${row.anomaly > 0 ? 'plant-anomaly-danger' : ''}`}>
+                        {row.anomaly}
+                      </span>
+                      <span className={`plant-anomaly-num ${row.criticalOrHigh > 0 ? 'plant-anomaly-critical' : ''}`}>
+                        {row.criticalOrHigh}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <SingleEmptyMessage
+                  title="발전소별 현황 없음"
+                  description="결과 데이터가 쌓이면 여기에 표시됩니다."
+                />
+              )}
             </article>
 
+            {/* 조치 분포 + 심각도 분포 + 결함 분포 */}
+            <div className="dashboard-dist-stack">
+              <article className="panel dashboard-card dashboard-card-compact">
+                <div className="section-header">
+                  <div>
+                    <h2 className="panel-title">조치 후보 분포</h2>
+                  </div>
+                </div>
+                <DistributionPanel items={actionItems} tone="sky" />
+              </article>
+              <article className="panel dashboard-card dashboard-card-compact">
+                <div className="section-header">
+                  <div>
+                    <h2 className="panel-title">심각도 분포</h2>
+                  </div>
+                </div>
+                <DistributionPanel items={severityItems} tone="danger" />
+              </article>
+              <article className="panel dashboard-card dashboard-card-compact">
+                <div className="section-header">
+                  <div>
+                    <h2 className="panel-title">결함 유형 분포</h2>
+                    <p className="panel-description text-xs">RGB / 열화상</p>
+                  </div>
+                </div>
+                <SingleEmptyMessage
+                  title="분포 집계 불가"
+                  description="결함 유형 분포는 결과 데이터가 누적되면 표시됩니다."
+                />
+              </article>
+            </div>
+
+            {/* 우선 확인 대상 + 최근 결과 */}
             <article className="panel dashboard-card dashboard-summary-panel">
               <div className="section-header">
                 <div>
                   <h2 className="panel-title">최근 요약</h2>
                   <p className="panel-description">
-                    최근 분석 결과와 우선 확인 대상을 짧게 정리합니다.
+                    우선 확인 대상과 최근 분석 결과를 정리합니다.
                   </p>
                 </div>
               </div>
               <div className="dashboard-summary-columns">
                 <div className="stack-sm">
-                  <span className="dashboard-section-label">
-                    우선 확인 대상
-                  </span>
-                  {priorityTargets.slice(0, 4).map((target, index) => (
+                  <span className="dashboard-section-label">우선 확인</span>
+                  {priorityTargets.slice(0, 5).map((target, index) => (
                     <article
                       key={`${target.resultId}-${index}`}
                       className="dashboard-summary-item"
                     >
                       <div className="dashboard-summary-item-main">
                         <div className="dashboard-summary-item-top">
-                          <strong>{`우선 확인 대상 ${index + 1}`}</strong>
+                          <strong>{`#${target.resultId ?? "-"}`}</strong>
                           <span className="dashboard-summary-tag">
                             {getPriorityLevelLabel(target.priorityLevel)}
                           </span>
                         </div>
-                        <p>{`결과 #${target.resultId ?? "-"} · ${getSeverityLevelLabel(target.severityLevel)}`}</p>
-                        <p>{getPriorityReasonText(target.priorityReason)}</p>
+                        <p>{`${getSeverityLevelLabel(target.severityLevel)} · ${getPriorityReasonText(target.priorityReason)}`}</p>
                       </div>
                       {target.resultId ? (
                         <Link
                           className="text-button dashboard-summary-link"
                           to={`/results/${target.resultId}`}
                         >
-                          결과 보기
+                          보기
                         </Link>
                       ) : null}
                     </article>
                   ))}
                   {priorityTargets.length === 0 ? (
                     <SingleEmptyMessage
-                      title="우선 확인 대상이 없습니다."
+                      title="우선 확인 대상 없음"
                       description="현재 조건에서 즉시 확인할 결과가 없습니다."
                     />
                   ) : null}
                 </div>
                 <div className="stack-sm">
-                  <span className="dashboard-section-label">
-                    최근 분석 결과
-                  </span>
-                  {recentResults.slice(0, 4).map((result) => (
+                  <span className="dashboard-section-label">최근 결과</span>
+                  {recentResults.slice(0, 5).map((result) => (
                     <article
                       key={result.resultId ?? result.inspectionId ?? "recent"}
                       className="dashboard-summary-item"
@@ -513,26 +580,23 @@ export function DashboardOverviewPage() {
                             {getPriorityLevelLabel(result.priorityLevel)}
                           </span>
                         </div>
-                        <p>{`${result.plantName ?? "발전소 미지정"} · ${result.zoneName ?? "구역 미지정"}`}</p>
-                        <p>
-                          {`최근 분석 ${formatDateTime(result.analyzedAt)} · `}
-                          {`${getSeverityLevelLabel(result.severityLevel)} · ${getActionCandidateLabel(result.actionCandidate)}`}
-                        </p>
+                        <p>{`${result.plantName ?? "-"} · ${getSeverityLevelLabel(result.severityLevel)}`}</p>
+                        <p>{`${getActionCandidateLabel(result.actionCandidate)} · ${formatDateTime(result.analyzedAt)}`}</p>
                       </div>
                       {result.resultId ? (
                         <Link
                           className="text-button dashboard-summary-link"
                           to={`/results/${result.resultId}`}
                         >
-                          결과 보기
+                          보기
                         </Link>
                       ) : null}
                     </article>
                   ))}
                   {recentResults.length === 0 ? (
                     <SingleEmptyMessage
-                      title="최근 분석 결과가 없습니다."
-                      description="분석이 완료되면 최근 결과가 이 영역에 표시됩니다."
+                      title="최근 결과 없음"
+                      description="분석이 완료되면 최근 결과가 표시됩니다."
                     />
                   ) : null}
                 </div>

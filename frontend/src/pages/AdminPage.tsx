@@ -991,28 +991,45 @@ export function AdminPage() {
                   description="분석 실패, 검토 대기, 변화 추적 주의 항목이 생기면 이곳에서 먼저 확인할 수 있습니다."
                 />
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="text-sm font-medium text-slate-500">분석 실패</div>
-                    <div className="mt-3 text-xl font-semibold text-slate-900">{formatCount(summary?.failedJobCount ?? 0)}건</div>
-                    <p className="mt-2 text-sm text-slate-600">실패한 분석 작업이 남아 있으면 원인 확인이 필요합니다.</p>
-                  </div>
-                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="text-sm font-medium text-slate-500">검토 대기</div>
-                    <div className="mt-3 text-xl font-semibold text-slate-900">{formatCount(summary?.pendingReviewCount ?? 0)}건</div>
-                    <p className="mt-2 text-sm text-slate-600">분석 결과 검토가 남아 있는 항목입니다.</p>
-                  </div>
-                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="text-sm font-medium text-slate-500">높은 우선순위</div>
-                    <div className="mt-3 text-xl font-semibold text-slate-900">{formatCount(summary?.highPriorityCount ?? 0)}건</div>
-                    <p className="mt-2 text-sm text-slate-600">우선 확인이 필요한 결과 수입니다.</p>
-                  </div>
-                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="text-sm font-medium text-slate-500">변화 추적 주의</div>
-                    <div className="mt-3 text-xl font-semibold text-slate-900">{formatCount(trackingAttentionCount)}건</div>
-                    <p className="mt-2 text-sm text-slate-600">악화 또는 반복 이상으로 분류된 대상입니다.</p>
-                  </div>
-                </div>
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-left">
+                      <th className="py-2 pr-4 font-semibold text-slate-600">항목</th>
+                      <th className="py-2 pr-4 font-semibold text-slate-600">건수</th>
+                      <th className="py-2 font-semibold text-slate-600">설명</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(summary?.failedJobCount ?? 0) > 0 ? (
+                      <tr className="border-b border-slate-100">
+                        <td className="py-2 pr-4 font-medium text-rose-600">분석 실패</td>
+                        <td className="py-2 pr-4 font-semibold text-rose-600">{formatCount(summary?.failedJobCount ?? 0)}건</td>
+                        <td className="py-2 text-slate-600">실패한 분석 작업이 남아 있으면 원인 확인이 필요합니다.</td>
+                      </tr>
+                    ) : null}
+                    {(summary?.pendingReviewCount ?? 0) > 0 ? (
+                      <tr className="border-b border-slate-100">
+                        <td className="py-2 pr-4 font-medium text-amber-600">검토 대기</td>
+                        <td className="py-2 pr-4 font-semibold text-amber-600">{formatCount(summary?.pendingReviewCount ?? 0)}건</td>
+                        <td className="py-2 text-slate-600">분석 결과 검토가 남아 있는 항목입니다.</td>
+                      </tr>
+                    ) : null}
+                    {(summary?.highPriorityCount ?? 0) > 0 ? (
+                      <tr className="border-b border-slate-100">
+                        <td className="py-2 pr-4 font-medium text-amber-600">높은 우선순위</td>
+                        <td className="py-2 pr-4 font-semibold text-amber-600">{formatCount(summary?.highPriorityCount ?? 0)}건</td>
+                        <td className="py-2 text-slate-600">우선 확인이 필요한 결과 수입니다.</td>
+                      </tr>
+                    ) : null}
+                    {trackingAttentionCount > 0 ? (
+                      <tr className="border-b border-slate-100">
+                        <td className="py-2 pr-4 font-medium text-amber-600">변화 추적 주의</td>
+                        <td className="py-2 pr-4 font-semibold text-amber-600">{formatCount(trackingAttentionCount)}건</td>
+                        <td className="py-2 text-slate-600">악화 또는 반복 이상으로 분류된 대상입니다.</td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
               )
             ) : null}
           </section>

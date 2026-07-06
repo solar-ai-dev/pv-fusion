@@ -1,75 +1,79 @@
-import type { DashboardTrendPoint } from "../types";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import type { DashboardTrendPoint } from '../types'
 
 type TrendChartProps = {
-  points: DashboardTrendPoint[];
-};
-
-const TREND_CHART_HEIGHT = 220;
-const TREND_GUIDE_COUNT = 4;
+  points: DashboardTrendPoint[]
+}
 
 export function TrendChart({ points }: TrendChartProps) {
-  const max = Math.max(
-    ...points.map((point) =>
-      Math.max(point.inspectionCount, point.anomalyCount),
-    ),
-    1,
-  );
-  const guides = Array.from({ length: TREND_GUIDE_COUNT }, (_, index) => ({
-    key: `guide-${index}`,
-    top: `${(index / TREND_GUIDE_COUNT) * 100}%`,
-    value: Math.round((max / TREND_GUIDE_COUNT) * (TREND_GUIDE_COUNT - index)),
-  }));
+  if (points.length === 0) {
+    return null
+  }
+
+  const data = points.map((point) => ({
+    date: point.trendDate,
+    점검: point.inspectionCount,
+    이상: point.anomalyCount,
+  }))
 
   return (
-    <div className="dashboard-trend-chart">
-      <div className="dashboard-trend-guides">
-        {guides.map((guide) => (
-          <div
-            key={guide.key}
-            className="dashboard-trend-guide"
-            style={{ top: guide.top }}
-          >
-            <span>{guide.value}</span>
-          </div>
-        ))}
-      </div>
-      <div className="dashboard-trend-bars">
-        {points.map((point) => {
-          const inspectionHeight = Math.max(
-            (point.inspectionCount / max) * TREND_CHART_HEIGHT,
-            point.inspectionCount > 0 ? 10 : 0,
-          );
-          const anomalyHeight = Math.max(
-            (point.anomalyCount / max) * TREND_CHART_HEIGHT,
-            point.anomalyCount > 0 ? 10 : 0,
-          );
-
-          return (
-            <div key={point.trendDate} className="dashboard-trend-group">
-              <div className="dashboard-trend-values">
-                <span>{point.inspectionCount}</span>
-                <span>{point.anomalyCount}</span>
-              </div>
-              <div className="dashboard-trend-columns">
-                <div
-                  className="dashboard-trend-column dashboard-trend-column-inspection"
-                  style={{ height: `${inspectionHeight}px` }}
-                  title={`점검 ${point.inspectionCount}건`}
-                />
-                <div
-                  className="dashboard-trend-column dashboard-trend-column-anomaly"
-                  style={{ height: `${anomalyHeight}px` }}
-                  title={`이상 ${point.anomalyCount}건`}
-                />
-              </div>
-              <div className="dashboard-trend-labels">
-                <strong>{point.trendDate}</strong>
-                <span>{`점검 ${point.inspectionCount} · 이상 ${point.anomalyCount}`}</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+    <div className="chart-container" style={{ height: 180 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 11, fill: '#94a3b8' }}
+            tickLine={false}
+            axisLine={{ stroke: '#e2e8f0' }}
+          />
+          <YAxis
+            tick={{ fontSize: 11, fill: '#94a3b8' }}
+            tickLine={false}
+            axisLine={false}
+            allowDecimals={false}
+          />
+          <Tooltip
+            contentStyle={{
+              borderRadius: '0.5rem',
+              border: '1px solid #e2e8f0',
+              fontSize: '0.8rem',
+              padding: '0.5rem 0.75rem',
+            }}
+            formatter={(value: number, name: string) => [`${value}건`, name]}
+          />
+          <Legend
+            iconType="circle"
+            iconSize={8}
+            wrapperStyle={{ fontSize: '0.8rem', paddingTop: '0.5rem' }}
+          />
+          <Line
+            type="monotone"
+            dataKey="점검"
+            stroke="#0ea5e9"
+            strokeWidth={2}
+            dot={false}
+            activeDot={{ r: 4 }}
+          />
+          <Line
+            type="monotone"
+            dataKey="이상"
+            stroke="#f43f5e"
+            strokeWidth={2}
+            dot={false}
+            activeDot={{ r: 4 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
-  );
+  )
 }

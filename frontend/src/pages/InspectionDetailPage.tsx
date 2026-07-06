@@ -35,7 +35,6 @@ import {
 import {
   CAPTURE_METHOD_OPTIONS,
   getCaptureMethodLabel,
-  getInspectionStatusLabel,
   type UpdateInspectionRequest,
 } from '../features/inspections/types'
 import {
@@ -45,7 +44,6 @@ import {
   useUpdateInspection,
 } from '../features/inspections/hooks/useInspections'
 import { usePlant } from '../features/plants/hooks/usePlants'
-import { getResourceStatusLabel, getResourceStatusTone } from '../features/plants/types'
 import {
   getActionCandidateLabel,
   getResultStatusLabel,
@@ -126,7 +124,7 @@ const uploadImageSchema = z
 
 type UpdateInspectionFormValues = z.infer<typeof updateInspectionSchema>
 type UploadImageFormValues = z.infer<typeof uploadImageSchema>
-type WorkflowTab = 'progress' | 'images' | 'analysis' | 'results' | 'info'
+type WorkflowTab = 'overview' | 'images-analysis' | 'results'
 
 export function InspectionDetailPage() {
   const params = useParams()
@@ -142,7 +140,8 @@ export function InspectionDetailPage() {
   const [pendingRetryImageId, setPendingRetryImageId] = useState<number | null>(null)
   const [uploadFormVersion, setUploadFormVersion] = useState(0)
   const [showAdvancedUploadOptions, setShowAdvancedUploadOptions] = useState(false)
-  const [activeTab, setActiveTab] = useState<WorkflowTab>('progress')
+  const [activeTab, setActiveTab] = useState<WorkflowTab>('overview')
+  const [isJobHistoryOpen, setIsJobHistoryOpen] = useState(false)
 
   const inspectionQuery = useInspection(inspectionId ?? 0)
   const zoneId = inspectionQuery.data?.data.zoneId ?? 0
@@ -151,7 +150,7 @@ export function InspectionDetailPage() {
   const equipmentsQuery = useEquipments(zoneId, {})
   const imagesQuery = useImages({ inspectionId: inspectionId ?? undefined })
   const resultsQuery = useResults(
-    { inspectionId: inspectionId ?? undefined, page: 0, size: 5 },
+    { inspectionId: inspectionId ?? undefined, page: 0, size: 100 },
     Boolean(inspectionId),
   )
   const analysisJobsQuery = useAnalysisJobs(
@@ -279,6 +278,24 @@ export function InspectionDetailPage() {
     () => jobRows.filter((job) => job.jobStatus === 'SUCCEEDED'),
     [jobRows],
   )
+  const failedJobs = useMemo(
+    () => jobRows.filter((job) => job.jobStatus === 'FAILED'),
+    [jobRows],
+  )
+  const pendingReviewCount = useMemo(
+    () =>
+      resultRows.filter(
+        (r) => r.reviewStatus === 'UNCHECKED' || r.reviewStatus === 'RECHECK_REQUIRED',
+      ).length,
+    [resultRows],
+  )
+  const jobResultMap = useMemo(() => {
+    const map = new Map<number, (typeof resultRows)[0]>()
+    for (const result of resultRows) {
+      map.set(result.jobId, result)
+    }
+    return map
+  }, [resultRows])
   const hasRequestableImage = Boolean(rgbRequestableImage || thermalRequestableImage)
   const hasResults = resultRows.length > 0
   const workflowStatus = useMemo(
@@ -558,19 +575,34 @@ export function InspectionDetailPage() {
             ) : null}
           </div>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <SummaryItem
-            label="발전소"
-            value={plantQuery.data?.data.name || '발전소 정보를 불러오는 중입니다.'}
-          />
-          <SummaryItem
-            label="구역"
-            value={zoneQuery.data?.data.name || '구역 정보를 불러오는 중입니다.'}
-          />
-          <SummaryItem label="점검 상태" value={getInspectionStatusLabel(inspection.inspectionStatus)} />
-          <SummaryItem label="업로드 이미지 수" value={`${imageRows.length}건`} />
-          <SummaryItem label="분석 상태" value={getAnalysisSummaryLabel(jobRows)} />
-          <SummaryItem label="결과 상태" value={latestResult ? '결과 확인 가능' : '등록된 결과 없음'} />
+        <div className="insp-status-summary">
+          <div className="insp-primary-state">
+            <StatusBadge label={workflowStatus.badge} tone={workflowStatus.tone} />
+            <span className="insp-state-label">{workflowStatus.summary}</span>
+          </div>
+          <div className="insp-sub-chips">
+            <span className="insp-chip">이미지 {imageRows.length}건</span>
+            {queuedJobs.length > 0 ? (
+              <span className="insp-chip insp-chip-warning">대기 {queuedJobs.length}건</span>
+            ) : null}
+            {runningJobs.length > 0 ? (
+              <span className="insp-chip insp-chip-sky">진행 {runningJobs.length}건</span>
+            ) : null}
+            {completedJobs.length > 0 ? (
+              <span className="insp-chip insp-chip-success">완료 {completedJobs.length}건</span>
+            ) : null}
+            {failedJobs.length > 0 ? (
+              <span className="insp-chip insp-chip-danger">실패 {failedJobs.length}건</span>
+            ) : null}
+            {pendingReviewCount > 0 ? (
+              <span className="insp-chip insp-chip-amber">검토대기 {pendingReviewCount}건</span>
+            ) : null}
+          </div>
+          <div className="insp-meta-row">
+            <span>{plantQuery.data?.data.name || '발전소 확인 중'}</span>
+            <span className="insp-meta-sep">·</span>
+            <span>{zoneQuery.data?.data.name || '구역 확인 중'}</span>
+          </div>
         </div>
       </section>
 
@@ -588,7 +620,7 @@ export function InspectionDetailPage() {
           ))}
         </div>
 
-        {activeTab === 'progress' ? (
+        {activeTab === 'overview' ? (
           <div className="stack-md">
             <article className="workflow-focus-card">
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -628,8 +660,8 @@ export function InspectionDetailPage() {
                     ? 'RGB 또는 열화상 이미지를 먼저 업로드하세요.'
                     : `RGB ${rgbImages.length}건 · 열화상 ${thermalImages.length}건`
                 }
-                actionLabel="이미지 보기"
-                onAction={() => setActiveTab('images')}
+                actionLabel="이미지·분석 탭 열기"
+                onAction={() => setActiveTab('images-analysis')}
               />
               <CompactStatusCard
                 title="분석"
@@ -639,8 +671,8 @@ export function InspectionDetailPage() {
                     ? '아직 요청된 분석이 없습니다.'
                     : `대기 ${queuedJobs.length}건 · 진행 ${runningJobs.length}건 · 완료 ${completedJobs.length}건`
                 }
-                actionLabel="분석 보기"
-                onAction={() => setActiveTab('analysis')}
+                actionLabel="이미지·분석 탭 열기"
+                onAction={() => setActiveTab('images-analysis')}
               />
               <CompactStatusCard
                 title="결과"
@@ -650,7 +682,7 @@ export function InspectionDetailPage() {
                     ? `${latestResult.analyzedAt ? formatDateTime(latestResult.analyzedAt) : '방금'} 기준 결과를 확인할 수 있습니다.`
                     : '분석이 완료되면 결과 검토를 시작할 수 있습니다.'
                 }
-                actionLabel={latestResult ? '결과 보기' : '결과 탭 열기'}
+                actionLabel={latestResult ? '결과 탭 열기' : '결과 탭 열기'}
                 onAction={() => setActiveTab('results')}
               />
             </div>
@@ -661,14 +693,11 @@ export function InspectionDetailPage() {
                 <p className="mt-2 text-sm">
                   {selectedJobId === retryableBannerJob.jobId && selectedJob?.failureMessage
                     ? sanitizeFailureMessage(selectedJob.failureMessage)
-                    : '분석 탭에서 다시 요청하거나 이미지를 다시 업로드할 수 있습니다.'}
+                    : '이미지·분석 탭에서 다시 요청하거나 이미지를 다시 업로드할 수 있습니다.'}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-3">
-                  <button className="btn btn-primary" type="button" onClick={() => setActiveTab('analysis')}>
-                    분석 탭 열기
-                  </button>
-                  <button className="btn btn-secondary" type="button" onClick={() => setActiveTab('images')}>
-                    이미지 탭 열기
+                  <button className="btn btn-primary" type="button" onClick={() => setActiveTab('images-analysis')}>
+                    이미지·분석 탭 열기
                   </button>
                 </div>
               </div>
@@ -676,35 +705,33 @@ export function InspectionDetailPage() {
           </div>
         ) : null}
 
-        {activeTab === 'images' ? (
+        {activeTab === 'images-analysis' ? (
           <div id="image-upload-section" className="stack-md">
+            {/* ── 1. 업로드 영역 ── */}
             <SectionHeading
               title="이미지 업로드"
               description="이미지 유형을 선택하고 파일을 올리세요. 고급 설정은 필요할 때만 열면 됩니다."
             />
-            <div className="grid gap-3 lg:grid-cols-2">
-              <ImageTypeCard
-                title="RGB 이미지"
-                description="외관 이상, 오염, 음영을 확인합니다."
-                isSelected={selectedImageType === 'RGB'}
-                count={rgbImages.length}
-                buttonText="RGB 선택"
-                onSelect={() => uploadForm.setValue('imageType', 'RGB')}
-              />
-              <ImageTypeCard
-                title="열화상 이미지"
-                description="핫스팟과 과열 영역을 확인합니다."
-                isSelected={selectedImageType === 'THERMAL'}
-                count={thermalImages.length}
-                buttonText="열화상 선택"
-                onSelect={() => uploadForm.setValue('imageType', 'THERMAL')}
-              />
-            </div>
-
             <form className="stack-md rounded-3xl border border-slate-200 bg-white p-5 shadow-sm" onSubmit={handleUploadImage}>
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,0.28fr)]">
-                <div className="stack-sm">
-                  <FormField label={`${getUserImageTypeLabel(selectedImageType)} 파일 *`} hint="선택한 이미지 유형으로 업로드됩니다." error={uploadForm.formState.errors.file?.message}>
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="flex gap-2">
+                  <button
+                    className={`btn ${selectedImageType === 'RGB' ? 'btn-primary' : 'btn-secondary'}`}
+                    type="button"
+                    onClick={() => uploadForm.setValue('imageType', 'RGB')}
+                  >
+                    RGB{rgbImages.length > 0 ? ` (${rgbImages.length})` : ''}
+                  </button>
+                  <button
+                    className={`btn ${selectedImageType === 'THERMAL' ? 'btn-primary' : 'btn-secondary'}`}
+                    type="button"
+                    onClick={() => uploadForm.setValue('imageType', 'THERMAL')}
+                  >
+                    열화상{thermalImages.length > 0 ? ` (${thermalImages.length})` : ''}
+                  </button>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <FormField label={`${getUserImageTypeLabel(selectedImageType)} 파일`} error={uploadForm.formState.errors.file?.message}>
                     <input
                       key={uploadFormVersion}
                       className="input-field"
@@ -713,25 +740,18 @@ export function InspectionDetailPage() {
                       {...uploadForm.register('file')}
                     />
                   </FormField>
-                  <button
-                    className="text-button w-fit"
-                    type="button"
-                    onClick={() => setShowAdvancedUploadOptions((current) => !current)}
-                  >
-                    {showAdvancedUploadOptions ? '고급 설정 접기' : '고급 설정 열기'}
-                  </button>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">선택된 유형</div>
-                  <div className="mt-2 text-lg font-semibold text-slate-950">{getUserImageTypeLabel(selectedImageType)}</div>
-                  <p className="mt-2 text-sm text-slate-600">
-                    {selectedImageType === 'RGB'
-                      ? 'RGB 이미지를 등록한 뒤 바로 분석 요청으로 이어갈 수 있습니다.'
-                      : '열화상 이미지를 등록한 뒤 바로 분석 요청으로 이어갈 수 있습니다.'}
-                  </p>
-                </div>
+                <button className="btn btn-primary" type="submit" disabled={uploadImageMutation.isPending}>
+                  업로드
+                </button>
               </div>
-
+              <button
+                className="text-button w-fit"
+                type="button"
+                onClick={() => setShowAdvancedUploadOptions((current) => !current)}
+              >
+                {showAdvancedUploadOptions ? '고급 설정 접기' : '고급 설정 열기'}
+              </button>
               {showAdvancedUploadOptions ? (
                 <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                   <div className="grid gap-4 md:grid-cols-2">
@@ -746,11 +766,7 @@ export function InspectionDetailPage() {
                     </FormField>
                     <FormField
                       label="설비 위치"
-                      hint={
-                        isZoneUploadTarget
-                          ? '전체 영역 업로드에서는 설비 위치를 선택하지 않아도 됩니다.'
-                          : '세부 단위 업로드일 때만 설비 위치를 선택하세요.'
-                      }
+                      hint={isZoneUploadTarget ? '전체 영역 업로드에서는 선택 불필요' : '세부 단위일 때만 선택'}
                       error={uploadForm.formState.errors.equipmentId?.message}
                     >
                       <select
@@ -777,26 +793,23 @@ export function InspectionDetailPage() {
                   </div>
                 </div>
               ) : null}
-
               {isUploadEquipmentEmpty ? (
                 <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                   세부 단위로 업로드하려면 구역 상세에서 설비 위치를 먼저 등록하세요.
                 </div>
               ) : null}
-
-              <div className="flex justify-end">
-                <button className="btn btn-primary" type="submit" disabled={uploadImageMutation.isPending}>
-                  {`${getUserImageTypeLabel(selectedImageType)} 이미지 업로드`}
-                </button>
-              </div>
             </form>
 
+            {/* ── 2. 업로드된 이미지 목록 ── */}
             <div className="stack-sm">
               <div className="toolbar">
                 <div>
                   <h3 className="panel-title">업로드된 이미지</h3>
-                  <p className="panel-description">미리보기, 분석 요청, 관리 작업을 진행할 수 있습니다.</p>
+                  <p className="panel-description">이미지별 최신 분석 상태와 결과를 확인하세요.</p>
                 </div>
+                <button className="btn btn-secondary" type="button" onClick={handleRefreshJobs}>
+                  새로고침
+                </button>
               </div>
               {imageRows.length === 0 ? (
                 <CompactEmptyState
@@ -804,243 +817,220 @@ export function InspectionDetailPage() {
                   description="RGB 또는 열화상 이미지를 먼저 업로드하세요."
                 />
               ) : (
-                <div className="grid gap-4 xl:grid-cols-2">
+                <div className="img-list-table">
+                  <div className="img-list-header">
+                    <span>파일명</span>
+                    <span>최신 분석</span>
+                    <span>최신 결과</span>
+                    <span>마지막 분석</span>
+                    <span>액션</span>
+                  </div>
                   {imageRows.map((image) => {
+                    const imageState = imageJobStateMap.get(image.imageId)
+                    const hasActiveJob = imageState?.hasActiveJob ?? false
+                    const canRetry = imageState?.canRetry ?? false
+                    const latestJob = imageState?.latestJob ?? null
+                    const latestSucceededJob = imageState?.latestSucceededJob ?? null
+                    const resultForImage = latestSucceededJob
+                      ? jobResultMap.get(latestSucceededJob.jobId) ?? null
+                      : null
                     const canRequest = canRequestAnalysis(image, runningImageJobIds)
 
                     return (
-                      <article key={image.imageId} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold text-slate-900">{image.originalFilename}</div>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <StatusBadge label={getUserImageTypeLabel(image.imageType)} />
-                            <StatusBadge
-                              label={getUserUploadStatusLabel(image.uploadStatus)}
-                              tone={getUserUploadStatusTone(image.uploadStatus)}
-                            />
-                            <StatusBadge
-                              label={getResourceStatusLabel(image.status)}
-                              tone={getResourceStatusTone(image.status)}
-                            />
+                      <div key={image.imageId} className="img-list-row">
+                        <div className="img-list-cell img-list-cell-name">
+                          <button
+                            className="img-preview-btn"
+                            type="button"
+                            title="미리보기"
+                            onClick={() => setPreviewImageId(image.imageId)}
+                          >
+                            ▶
+                          </button>
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium text-slate-900">{image.originalFilename}</div>
+                            <div className="flex gap-1.5 mt-0.5 flex-wrap">
+                              <StatusBadge label={getUserImageTypeLabel(image.imageType)} />
+                              <StatusBadge
+                                label={getUserUploadStatusLabel(image.uploadStatus)}
+                                tone={getUserUploadStatusTone(image.uploadStatus)}
+                              />
+                            </div>
                           </div>
                         </div>
-                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                          <MiniInfo label="검사 대상" value={getUserTargetTypeLabel(image.targetType)} />
-                          <MiniInfo label="촬영 시각" value={formatDateTime(image.capturedAt)} />
-                          <MiniInfo
-                            label="분석 가능 여부"
-                            value={canRequest ? '요청 가능' : '대기 중이거나 비활성화됨'}
-                          />
-                          <MiniInfo label="미리보기" value="가능" />
+                        <div className="img-list-cell">
+                          {latestJob ? (
+                            <StatusBadge
+                              label={getUserJobStatusLabel(latestJob.jobStatus)}
+                              tone={getUserJobStatusTone(latestJob.jobStatus)}
+                            />
+                          ) : (
+                            <span className="text-slate-400 text-sm">-</span>
+                          )}
                         </div>
-                        <div className="mt-4 flex flex-wrap gap-3">
-                          <button className="btn btn-secondary" type="button" onClick={() => setPreviewImageId(image.imageId)}>
-                            미리보기
-                          </button>
-                          <button
-                            className="btn btn-primary"
-                            type="button"
-                            disabled={!canRequest || createAnalysisJobMutation.isPending}
-                            onClick={() => requestSingleAnalysis(image)}
-                          >
-                            {`${getUserImageTypeLabel(image.imageType)} 분석 요청`}
-                          </button>
+                        <div className="img-list-cell">
+                          {resultForImage ? (
+                            <StatusBadge
+                              label={getResultStatusLabel(resultForImage.resultStatus)}
+                              tone={getResultStatusTone(resultForImage.resultStatus)}
+                            />
+                          ) : (
+                            <span className="text-slate-400 text-sm">-</span>
+                          )}
                         </div>
-                        <div className="action-row management-actions-muted">
-                          <button className="text-button muted-action" type="button" onClick={() => setSelectedImage(image)}>
-                            비활성화
-                          </button>
-                          <button className="text-button text-button-danger muted-action" type="button" onClick={() => setImageToDelete(image)}>
-                            삭제
-                          </button>
+                        <div className="img-list-cell">
+                          <span className="text-xs text-slate-500 whitespace-nowrap">
+                            {latestJob?.completedAt ? formatDateTime(latestJob.completedAt) : '-'}
+                          </span>
                         </div>
-                      </article>
+                        <div className="img-list-cell img-list-cell-actions">
+                          {hasActiveJob ? (
+                            <span className="text-xs text-sky-600 font-medium">진행 중</span>
+                          ) : canRetry && imageState?.latestFailedJob ? (
+                            <button
+                              className="btn btn-primary"
+                              type="button"
+                              style={{ fontSize: '0.78rem', padding: '0.3rem 0.7rem' }}
+                              disabled={pendingRetryImageId === image.imageId || retryAnalysisJobMutation.isPending}
+                              onClick={() =>
+                                imageState.latestFailedJob?.imageId != null &&
+                                void handleRetryJob(imageState.latestFailedJob.jobId, imageState.latestFailedJob.imageId)
+                              }
+                            >
+                              {pendingRetryImageId === image.imageId ? '요청 중…' : '재요청'}
+                            </button>
+                          ) : resultForImage ? (
+                            <Link
+                              className="text-button text-sm"
+                              to={`/results/${resultForImage.resultId}`}
+                            >
+                              결과 보기
+                            </Link>
+                          ) : latestSucceededJob ? (
+                            <button
+                              className="text-button text-sm"
+                              type="button"
+                              onClick={() => setActiveTab('results')}
+                              title="분석은 완료되었습니다. 결과 탭에서 확인하세요."
+                            >
+                              결과 탭 열기
+                            </button>
+                          ) : canRequest ? (
+                            <button
+                              className="btn btn-secondary"
+                              type="button"
+                              style={{ fontSize: '0.78rem', padding: '0.3rem 0.7rem' }}
+                              disabled={createAnalysisJobMutation.isPending}
+                              onClick={() => requestSingleAnalysis(image)}
+                            >
+                              분석 요청
+                            </button>
+                          ) : (
+                            <span className="text-xs text-slate-400">-</span>
+                          )}
+                          <div className="img-list-mgmt">
+                            <button className="text-button muted-action text-xs" type="button" onClick={() => setSelectedImage(image)}>
+                              비활성화
+                            </button>
+                            <button className="text-button text-button-danger muted-action text-xs" type="button" onClick={() => setImageToDelete(image)}>
+                              삭제
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     )
                   })}
                 </div>
               )}
             </div>
-          </div>
-        ) : null}
 
-        {activeTab === 'analysis' ? (
-          <div className="stack-md">
-            <SectionHeading
-              title="분석 요청"
-              description="업로드된 최신 RGB 이미지와 열화상 이미지로 각각 분석을 요청할 수 있습니다."
-            />
-            <div className="grid gap-4 lg:grid-cols-2">
-              <AnalysisRequestCard
-                title="RGB 분석"
-                description={rgbRequestableImage ? 'RGB 분석을 요청할 수 있습니다.' : '먼저 RGB 이미지를 업로드하세요.'}
-                helperText={rgbRequestableImage ? '업로드된 최신 RGB 이미지로 분석을 시작합니다.' : 'RGB 이미지가 없으면 분석을 요청할 수 없습니다.'}
-                buttonText="RGB 분석 요청"
-                disabled={!rgbRequestableImage || createAnalysisJobMutation.isPending}
-                onClick={() => rgbRequestableImage && requestSingleAnalysis(rgbRequestableImage)}
-              />
-              <AnalysisRequestCard
-                title="열화상 분석"
-                description={thermalRequestableImage ? '열화상 분석을 요청할 수 있습니다.' : '먼저 열화상 이미지를 업로드하세요.'}
-                helperText={thermalRequestableImage ? '업로드된 최신 열화상 이미지로 분석을 시작합니다.' : '열화상 이미지가 없으면 분석을 요청할 수 없습니다.'}
-                buttonText="열화상 분석 요청"
-                disabled={!thermalRequestableImage || createAnalysisJobMutation.isPending}
-                onClick={() => thermalRequestableImage && requestSingleAnalysis(thermalRequestableImage)}
-              />
-            </div>
-
-            <div className="toolbar">
-              <div>
-                <h3 className="panel-title">분석 상태</h3>
-                <p className="panel-description">대기 중, 분석 중, 완료, 실패 상태를 확인하세요.</p>
-              </div>
-              <button className="btn btn-secondary" type="button" onClick={handleRefreshJobs}>
-                상태 새로고침
-              </button>
-            </div>
-
-            {analysisJobsQuery.isLoading && !analysisJobsQuery.data ? <LoadingState message="분석 상태를 불러오는 중입니다." /> : null}
-            {analysisJobsQuery.isError ? <ErrorState title="분석 상태를 불러오지 못했습니다." description={getApiErrorMessage(analysisJobsQuery.error)} /> : null}
-
-            {jobRows.length === 0 && !analysisJobsQuery.isLoading ? (
-              <CompactEmptyState
-                title="요청된 분석이 없습니다."
-                description="분석할 이미지를 먼저 업로드하세요."
-                action={
-                  <button className="btn btn-secondary" type="button" onClick={handleRefreshJobs}>
-                    상태 새로고침
-                  </button>
-                }
-              />
-            ) : null}
-
-            {retryableBannerJob ? (
-              <div className="rounded-3xl border border-rose-200 bg-rose-50 p-5 text-rose-900">
-                <div className="text-base font-semibold">실패한 분석이 있습니다.</div>
-                <p className="mt-2 text-sm">
-                  {selectedJobId === retryableBannerJob.jobId && selectedJob?.failureMessage
-                    ? sanitizeFailureMessage(selectedJob.failureMessage)
-                    : '잠시 후 다시 요청하거나 이미지를 다시 업로드해 주세요.'}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <button
-                    className="btn btn-primary"
-                    type="button"
-                    onClick={() =>
-                      retryableBannerJob.imageId != null &&
-                      void handleRetryJob(retryableBannerJob.jobId, retryableBannerJob.imageId)
-                    }
-                    disabled={
-                      pendingRetryImageId != null ||
-                      retryAnalysisJobMutation.isPending
-                    }
-                  >
-                    {pendingRetryImageId != null ? '요청 중...' : '다시 요청'}
-                  </button>
-                  <button className="btn btn-secondary" type="button" onClick={() => setActiveTab('images')}>
-                    이미지 다시 업로드
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {selectedJob ? (
-              <article className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                <div className="toolbar gap-3">
-                  <div>
-                    <div className="text-base font-semibold text-slate-900">선택한 분석 작업</div>
-                    <p className="mt-1 text-sm text-slate-500">{getUserInputTypeLabel(selectedJob.inputType)} · 요청 {formatDateTime(selectedJob.requestedAt)}</p>
-                  </div>
-                  <StatusBadge label={getUserJobStatusLabel(selectedJob.jobStatus)} tone={getUserJobStatusTone(selectedJob.jobStatus)} />
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <MiniInfo label="대상 이미지" value={getImageNameById(imageRows, selectedJob.imageId)} />
-                  <MiniInfo label="진행 상태" value={getUserJobStatusLabel(selectedJob.jobStatus)} />
-                  <MiniInfo label="시작 시각" value={formatDateTime(selectedJob.startedAt)} />
-                  <MiniInfo label="완료 시각" value={formatDateTime(selectedJob.completedAt)} />
-                </div>
-                {selectedJob.jobStatus === 'FAILED' && selectedJob.failureMessage ? (
-                  <p className="mt-4 text-sm text-rose-700">{sanitizeFailureMessage(selectedJob.failureMessage)}</p>
-                ) : null}
-              </article>
-            ) : null}
-
+            {/* ── 3. 분석 상태 요약 ── */}
             {jobRows.length > 0 ? (
-              <div className="grid gap-4 xl:grid-cols-2">
-                {jobRows.map((job) => {
-                  const imageState = job.imageId != null ? imageJobStateMap.get(job.imageId) : null
-                  const isActiveImageJob = imageState?.hasActiveJob ?? false
-                  const isLatestFailedForImage =
-                    imageState?.latestFailedJob?.jobId === job.jobId
-                  const isRetryableCard =
-                    job.jobStatus === 'FAILED' &&
-                    isLatestFailedForImage &&
-                    (imageState?.canRetry ?? false)
-                  const isHistoricalFailed =
-                    job.jobStatus === 'FAILED' && !isLatestFailedForImage
+              <div className="analysis-kpi-strip">
+                <div className="analysis-kpi-item">
+                  <span className="analysis-kpi-label">대기</span>
+                  <strong className="analysis-kpi-value">{queuedJobs.length}건</strong>
+                </div>
+                <div className="analysis-kpi-item">
+                  <span className="analysis-kpi-label">진행</span>
+                  <strong className="analysis-kpi-value analysis-kpi-sky">{runningJobs.length}건</strong>
+                </div>
+                <div className="analysis-kpi-item">
+                  <span className="analysis-kpi-label">완료</span>
+                  <strong className="analysis-kpi-value analysis-kpi-success">{completedJobs.length}건</strong>
+                </div>
+                <div className="analysis-kpi-item">
+                  <span className="analysis-kpi-label">실패</span>
+                  <strong className={`analysis-kpi-value ${failedJobs.length > 0 ? 'analysis-kpi-danger' : ''}`}>
+                    {failedJobs.length}건
+                  </strong>
+                </div>
+              </div>
+            ) : null}
 
-                  return (
-                    <article key={job.jobId} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                      <div className="toolbar gap-3">
-                        <div>
-                          <div className="text-base font-semibold text-slate-900">{getUserInputTypeLabel(job.inputType)}</div>
-                          <p className="mt-1 text-sm text-slate-500">요청 {formatDateTime(job.requestedAt)}</p>
+            {/* ── 4. 분석 이력 (접힘) ── */}
+            {jobRows.length > 0 ? (
+              <div className="history-collapse">
+                <button
+                  className="history-collapse-toggle"
+                  type="button"
+                  onClick={() => setIsJobHistoryOpen((prev) => !prev)}
+                >
+                  <span>분석 이력 ({jobRows.length}건)</span>
+                  <span>{isJobHistoryOpen ? '▲ 접기' : '▼ 열기'}</span>
+                </button>
+                {isJobHistoryOpen ? (
+                  <div className="job-history-table">
+                    <div className="job-history-header">
+                      <span>유형</span>
+                      <span>상태</span>
+                      <span>대상 이미지</span>
+                      <span>요청 시각</span>
+                      <span>완료 시각</span>
+                      <span>액션</span>
+                    </div>
+                    {jobRows.map((job) => {
+                      const imageState = job.imageId != null ? imageJobStateMap.get(job.imageId) : null
+                      const isRetryableCard =
+                        job.jobStatus === 'FAILED' &&
+                        imageState?.latestFailedJob?.jobId === job.jobId &&
+                        (imageState?.canRetry ?? false)
+
+                      return (
+                        <div key={job.jobId} className="job-history-row">
+                          <span className="text-sm text-slate-700">{getUserInputTypeLabel(job.inputType)}</span>
+                          <span>
+                            <StatusBadge
+                              label={getUserJobStatusLabel(job.jobStatus)}
+                              tone={getUserJobStatusTone(job.jobStatus)}
+                            />
+                          </span>
+                          <span className="text-xs text-slate-500 truncate">{getImageNameById(imageRows, job.imageId)}</span>
+                          <span className="text-xs text-slate-500 whitespace-nowrap">{formatDateTime(job.requestedAt)}</span>
+                          <span className="text-xs text-slate-500 whitespace-nowrap">{formatDateTime(job.completedAt)}</span>
+                          <span>
+                            {isRetryableCard ? (
+                              <button
+                                className="text-button text-sm"
+                                type="button"
+                                disabled={pendingRetryImageId === job.imageId || retryAnalysisJobMutation.isPending}
+                                onClick={() =>
+                                  job.imageId != null && void handleRetryJob(job.jobId, job.imageId)
+                                }
+                              >
+                                재요청
+                              </button>
+                            ) : job.jobStatus === 'SUCCEEDED' ? (
+                              <Link className="text-button text-sm" to={`/results?inspectionId=${inspectionId}`}>
+                                결과
+                              </Link>
+                            ) : null}
+                          </span>
                         </div>
-                        <StatusBadge label={getUserJobStatusLabel(job.jobStatus)} tone={getUserJobStatusTone(job.jobStatus)} />
-                      </div>
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        <MiniInfo label="대상 이미지" value={getImageNameById(imageRows, job.imageId)} />
-                        <MiniInfo label="진행 상태" value={getUserJobStatusLabel(job.jobStatus)} />
-                        <MiniInfo label="시작 시각" value={formatDateTime(job.startedAt)} />
-                        <MiniInfo label="완료 시각" value={formatDateTime(job.completedAt)} />
-                      </div>
-                      {job.jobStatus === 'FAILED' ? (
-                        <p className="mt-4 text-sm text-rose-700">
-                          {sanitizeFailureMessage(
-                            selectedJobId === job.jobId && selectedJob?.failureMessage
-                              ? selectedJob.failureMessage
-                              : '분석에 실패했습니다. 다시 요청하거나 이미지를 다시 업로드해 주세요.',
-                          )}
-                        </p>
-                      ) : null}
-                      <div className="mt-4 flex flex-wrap items-center gap-3">
-                        <button className="btn btn-secondary" type="button" onClick={() => setSelectedJobId(job.jobId)}>
-                          작업 보기
-                        </button>
-
-                        {isRetryableCard ? (
-                          <button
-                            className="btn btn-primary"
-                            type="button"
-                            disabled={
-                              pendingRetryImageId === job.imageId ||
-                              retryAnalysisJobMutation.isPending
-                            }
-                            onClick={() =>
-                              job.imageId != null &&
-                              void handleRetryJob(job.jobId, job.imageId)
-                            }
-                          >
-                            {pendingRetryImageId === job.imageId ? '요청 중...' : '다시 요청'}
-                          </button>
-                        ) : null}
-
-                        {isHistoricalFailed ? (
-                          <span className="text-xs text-slate-400">과거 실패 이력</span>
-                        ) : null}
-
-                        {job.jobStatus === 'FAILED' && isActiveImageJob ? (
-                          <span className="text-xs text-slate-500">분석 진행 중 — 완료 후 확인하세요</span>
-                        ) : null}
-
-                        {job.jobStatus === 'SUCCEEDED' ? (
-                          <Link className="btn btn-secondary" to={`/results?inspectionId=${inspectionId}`}>
-                            분석 결과 보기
-                          </Link>
-                        ) : null}
-                      </div>
-                    </article>
-                  )
-                })}
+                      )
+                    })}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -1131,7 +1121,7 @@ export function InspectionDetailPage() {
           </div>
         ) : null}
 
-        {activeTab === 'info' ? (
+        {activeTab === 'overview' ? (
           <div className="stack-md">
             <SectionHeading title="점검 정보" description="촬영 정보와 메모를 확인하고 필요한 경우 수정하세요." />
             <div className="detail-grid">
@@ -1252,11 +1242,9 @@ export function InspectionDetailPage() {
 }
 
 const WORKFLOW_TABS: Array<{ id: WorkflowTab; label: string }> = [
-  { id: 'progress', label: '진행' },
-  { id: 'images', label: '이미지' },
-  { id: 'analysis', label: '분석' },
+  { id: 'overview', label: '개요' },
+  { id: 'images-analysis', label: '이미지·분석' },
   { id: 'results', label: '결과' },
-  { id: 'info', label: '정보' },
 ]
 
 type WorkflowStatus = {
@@ -1278,15 +1266,6 @@ function SectionHeading({ title, description }: { title: string; description: st
     <div>
       <h2 className="text-xl font-semibold text-slate-950">{title}</h2>
       <p className="mt-2 text-sm text-slate-600">{description}</p>
-    </div>
-  )
-}
-
-function SummaryItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</div>
-      <div className="mt-2 text-sm font-medium text-slate-900">{value}</div>
     </div>
   )
 }
@@ -1332,39 +1311,6 @@ function CompactStatusCard({ title, value, description, actionLabel, onAction }:
   )
 }
 
-function ImageTypeCard({ title, description, isSelected, count, buttonText, onSelect }: { title: string; description: string; isSelected: boolean; count: number; buttonText: string; onSelect: () => void }) {
-  return (
-    <article className={`rounded-3xl border p-5 transition ${isSelected ? 'border-sky-300 bg-sky-50 shadow-sm' : 'border-slate-200 bg-white'}`}>
-      <div className="toolbar gap-3">
-        <div>
-          <h3 className="text-lg font-semibold text-slate-950">{title}</h3>
-          <p className="mt-2 text-sm text-slate-600">{description}</p>
-        </div>
-        <StatusBadge label={`${count}건`} />
-      </div>
-      <div className="mt-4">
-        <button className={isSelected ? 'btn btn-primary' : 'btn btn-secondary'} type="button" onClick={onSelect}>
-          {buttonText}
-        </button>
-      </div>
-    </article>
-  )
-}
-
-function AnalysisRequestCard({ title, description, helperText, buttonText, disabled, onClick }: { title: string; description: string; helperText: string; buttonText: string; disabled: boolean; onClick: () => void }) {
-  return (
-    <article className={`rounded-3xl border p-5 shadow-sm ${disabled ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`}>
-      <h3 className="text-lg font-semibold text-slate-950">{title}</h3>
-      <p className="mt-2 text-sm text-slate-700">{description}</p>
-      <p className={`mt-2 text-sm ${disabled ? 'text-slate-500' : 'text-slate-600'}`}>{helperText}</p>
-      <div className="mt-4">
-        <button className="btn btn-primary" type="button" disabled={disabled} onClick={onClick}>
-          {buttonText}
-        </button>
-      </div>
-    </article>
-  )
-}
 function EntityModal({ isOpen, title, description, children, onClose }: { isOpen: boolean; title: string; description: string; children: ReactNode; onClose: () => void }) {
   if (!isOpen) {
     return null
@@ -1596,27 +1542,21 @@ function getWorkflowStatus({
       badge: '업로드 필요',
       tone: 'warning',
       primaryAction: '이미지 업로드',
-      primaryTab: 'images',
-      secondaryAction: {
-        label: '점검 정보 보기',
-        tab: 'info',
-      },
+      primaryTab: 'images-analysis',
+      secondaryAction: undefined,
     }
   }
 
   if (failedJob) {
     return {
       title: '실패한 분석을 다시 확인하세요.',
-      description: '분석 탭에서 실패 원인을 확인하고 다시 요청하거나 이미지를 다시 업로드할 수 있습니다.',
+      description: '이미지·분석 탭에서 실패 원인을 확인하고 다시 요청하거나 이미지를 다시 업로드할 수 있습니다.',
       summary: '실패한 분석 있음',
       badge: '재확인 필요',
       tone: 'danger',
-      primaryAction: '분석 상태 확인',
-      primaryTab: 'analysis',
-      secondaryAction: {
-        label: '이미지 보기',
-        tab: 'images',
-      },
+      primaryAction: '이미지·분석 확인',
+      primaryTab: 'images-analysis',
+      secondaryAction: undefined,
     }
   }
 
@@ -1628,7 +1568,7 @@ function getWorkflowStatus({
       badge: '처리 중',
       tone: 'default',
       primaryAction: '분석 상태 보기',
-      primaryTab: 'analysis',
+      primaryTab: 'images-analysis',
       secondaryAction: hasResults
         ? {
             label: '결과 보기',
@@ -1650,7 +1590,7 @@ function getWorkflowStatus({
       secondaryAction: hasRequestableImage
         ? {
             label: '추가 분석 요청',
-            tab: 'analysis',
+            tab: 'images-analysis',
           }
         : undefined,
     }
@@ -1664,11 +1604,8 @@ function getWorkflowStatus({
       badge: '요청 가능',
       tone: 'warning',
       primaryAction: '분석 요청',
-      primaryTab: 'analysis',
-      secondaryAction: {
-        label: '이미지 확인',
-        tab: 'images',
-      },
+      primaryTab: 'images-analysis',
+      secondaryAction: undefined,
     }
   }
 
@@ -1679,10 +1616,7 @@ function getWorkflowStatus({
     badge: '확인 필요',
     tone: 'warning',
     primaryAction: '이미지 보기',
-    primaryTab: 'images',
-    secondaryAction: {
-      label: '점검 정보 보기',
-      tab: 'info',
-    },
+    primaryTab: 'images-analysis',
+    secondaryAction: undefined,
   }
 }

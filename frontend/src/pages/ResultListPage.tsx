@@ -1,5 +1,378 @@
-﻿import { InspectionResultWorkspacePage } from './InspectionResultWorkspacePage'
+﻿import { useMemo } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { useAuth } from '../features/auth/hooks/useAuth'
+import { usePlants } from '../features/plants/hooks/usePlants'
+import {
+  ACTION_CANDIDATE_OPTIONS,
+  getActionCandidateLabel,
+  getResultStatusLabel,
+  getResultStatusTone,
+  getReviewStatusLabel,
+  getReviewStatusTone,
+  getSeverityLevelLabel,
+  getSeverityLevelTone,
+  RESULT_STATUS_OPTIONS,
+  REVIEW_STATUS_OPTIONS,
+  SEVERITY_LEVEL_OPTIONS,
+  type ActionCandidate,
+  type AnalysisResultStatus,
+  type ResultListParams,
+  type ReviewStatus,
+  type SeverityLevel,
+} from '../features/results/types'
+import { getInputTypeShortLabel } from '../features/results/defectTaxonomy'
+import { useResults } from '../features/results/hooks/useResults'
+import { useZonesByPlantId } from '../features/zones/hooks/useZones'
+import { FormField } from '../shared/components/form/FormField'
+import { PageHeader } from '../shared/components/layout/PageHeader'
+import { EmptyState } from '../shared/components/state/EmptyState'
+import { ErrorState } from '../shared/components/state/ErrorState'
+import { LoadingState } from '../shared/components/state/LoadingState'
+import { StatusBadge } from '../shared/components/state/StatusBadge'
+import { DataTable } from '../shared/components/table/DataTable'
+import { Pagination } from '../shared/components/table/Pagination'
+import { formatDateTime, getApiErrorMessage, parsePositiveNumber } from '../shared/utils'
+
+function castOrUndefined<T>(
+  value: string | null,
+  options: readonly T[],
+): T | undefined {
+  return options.includes(value as T) ? (value as T) : undefined
+}
 
 export function ResultListPage() {
-  return <InspectionResultWorkspacePage defaultTab="results" />
+  const [searchParams, setSearchParams] = useSearchParams()
+  const role = useAuth((state) => state.user?.role)
+
+  const plantId = parsePositiveNumber(searchParams.get('plantId') ?? undefined)
+  const zoneId = parsePositiveNumber(searchParams.get('zoneId') ?? undefined)
+  const resultStatus = castOrUndefined<AnalysisResultStatus>(
+    searchParams.get('resultStatus'),
+    RESULT_STATUS_OPTIONS,
+  )
+  const reviewStatus = castOrUndefined<ReviewStatus>(
+    searchParams.get('reviewStatus'),
+    REVIEW_STATUS_OPTIONS,
+  )
+  const severityLevel = castOrUndefined<SeverityLevel>(
+    searchParams.get('severityLevel'),
+    SEVERITY_LEVEL_OPTIONS,
+  )
+  const actionCandidate = castOrUndefined<ActionCandidate>(
+    searchParams.get('actionCandidate'),
+    ACTION_CANDIDATE_OPTIONS,
+  )
+  const page = Math.max(parsePositiveNumber(searchParams.get('page') ?? undefined) ?? 1, 1)
+
+  const canQuery = role === 'ADMIN' || Boolean(plantId || zoneId)
+
+  const plantsQuery = usePlants({ page: 0, size: 100, status: 'ACTIVE' })
+  const zonesQuery = useZonesByPlantId(plantId ?? 0)
+
+  const plantMap = useMemo(() => {
+    const map = new Map<number, string>()
+    for (const plant of plantsQuery.data?.data.content ?? []) {
+      map.set(plant.plantId, plant.name)
+    }
+    return map
+  }, [plantsQuery.data])
+
+  const params = useMemo<ResultListParams>(
+    () => ({
+      plantId: plantId ?? undefined,
+      zoneId: zoneId ?? undefined,
+      resultStatus,
+      reviewStatus,
+      severityLevel,
+      actionCandidate,
+      page: page - 1,
+      size: 20,
+    }),
+    [plantId, zoneId, resultStatus, reviewStatus, severityLevel, actionCandidate, page],
+  )
+
+  const resultsQuery = useResults(params, canQuery)
+  const rows = resultsQuery.data?.data.content ?? []
+
+  const setParam = (key: string, value: string | null) => {
+    const next = new URLSearchParams(searchParams)
+    if (value) {
+      next.set(key, value)
+    } else {
+      next.delete(key)
+    }
+    next.delete('page')
+    setSearchParams(next)
+  }
+
+  const hasFilter =
+    plantId || zoneId || resultStatus || reviewStatus || severityLevel || actionCandidate
+
+  return (
+    <section className="page-shell">
+      <PageHeader
+        title="결과"
+        description="분석 결과를 조회하고 검토 상태를 관리합니다."
+      />
+
+      {/* 필터 */}
+      <section className="filter-section">
+        <div className="filter-row">
+          <div className="filter-field">
+            <FormField label="발전소">
+              <select
+                className="input-field"
+                value={plantId ? String(plantId) : ''}
+                onChange={(e) => {
+                  setParam('plantId', e.target.value || null)
+                  setParam('zoneId', null)
+                }}
+              >
+                <option value="">전체</option>
+                {plantsQuery.data?.data.content.map((plant) => (
+                  <option key={plant.plantId} value={plant.plantId}>
+                    {plant.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+          <div className="filter-field">
+            <FormField label="구역">
+              <select
+                className="input-field"
+                disabled={!plantId}
+                value={zoneId ? String(zoneId) : ''}
+                onChange={(e) => setParam('zoneId', e.target.value || null)}
+              >
+                <option value="">{plantId ? '전체' : '발전소 먼저 선택'}</option>
+                {zonesQuery.data?.data.map((zone) => (
+                  <option key={zone.zoneId} value={zone.zoneId}>
+                    {zone.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+          <div className="filter-field">
+            <FormField label="결과 상태">
+              <select
+                className="input-field"
+                value={resultStatus ?? ''}
+                onChange={(e) => setParam('resultStatus', e.target.value || null)}
+              >
+                <option value="">전체</option>
+                {RESULT_STATUS_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {getResultStatusLabel(s)}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+          <div className="filter-field">
+            <FormField label="심각도">
+              <select
+                className="input-field"
+                value={severityLevel ?? ''}
+                onChange={(e) => setParam('severityLevel', e.target.value || null)}
+              >
+                <option value="">전체</option>
+                {SEVERITY_LEVEL_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {getSeverityLevelLabel(s)}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+          <div className="filter-field">
+            <FormField label="조치 후보">
+              <select
+                className="input-field"
+                value={actionCandidate ?? ''}
+                onChange={(e) => setParam('actionCandidate', e.target.value || null)}
+              >
+                <option value="">전체</option>
+                {ACTION_CANDIDATE_OPTIONS.map((a) => (
+                  <option key={a} value={a}>
+                    {getActionCandidateLabel(a)}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+          <div className="filter-field">
+            <FormField label="검토 상태">
+              <select
+                className="input-field"
+                value={reviewStatus ?? ''}
+                onChange={(e) => setParam('reviewStatus', e.target.value || null)}
+              >
+                <option value="">전체</option>
+                {REVIEW_STATUS_OPTIONS.map((r) => (
+                  <option key={r} value={r}>
+                    {getReviewStatusLabel(r)}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+          {hasFilter ? (
+            <div className="filter-actions">
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={() => setSearchParams({})}
+              >
+                초기화
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      {/* 범위 가드 */}
+      {!canQuery ? (
+        <section className="panel">
+          <EmptyState
+            title="먼저 발전소 또는 구역을 선택하세요."
+            description="범위를 정하면 해당 결과를 확인할 수 있습니다."
+            action={
+              <Link className="btn btn-secondary" to="/plants">
+                발전소 보기
+              </Link>
+            }
+          />
+        </section>
+      ) : null}
+
+      {/* 테이블 */}
+      {canQuery && resultsQuery.isLoading && !resultsQuery.data ? (
+        <LoadingState message="분석 결과를 불러오는 중입니다." />
+      ) : null}
+
+      {canQuery && resultsQuery.isError ? (
+        <ErrorState
+          title="분석 결과를 불러오지 못했습니다."
+          description={getApiErrorMessage(resultsQuery.error)}
+        />
+      ) : null}
+
+      {canQuery && !resultsQuery.isLoading && !resultsQuery.isError ? (
+        <section className="table-panel">
+          <div className="table-panel-header">
+            <span className="table-panel-title">분석 결과 목록</span>
+            <span className="table-panel-count">
+              총 {resultsQuery.data?.data.totalElements ?? 0}건
+            </span>
+          </div>
+          <DataTable
+            rows={rows}
+            rowKey={(row) => row.resultId}
+            emptyTitle="조건에 맞는 결과가 없습니다."
+            emptyDescription="분석이 완료되면 결과가 표시됩니다."
+            columns={[
+              {
+                key: 'id',
+                header: '결과 / 점검',
+                render: (row) => (
+                  <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <StatusBadge
+                        label={getResultStatusLabel(row.resultStatus)}
+                        tone={getResultStatusTone(row.resultStatus)}
+                      />
+                      <span className="text-xs text-slate-400">#{row.resultId}</span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {row.plantId ? (plantMap.get(row.plantId) ?? `발전소 #${row.plantId}`) : '-'}
+                      {row.inspectionId ? ` · 점검 #${row.inspectionId}` : ''}
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                key: 'imageType',
+                header: '유형',
+                render: (row) => (
+                  <span className="text-slate-600 text-sm whitespace-nowrap">
+                    {getInputTypeShortLabel(row.inputType)}
+                  </span>
+                ),
+              },
+              {
+                key: 'severity',
+                header: '심각도',
+                render: (row) => (
+                  <StatusBadge
+                    label={getSeverityLevelLabel(row.severityLevel)}
+                    tone={getSeverityLevelTone(row.severityLevel)}
+                  />
+                ),
+              },
+              {
+                key: 'anomalyCount',
+                header: '이상 수',
+                render: (row) => (
+                  <span className={row.anomalyCount ? 'font-semibold text-rose-600' : 'text-slate-400'}>
+                    {row.anomalyCount != null ? `${row.anomalyCount}건` : '-'}
+                  </span>
+                ),
+              },
+              {
+                key: 'action',
+                header: '조치 후보',
+                render: (row) => (
+                  <span className="text-slate-600 text-sm">
+                    {getActionCandidateLabel(row.actionCandidate)}
+                  </span>
+                ),
+              },
+              {
+                key: 'review',
+                header: '검토 상태',
+                render: (row) => (
+                  <StatusBadge
+                    label={getReviewStatusLabel(row.reviewStatus)}
+                    tone={getReviewStatusTone(row.reviewStatus)}
+                  />
+                ),
+              },
+              {
+                key: 'analyzedAt',
+                header: '분석 시각',
+                render: (row) => (
+                  <span className="text-slate-400 text-xs whitespace-nowrap">
+                    {formatDateTime(row.analyzedAt)}
+                  </span>
+                ),
+              },
+              {
+                key: 'link',
+                header: '',
+                render: (row) => (
+                  <Link to={`/results/${row.resultId}`} className="text-button text-sm whitespace-nowrap">
+                    결과 보기
+                  </Link>
+                ),
+              },
+            ]}
+          />
+          <div className="p-3">
+            <Pagination
+              page={page}
+              totalPages={resultsQuery.data?.data.totalPages ?? 0}
+              totalElements={resultsQuery.data?.data.totalElements ?? 0}
+              onPageChange={(nextPage) => {
+                const next = new URLSearchParams(searchParams)
+                next.set('page', String(nextPage))
+                setSearchParams(next)
+              }}
+            />
+          </div>
+        </section>
+      ) : null}
+    </section>
+  )
 }
