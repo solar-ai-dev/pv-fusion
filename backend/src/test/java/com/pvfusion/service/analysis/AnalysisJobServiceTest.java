@@ -7,11 +7,13 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.pvfusion.application.dto.analysis.AnalysisJobListQuery;
 import com.pvfusion.application.dto.analysis.AnalysisJobMessage;
 import com.pvfusion.application.dto.analysis.RequestAnalysisCommand;
 import com.pvfusion.application.dto.analysis.RetryAnalysisJobCommand;
+import org.springframework.dao.DataIntegrityViolationException;
 import com.pvfusion.application.port.in.access.AccessChecker;
 import com.pvfusion.application.port.out.analysis.LoadAnalysisJobPort;
 import com.pvfusion.application.port.out.analysis.PublishAnalysisJobPort;
@@ -446,6 +448,254 @@ class AnalysisJobServiceTest {
         assertThat(response.inspectionId()).isNull();
         assertThat(response.zoneId()).isNull();
         assertThat(response.plantId()).isNull();
+    }
+
+    @Test
+    void requestAnalysisFailsWhenDuplicateRunningJobExists() {
+        InspectionImage image = image(10L, ImageType.RGB, ResourceStatus.ACTIVE);
+        AnalysisJob running = analysisJob(
+                3L, 10L,
+                AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
+                AnalysisJobStatus.RUNNING, 0, "trace"
+        );
+
+        when(loadImagePort.loadImage(10L)).thenReturn(Optional.of(image));
+        when(accessChecker.checkImageAccess(1L, 10L)).thenReturn(true);
+        when(loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(10L, List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING)))
+                .thenReturn(List.of(running));
+
+        assertThatThrownBy(() -> analysisJobService.execute(new RequestAnalysisCommand(10L, "trace")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.ANALYSIS_JOB_ALREADY_RUNNING);
+    }
+
+    @Test
+    void requestAnalysisDuplicateBlockedDoesNotSaveOrPublish() {
+        InspectionImage image = image(10L, ImageType.RGB, ResourceStatus.ACTIVE);
+        AnalysisJob queued = analysisJob(
+                2L, 10L,
+                AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
+                AnalysisJobStatus.QUEUED, 0, "trace"
+        );
+
+        when(loadImagePort.loadImage(10L)).thenReturn(Optional.of(image));
+        when(accessChecker.checkImageAccess(1L, 10L)).thenReturn(true);
+        when(loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(10L, List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING)))
+                .thenReturn(List.of(queued));
+
+        assertThatThrownBy(() -> analysisJobService.execute(new RequestAnalysisCommand(10L, "trace")))
+                .isInstanceOf(BusinessException.class);
+
+        org.mockito.Mockito.verifyNoInteractions(saveAnalysisJobPort);
+        org.mockito.Mockito.verifyNoInteractions(publishAnalysisJobPort);
+    }
+
+    @Test
+    void requestAnalysisSucceedsWhenOnlyFailedJobExists() {
+        InspectionImage image = image(10L, ImageType.RGB, ResourceStatus.ACTIVE);
+        AnalysisJob saved = analysisJob(
+                5L, 10L,
+                AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
+                AnalysisJobStatus.QUEUED, 0, "trace"
+        );
+
+        when(loadImagePort.loadImage(10L)).thenReturn(Optional.of(image));
+        when(accessChecker.checkImageAccess(1L, 10L)).thenReturn(true);
+        when(loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(10L, List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING)))
+                .thenReturn(List.of());
+        when(saveAnalysisJobPort.saveAnalysisJob(any())).thenReturn(saved);
+
+        var response = analysisJobService.execute(new RequestAnalysisCommand(10L, "trace"));
+
+        assertThat(response.jobStatus()).isEqualTo(AnalysisJobStatus.QUEUED);
+        org.mockito.Mockito.verify(publishAnalysisJobPort).publish(any());
+    }
+
+    @Test
+    void retryFailsWhenActiveQueuedJobExistsForSameImage() {
+        AnalysisJob failed = analysisJob(
+                1L, 10L,
+                AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
+                AnalysisJobStatus.FAILED, 0, "old-trace"
+        );
+        AnalysisJob activeQueued = analysisJob(
+                7L, 10L,
+                AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
+                AnalysisJobStatus.QUEUED, 1, "other-trace"
+        );
+        InspectionImage image = image(10L, ImageType.RGB, ResourceStatus.ACTIVE);
+
+        when(loadAnalysisJobPort.loadAnalysisJob(1L)).thenReturn(Optional.of(failed));
+        when(loadImagePort.loadImage(10L)).thenReturn(Optional.of(image));
+        when(accessChecker.checkImageAccess(1L, 10L)).thenReturn(true);
+        when(loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(10L, List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING)))
+                .thenReturn(List.of(activeQueued));
+
+        assertThatThrownBy(() -> analysisJobService.execute(new RetryAnalysisJobCommand(1L, "new-trace")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.ANALYSIS_JOB_ALREADY_RUNNING);
+    }
+
+    @Test
+    void retryFailsWhenActiveRunningJobExistsForSameImage() {
+        AnalysisJob failed = analysisJob(
+                1L, 10L,
+                AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
+                AnalysisJobStatus.FAILED, 0, "old-trace"
+        );
+        AnalysisJob activeRunning = analysisJob(
+                8L, 10L,
+                AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
+                AnalysisJobStatus.RUNNING, 1, "other-trace"
+        );
+        InspectionImage image = image(10L, ImageType.RGB, ResourceStatus.ACTIVE);
+
+        when(loadAnalysisJobPort.loadAnalysisJob(1L)).thenReturn(Optional.of(failed));
+        when(loadImagePort.loadImage(10L)).thenReturn(Optional.of(image));
+        when(accessChecker.checkImageAccess(1L, 10L)).thenReturn(true);
+        when(loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(10L, List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING)))
+                .thenReturn(List.of(activeRunning));
+
+        assertThatThrownBy(() -> analysisJobService.execute(new RetryAnalysisJobCommand(1L, "new-trace")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.ANALYSIS_JOB_ALREADY_RUNNING);
+    }
+
+    @Test
+    void retryDuplicateBlockedDoesNotSaveOrPublish() {
+        AnalysisJob failed = analysisJob(
+                1L, 10L,
+                AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
+                AnalysisJobStatus.FAILED, 0, "old-trace"
+        );
+        AnalysisJob activeQueued = analysisJob(
+                7L, 10L,
+                AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
+                AnalysisJobStatus.QUEUED, 1, "other-trace"
+        );
+        InspectionImage image = image(10L, ImageType.RGB, ResourceStatus.ACTIVE);
+
+        when(loadAnalysisJobPort.loadAnalysisJob(1L)).thenReturn(Optional.of(failed));
+        when(loadImagePort.loadImage(10L)).thenReturn(Optional.of(image));
+        when(accessChecker.checkImageAccess(1L, 10L)).thenReturn(true);
+        when(loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(10L, List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING)))
+                .thenReturn(List.of(activeQueued));
+
+        assertThatThrownBy(() -> analysisJobService.execute(new RetryAnalysisJobCommand(1L, "new-trace")))
+                .isInstanceOf(BusinessException.class);
+
+        org.mockito.Mockito.verifyNoInteractions(saveAnalysisJobPort);
+        org.mockito.Mockito.verifyNoInteractions(publishAnalysisJobPort);
+    }
+
+    @Test
+    void requestAnalysisMapsActiveJobUniqueViolationTo409() {
+        InspectionImage image = image(10L, ImageType.RGB, ResourceStatus.ACTIVE);
+
+        when(loadImagePort.loadImage(10L)).thenReturn(Optional.of(image));
+        when(accessChecker.checkImageAccess(1L, 10L)).thenReturn(true);
+        when(loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(10L, List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING)))
+                .thenReturn(List.of());
+        when(saveAnalysisJobPort.saveAnalysisJob(any()))
+                .thenThrow(new DataIntegrityViolationException(
+                        "could not execute statement; SQL [n/a]; constraint [ux_analysis_jobs_one_active_per_image]"));
+
+        assertThatThrownBy(() -> analysisJobService.execute(new RequestAnalysisCommand(10L, "trace")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.ANALYSIS_JOB_ALREADY_RUNNING);
+
+        verifyNoInteractions(publishAnalysisJobPort);
+    }
+
+    @Test
+    void requestAnalysisRethrowsUnrelatedDataIntegrityViolation() {
+        InspectionImage image = image(10L, ImageType.RGB, ResourceStatus.ACTIVE);
+
+        when(loadImagePort.loadImage(10L)).thenReturn(Optional.of(image));
+        when(accessChecker.checkImageAccess(1L, 10L)).thenReturn(true);
+        when(loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(10L, List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING)))
+                .thenReturn(List.of());
+        when(saveAnalysisJobPort.saveAnalysisJob(any()))
+                .thenThrow(new DataIntegrityViolationException("foreign key constraint violation"));
+
+        assertThatThrownBy(() -> analysisJobService.execute(new RequestAnalysisCommand(10L, "trace")))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        verifyNoInteractions(publishAnalysisJobPort);
+    }
+
+    @Test
+    void requestAnalysisMapsActiveJobUniqueViolationInCauseTo409() {
+        InspectionImage image = image(10L, ImageType.RGB, ResourceStatus.ACTIVE);
+
+        when(loadImagePort.loadImage(10L)).thenReturn(Optional.of(image));
+        when(accessChecker.checkImageAccess(1L, 10L)).thenReturn(true);
+        when(loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(10L, List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING)))
+                .thenReturn(List.of());
+        RuntimeException rootCause = new RuntimeException(
+                "ERROR: duplicate key value violates unique constraint \"ux_analysis_jobs_one_active_per_image\"");
+        when(saveAnalysisJobPort.saveAnalysisJob(any()))
+                .thenThrow(new DataIntegrityViolationException("DB error", rootCause));
+
+        assertThatThrownBy(() -> analysisJobService.execute(new RequestAnalysisCommand(10L, "trace")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.ANALYSIS_JOB_ALREADY_RUNNING);
+
+        verifyNoInteractions(publishAnalysisJobPort);
+    }
+
+    @Test
+    void retryMapsActiveJobUniqueViolationTo409() {
+        AnalysisJob failed = analysisJob(
+                1L, 10L,
+                AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
+                AnalysisJobStatus.FAILED, 0, "old-trace"
+        );
+        InspectionImage image = image(10L, ImageType.RGB, ResourceStatus.ACTIVE);
+
+        when(loadAnalysisJobPort.loadAnalysisJob(1L)).thenReturn(Optional.of(failed));
+        when(loadImagePort.loadImage(10L)).thenReturn(Optional.of(image));
+        when(accessChecker.checkImageAccess(1L, 10L)).thenReturn(true);
+        when(loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(10L, List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING)))
+                .thenReturn(List.of());
+        when(saveAnalysisJobPort.saveAnalysisJob(any()))
+                .thenThrow(new DataIntegrityViolationException(
+                        "could not execute statement; constraint [ux_analysis_jobs_one_active_per_image]"));
+
+        assertThatThrownBy(() -> analysisJobService.execute(new RetryAnalysisJobCommand(1L, "new-trace")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.ANALYSIS_JOB_ALREADY_RUNNING);
+
+        verifyNoInteractions(publishAnalysisJobPort);
+    }
+
+    @Test
+    void retryRethrowsUnrelatedDataIntegrityViolation() {
+        AnalysisJob failed = analysisJob(
+                1L, 10L,
+                AnalysisInputType.RGB_SINGLE, RequestedModelType.RGB_ONLY, AnalysisModelType.RGB_ONLY,
+                AnalysisJobStatus.FAILED, 0, "old-trace"
+        );
+        InspectionImage image = image(10L, ImageType.RGB, ResourceStatus.ACTIVE);
+
+        when(loadAnalysisJobPort.loadAnalysisJob(1L)).thenReturn(Optional.of(failed));
+        when(loadImagePort.loadImage(10L)).thenReturn(Optional.of(image));
+        when(accessChecker.checkImageAccess(1L, 10L)).thenReturn(true);
+        when(loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(10L, List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.RUNNING)))
+                .thenReturn(List.of());
+        when(saveAnalysisJobPort.saveAnalysisJob(any()))
+                .thenThrow(new DataIntegrityViolationException("unrelated fk constraint violation"));
+
+        assertThatThrownBy(() -> analysisJobService.execute(new RetryAnalysisJobCommand(1L, "new-trace")))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        verifyNoInteractions(publishAnalysisJobPort);
     }
 
     @Test
