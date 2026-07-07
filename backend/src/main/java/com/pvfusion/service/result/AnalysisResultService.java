@@ -162,12 +162,12 @@ public class AnalysisResultService implements
 
     @Override
     public PageResponse<AnalysisResultSummaryResponse> execute(AnalysisResultListQuery query) {
-        requireCurrentUserId();
+        Long currentUserId = requireCurrentUserId();
         validatePage(query.page(), query.size());
-        validateListScope(query);
+        AnalysisResultListQuery execQuery = scopeListQuery(currentUserId, query);
 
-        List<AnalysisResult> results = loadAnalysisResultPort.loadAnalysisResults(query);
-        long totalElements = loadAnalysisResultPort.countAnalysisResults(query);
+        List<AnalysisResult> results = loadAnalysisResultPort.loadAnalysisResults(execQuery);
+        long totalElements = loadAnalysisResultPort.countAnalysisResults(execQuery);
         List<AnalysisResultSummaryResponse> content = results.stream()
                 .map(this::toSummaryResponse)
                 .toList();
@@ -587,16 +587,8 @@ public class AnalysisResultService implements
         };
     }
 
-    private void validateListScope(AnalysisResultListQuery query) {
-        Long currentUserId = requireCurrentUserId();
+    private AnalysisResultListQuery scopeListQuery(Long currentUserId, AnalysisResultListQuery query) {
         boolean admin = accessChecker.isAdmin(currentUserId);
-        if (!admin
-                && query.plantId() == null
-                && query.zoneId() == null
-                && query.inspectionId() == null
-                && query.equipmentId() == null) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "Non-admin analysis result queries require scoped filters.");
-        }
 
         if (query.plantId() != null) {
             ensureAllowed(accessChecker.checkPlantAccess(currentUserId, query.plantId()));
@@ -610,6 +602,20 @@ public class AnalysisResultService implements
         if (query.equipmentId() != null) {
             ensureAllowed(accessChecker.checkEquipmentAccess(currentUserId, query.equipmentId()));
         }
+
+        boolean noScope = query.plantId() == null && query.zoneId() == null
+                && query.inspectionId() == null && query.equipmentId() == null;
+        if (!admin && noScope) {
+            // non-admin, no explicit scope: auto-filter by plant membership
+            return new AnalysisResultListQuery(
+                    currentUserId,
+                    query.plantId(), query.zoneId(), query.inspectionId(),
+                    query.targetType(), query.equipmentId(), query.inputType(), query.modelType(),
+                    query.jobStatus(), query.resultStatus(), query.actionCandidate(), query.severityLevel(),
+                    query.reviewStatus(), query.from(), query.to(), query.page(), query.size()
+            );
+        }
+        return query;
     }
 
     private AnalysisResult loadAnalysisResult(Long resultId) {

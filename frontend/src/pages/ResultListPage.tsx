@@ -1,6 +1,5 @@
 ﻿import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useAuth } from '../features/auth/hooks/useAuth'
 import { usePlants } from '../features/plants/hooks/usePlants'
 import {
   ACTION_CANDIDATE_OPTIONS,
@@ -21,11 +20,11 @@ import {
   type SeverityLevel,
 } from '../features/results/types'
 import { getInputTypeShortLabel } from '../features/results/defectTaxonomy'
+import { ANALYSIS_INPUT_TYPE_OPTIONS, getAnalysisInputTypeLabel, type AnalysisInputType } from '../features/analysisJobs/types'
 import { useResults } from '../features/results/hooks/useResults'
 import { useZonesByPlantId } from '../features/zones/hooks/useZones'
 import { FormField } from '../shared/components/form/FormField'
 import { PageHeader } from '../shared/components/layout/PageHeader'
-import { EmptyState } from '../shared/components/state/EmptyState'
 import { ErrorState } from '../shared/components/state/ErrorState'
 import { LoadingState } from '../shared/components/state/LoadingState'
 import { StatusBadge } from '../shared/components/state/StatusBadge'
@@ -42,10 +41,11 @@ function castOrUndefined<T>(
 
 export function ResultListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const role = useAuth((state) => state.user?.role)
 
   const plantId = parsePositiveNumber(searchParams.get('plantId') ?? undefined)
   const zoneId = parsePositiveNumber(searchParams.get('zoneId') ?? undefined)
+  const from = searchParams.get('from') ?? undefined
+  const to = searchParams.get('to') ?? undefined
   const resultStatus = castOrUndefined<AnalysisResultStatus>(
     searchParams.get('resultStatus'),
     RESULT_STATUS_OPTIONS,
@@ -62,9 +62,11 @@ export function ResultListPage() {
     searchParams.get('actionCandidate'),
     ACTION_CANDIDATE_OPTIONS,
   )
+  const inputType = castOrUndefined<AnalysisInputType>(
+    searchParams.get('inputType'),
+    ANALYSIS_INPUT_TYPE_OPTIONS,
+  )
   const page = Math.max(parsePositiveNumber(searchParams.get('page') ?? undefined) ?? 1, 1)
-
-  const canQuery = role === 'ADMIN' || Boolean(plantId || zoneId)
 
   const plantsQuery = usePlants({ page: 0, size: 100, status: 'ACTIVE' })
   const zonesQuery = useZonesByPlantId(plantId ?? 0)
@@ -81,17 +83,20 @@ export function ResultListPage() {
     () => ({
       plantId: plantId ?? undefined,
       zoneId: zoneId ?? undefined,
+      inputType: inputType ?? undefined,
       resultStatus,
       reviewStatus,
       severityLevel,
       actionCandidate,
+      from: from || undefined,
+      to: to || undefined,
       page: page - 1,
       size: 20,
     }),
-    [plantId, zoneId, resultStatus, reviewStatus, severityLevel, actionCandidate, page],
+    [plantId, zoneId, inputType, resultStatus, reviewStatus, severityLevel, actionCandidate, from, to, page],
   )
 
-  const resultsQuery = useResults(params, canQuery)
+  const resultsQuery = useResults(params)
   const rows = resultsQuery.data?.data.content ?? []
 
   const setParam = (key: string, value: string | null) => {
@@ -106,7 +111,7 @@ export function ResultListPage() {
   }
 
   const hasFilter =
-    plantId || zoneId || resultStatus || reviewStatus || severityLevel || actionCandidate
+    plantId || zoneId || inputType || resultStatus || reviewStatus || severityLevel || actionCandidate || from || to
 
   return (
     <section className="page-shell">
@@ -203,6 +208,22 @@ export function ResultListPage() {
             </FormField>
           </div>
           <div className="filter-field">
+            <FormField label="이미지 유형">
+              <select
+                className="input-field"
+                value={inputType ?? ''}
+                onChange={(e) => setParam('inputType', e.target.value || null)}
+              >
+                <option value="">전체</option>
+                {ANALYSIS_INPUT_TYPE_OPTIONS.map((t) => (
+                  <option key={t} value={t}>
+                    {getAnalysisInputTypeLabel(t)}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+          <div className="filter-field">
             <FormField label="검토 상태">
               <select
                 className="input-field"
@@ -216,6 +237,26 @@ export function ResultListPage() {
                   </option>
                 ))}
               </select>
+            </FormField>
+          </div>
+          <div className="filter-field">
+            <FormField label="시작일">
+              <input
+                className="input-field"
+                type="date"
+                value={from ?? ''}
+                onChange={(e) => setParam('from', e.target.value || null)}
+              />
+            </FormField>
+          </div>
+          <div className="filter-field">
+            <FormField label="종료일">
+              <input
+                className="input-field"
+                type="date"
+                value={to ?? ''}
+                onChange={(e) => setParam('to', e.target.value || null)}
+              />
             </FormField>
           </div>
           {hasFilter ? (
@@ -232,34 +273,19 @@ export function ResultListPage() {
         </div>
       </section>
 
-      {/* 범위 가드 */}
-      {!canQuery ? (
-        <section className="panel">
-          <EmptyState
-            title="먼저 발전소 또는 구역을 선택하세요."
-            description="범위를 정하면 해당 결과를 확인할 수 있습니다."
-            action={
-              <Link className="btn btn-secondary" to="/plants">
-                발전소 보기
-              </Link>
-            }
-          />
-        </section>
-      ) : null}
-
       {/* 테이블 */}
-      {canQuery && resultsQuery.isLoading && !resultsQuery.data ? (
+      {resultsQuery.isLoading && !resultsQuery.data ? (
         <LoadingState message="분석 결과를 불러오는 중입니다." />
       ) : null}
 
-      {canQuery && resultsQuery.isError ? (
+      {resultsQuery.isError ? (
         <ErrorState
           title="분석 결과를 불러오지 못했습니다."
           description={getApiErrorMessage(resultsQuery.error)}
         />
       ) : null}
 
-      {canQuery && !resultsQuery.isLoading && !resultsQuery.isError ? (
+      {!resultsQuery.isLoading && !resultsQuery.isError ? (
         <section className="table-panel">
           <div className="table-panel-header">
             <span className="table-panel-title">분석 결과 목록</span>
@@ -271,7 +297,11 @@ export function ResultListPage() {
             rows={rows}
             rowKey={(row) => row.resultId}
             emptyTitle="조건에 맞는 결과가 없습니다."
-            emptyDescription="분석이 완료되면 결과가 표시됩니다."
+            emptyDescription={
+              hasFilter
+                ? '기간이나 발전소·구역·상태 조건을 변경해 보세요.'
+                : '분석이 완료되면 결과가 표시됩니다.'
+            }
             columns={[
               {
                 key: 'id',

@@ -172,17 +172,17 @@ class InspectionServiceTest {
     }
 
     @Test
-    void queryInspectionRequiresZoneForNonAdmin() {
+    void queryInspectionAutoScopesForNonAdmin() {
         InspectionListQuery query = new InspectionListQuery(1L, null, null, null, null, null, 0, 20);
 
         when(accessChecker.isAdmin(1L)).thenReturn(false);
+        when(loadInspectionPort.loadInspections(any())).thenReturn(List.of());
+        when(loadInspectionPort.countInspections(any())).thenReturn(0L);
 
-        assertThatThrownBy(() -> inspectionService.execute(query))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.FORBIDDEN);
+        var result = inspectionService.execute(query);
 
-        verify(loadInspectionPort, never()).loadInspections(any());
+        assertThat(result.content()).isEmpty();
+        verify(loadInspectionPort).loadInspections(any());
     }
 
     @Test

@@ -71,14 +71,16 @@ class TrackingServiceTest {
     }
 
     @Test
-    void queryTrackingRequiresScopedFilterForNonAdmin() {
+    void queryTrackingAutoScopesForNonAdmin() {
         when(accessChecker.isAdmin(1L)).thenReturn(false);
+        when(loadTrackingPort.loadTracking(any())).thenReturn(List.of());
 
-        assertThatThrownBy(() -> trackingService.execute(new TrackingQuery(
+        var response = trackingService.execute(new TrackingQuery(
                 null, null, null, null, null, null, null, null, null, null, null
-        ))).isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.FORBIDDEN);
+        ));
+
+        assertThat(response.items()).isEmpty();
+        verify(loadTrackingPort).loadTracking(any());
     }
 
     @Test

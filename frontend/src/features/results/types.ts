@@ -163,6 +163,8 @@ export type ResultListParams = {
   actionCandidate?: ActionCandidate
   severityLevel?: SeverityLevel
   reviewStatus?: ReviewStatus
+  from?: string
+  to?: string
   page?: number
   size?: number
 }

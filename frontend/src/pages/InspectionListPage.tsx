@@ -14,7 +14,6 @@ import { usePlants } from '../features/plants/hooks/usePlants'
 import { useZonesByPlantId } from '../features/zones/hooks/useZones'
 import { FormField } from '../shared/components/form/FormField'
 import { PageHeader } from '../shared/components/layout/PageHeader'
-import { EmptyState } from '../shared/components/state/EmptyState'
 import { ErrorState } from '../shared/components/state/ErrorState'
 import { LoadingState } from '../shared/components/state/LoadingState'
 import { StatusBadge } from '../shared/components/state/StatusBadge'
@@ -54,8 +53,8 @@ export function InspectionListPage() {
       plantId: plantId ?? undefined,
       zoneId: zoneId ?? undefined,
       inspectionStatus,
-      from,
-      to,
+      from: from || undefined,
+      to: to || undefined,
       page: page - 1,
       size: 20,
     }),
@@ -96,7 +95,7 @@ export function InspectionListPage() {
     setSearchParams({})
   }
 
-  const hasFilter = plantId || zoneId || from || to || inspectionStatus
+  const hasFilter = plantId || zoneId || inspectionStatus || from || to
 
   return (
     <section className="page-shell">
@@ -322,23 +321,6 @@ export function InspectionListPage() {
         </section>
       )}
 
-      {rows.length === 0 && !inspectionsQuery.isLoading && !inspectionsQuery.isError ? (
-        <section className="panel">
-          <EmptyState
-            title="조건에 맞는 점검이 없습니다."
-            description="필터를 바꾸거나 새 점검을 시작하세요."
-            action={
-              <button
-                className="btn btn-primary"
-                type="button"
-                onClick={() => setIsCreateOpen(true)}
-              >
-                새 점검 시작
-              </button>
-            }
-          />
-        </section>
-      ) : null}
 
       <InspectionCreateWizard
         isOpen={isCreateOpen}

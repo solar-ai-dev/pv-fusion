@@ -164,14 +164,18 @@ class AnalysisResultServiceTest {
     }
 
     @Test
-    void queryAnalysisResultsRequiresScopedFilterForNonAdmin() {
+    @DisplayName("non-admin without scope auto-filters by plant membership and returns empty page")
+    void queryAnalysisResultsAutoScopesForNonAdmin() {
         when(accessChecker.isAdmin(1L)).thenReturn(false);
+        when(loadAnalysisResultPort.loadAnalysisResults(any())).thenReturn(List.of());
+        when(loadAnalysisResultPort.countAnalysisResults(any())).thenReturn(0L);
 
-        assertThatThrownBy(() -> analysisResultService.execute(new AnalysisResultListQuery(
-                1L, null, null, null, null, null, null, null, null, null, null, null, null, 0, 20
-        ))).isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.FORBIDDEN);
+        var result = analysisResultService.execute(new AnalysisResultListQuery(
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 0, 20
+        ));
+
+        assertThat(result.content()).isEmpty();
+        verify(loadAnalysisResultPort).loadAnalysisResults(any());
     }
 
     @Test

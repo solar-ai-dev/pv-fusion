@@ -35,7 +35,12 @@ export function TrackingPage() {
   const zonesQuery = useZonesByPlantId(plantId ?? 0)
 
   const params = useMemo<TrackingListParams>(
-    () => ({ plantId: plantId ?? undefined, zoneId: zoneId ?? undefined, from, to }),
+    () => ({
+      plantId: plantId ?? undefined,
+      zoneId: zoneId ?? undefined,
+      from: from || undefined,
+      to: to || undefined,
+    }),
     [plantId, zoneId, from, to],
   )
 

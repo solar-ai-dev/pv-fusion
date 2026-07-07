@@ -142,6 +142,27 @@ export function InspectionDetailPage() {
   const [showAdvancedUploadOptions, setShowAdvancedUploadOptions] = useState(false)
   const [activeTab, setActiveTab] = useState<WorkflowTab>('overview')
   const [isJobHistoryOpen, setIsJobHistoryOpen] = useState(false)
+  const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false)
+
+  useEffect(() => {
+    if (!isMoreActionsOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Element
+      if (!target.closest('.more-actions-wrapper')) {
+        setIsMoreActionsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isMoreActionsOpen])
+
+  const [selectedImageIds, setSelectedImageIds] = useState<Set<number>>(new Set())
+  const [isBulkAnalysisRunning, setIsBulkAnalysisRunning] = useState(false)
+  const [fileUploadStatuses, setFileUploadStatuses] = useState<
+    Array<{ filename: string; status: 'pending' | 'uploading' | 'success' | 'error'; error?: string }>
+  >([])
 
   const inspectionQuery = useInspection(inspectionId ?? 0)
   const zoneId = inspectionQuery.data?.data.zoneId ?? 0
@@ -401,24 +422,49 @@ export function InspectionDetailPage() {
   })
 
   const handleUploadImage = uploadForm.handleSubmit(async (values) => {
-    const file = values.file?.item(0)
+    const fileList = values.file
+    if (!fileList || fileList.length === 0) return
 
-    if (!file) {
-      return
+    const files = Array.from(fileList)
+    setFileUploadStatuses(files.map((f) => ({ filename: f.name, status: 'pending' as const })))
+
+    let successCount = 0
+    let failCount = 0
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      setFileUploadStatuses((prev) =>
+        prev.map((s, idx) => (idx === i ? { ...s, status: 'uploading' as const } : s)),
+      )
+      try {
+        await uploadImageMutation.mutateAsync({
+          inspectionId,
+          equipmentId: values.targetType === 'ZONE' ? null : Number(values.equipmentId),
+          targetType: values.targetType,
+          imageType: values.imageType,
+          capturedAt: toOffsetDateTime(values.capturedAt),
+          memo: values.memo?.trim() || null,
+          file,
+        })
+        setFileUploadStatuses((prev) =>
+          prev.map((s, idx) => (idx === i ? { ...s, status: 'success' as const } : s)),
+        )
+        successCount++
+      } catch (error) {
+        const msg = getApiErrorMessage(error, '업로드 실패')
+        setFileUploadStatuses((prev) =>
+          prev.map((s, idx) =>
+            idx === i ? { ...s, status: 'error' as const, error: msg } : s,
+          ),
+        )
+        failCount++
+      }
     }
 
-    try {
-      const response = await uploadImageMutation.mutateAsync({
-        inspectionId,
-        equipmentId: values.targetType === 'ZONE' ? null : Number(values.equipmentId),
-        targetType: values.targetType,
-        imageType: values.imageType,
-        capturedAt: toOffsetDateTime(values.capturedAt),
-        memo: values.memo?.trim() || null,
-        file,
-      })
-
-      toast.push(response.message || '이미지가 업로드되었습니다.')
+    if (successCount > 0) {
+      toast.push(
+        `${successCount}건 업로드 완료${failCount > 0 ? `, ${failCount}건 실패` : ''}`,
+      )
       uploadForm.reset({
         targetType: 'ZONE',
         equipmentId: '',
@@ -428,13 +474,9 @@ export function InspectionDetailPage() {
         file: undefined,
       })
       setUploadFormVersion((current) => current + 1)
-    } catch (error) {
-      toast.push(
-        getApiErrorMessage(
-          error,
-          '이미지 업로드에 실패했습니다. 파일 형식과 업로드 대상을 다시 확인해 주세요.',
-        ),
-      )
+      setTimeout(() => setFileUploadStatuses([]), 4000)
+    } else {
+      toast.push(`${failCount}건 업로드 실패`)
     }
   })
 
@@ -534,24 +576,101 @@ export function InspectionDetailPage() {
     }
   }
 
+  const handleBulkAnalysis = async () => {
+    const eligibleIds = [...selectedImageIds].filter((id) => {
+      const state = imageJobStateMap.get(id)
+      return !state?.hasActiveJob
+    })
+    if (eligibleIds.length === 0) {
+      toast.push('QUEUED/RUNNING 상태 이미지는 요청 대상에서 제외됩니다.')
+      return
+    }
+    setIsBulkAnalysisRunning(true)
+    let successCount = 0
+    let failCount = 0
+    for (const id of eligibleIds) {
+      const state = imageJobStateMap.get(id)
+      try {
+        if (state?.canRetry && state.latestFailedJob) {
+          await retryAnalysisJobMutation.mutateAsync({ jobId: state.latestFailedJob.jobId })
+        } else {
+          await createAnalysisJobMutation.mutateAsync({ imageId: id })
+        }
+        successCount++
+      } catch (error) {
+        if (getApiErrorCode(error) === 'ANALYSIS_JOB_ALREADY_RUNNING') {
+          successCount++
+        } else {
+          failCount++
+        }
+      }
+    }
+    setIsBulkAnalysisRunning(false)
+    setSelectedImageIds(new Set())
+    toast.push(
+      `${successCount}건 분석 요청 등록${failCount > 0 ? `, ${failCount}건 실패` : ''}`,
+    )
+    await handleRefreshJobs()
+  }
+
   return (
     <section className="space-y-6">
       <PageHeader
         title="점검 상세"
-        description="이미지 업로드와 이미지별 분석 요청, 결과 확인을 한 흐름으로 이어서 진행하세요."
         actions={
           <>
             <Link className="btn btn-secondary" to="/inspections">
               점검 목록
             </Link>
             {latestResult ? (
-              <Link className="btn btn-secondary" to={`/results/${latestResult.resultId}`}>
-                결과 보기
+              <Link className="btn btn-primary" to={`/results/${latestResult.resultId}`}>
+                최신 결과 보기
               </Link>
             ) : null}
-            <button className="text-button" type="button" onClick={() => setIsEditModalOpen(true)}>
-              점검 정보 수정
-            </button>
+            <div className="more-actions-wrapper">
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={() => setIsMoreActionsOpen((v) => !v)}
+              >
+                더보기
+              </button>
+              {isMoreActionsOpen && (
+                <div className="more-actions-menu">
+                  <button
+                    className="more-actions-item"
+                    type="button"
+                    onClick={() => { setIsEditModalOpen(true); setIsMoreActionsOpen(false) }}
+                  >
+                    점검 정보 수정
+                  </button>
+                  <Link
+                    className="more-actions-item"
+                    to={`/zones/${inspection.zoneId}`}
+                    onClick={() => setIsMoreActionsOpen(false)}
+                  >
+                    구역 상세
+                  </Link>
+                  {zoneQuery.data ? (
+                    <Link
+                      className="more-actions-item"
+                      to={`/plants/${zoneQuery.data.data.plantId}`}
+                      onClick={() => setIsMoreActionsOpen(false)}
+                    >
+                      발전소 상세
+                    </Link>
+                  ) : null}
+                  <div className="more-actions-divider" />
+                  <button
+                    className="more-actions-item more-actions-item--danger"
+                    type="button"
+                    onClick={() => { setIsDeleteInspectionModalOpen(true); setIsMoreActionsOpen(false) }}
+                  >
+                    점검 삭제
+                  </button>
+                </div>
+              )}
+            </div>
           </>
         }
       />
@@ -563,16 +682,6 @@ export function InspectionDetailPage() {
             <p className="panel-description">
               {zoneQuery.data?.data.name || '구역 정보 확인 중'} · {workflowStatus.summary}
             </p>
-          </div>
-          <div className="inline-actions">
-            <Link className="btn btn-secondary" to={`/zones/${inspection.zoneId}`}>
-              구역 상세
-            </Link>
-            {zoneQuery.data ? (
-              <Link className="btn btn-secondary" to={`/plants/${zoneQuery.data.data.plantId}`}>
-                발전소 상세
-              </Link>
-            ) : null}
           </div>
         </div>
         <div className="insp-status-summary">
@@ -639,15 +748,6 @@ export function InspectionDetailPage() {
                 >
                   {workflowStatus.primaryAction}
                 </button>
-                {workflowStatus.secondaryAction ? (
-                  <button
-                    className="btn btn-secondary"
-                    type="button"
-                    onClick={() => setActiveTab(workflowStatus.secondaryAction!.tab)}
-                  >
-                    {workflowStatus.secondaryAction.label}
-                  </button>
-                ) : null}
               </div>
             </article>
 
@@ -660,8 +760,6 @@ export function InspectionDetailPage() {
                     ? 'RGB 또는 열화상 이미지를 먼저 업로드하세요.'
                     : `RGB ${rgbImages.length}건 · 열화상 ${thermalImages.length}건`
                 }
-                actionLabel="이미지·분석 탭 열기"
-                onAction={() => setActiveTab('images-analysis')}
               />
               <CompactStatusCard
                 title="분석"
@@ -671,8 +769,6 @@ export function InspectionDetailPage() {
                     ? '아직 요청된 분석이 없습니다.'
                     : `대기 ${queuedJobs.length}건 · 진행 ${runningJobs.length}건 · 완료 ${completedJobs.length}건`
                 }
-                actionLabel="이미지·분석 탭 열기"
-                onAction={() => setActiveTab('images-analysis')}
               />
               <CompactStatusCard
                 title="결과"
@@ -682,8 +778,6 @@ export function InspectionDetailPage() {
                     ? `${latestResult.analyzedAt ? formatDateTime(latestResult.analyzedAt) : '방금'} 기준 결과를 확인할 수 있습니다.`
                     : '분석이 완료되면 결과 검토를 시작할 수 있습니다.'
                 }
-                actionLabel={latestResult ? '결과 탭 열기' : '결과 탭 열기'}
-                onAction={() => setActiveTab('results')}
               />
             </div>
 
@@ -731,17 +825,25 @@ export function InspectionDetailPage() {
                   </button>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <FormField label={`${getUserImageTypeLabel(selectedImageType)} 파일`} error={uploadForm.formState.errors.file?.message}>
+                  <FormField
+                    label={`${getUserImageTypeLabel(selectedImageType)} 파일 (여러 장 선택 가능)`}
+                    error={uploadForm.formState.errors.file?.message}
+                  >
                     <input
                       key={uploadFormVersion}
                       className="input-field"
                       type="file"
                       accept="image/*"
+                      multiple
                       {...uploadForm.register('file')}
                     />
                   </FormField>
                 </div>
-                <button className="btn btn-primary" type="submit" disabled={uploadImageMutation.isPending}>
+                <button
+                  className="btn btn-primary"
+                  type="submit"
+                  disabled={fileUploadStatuses.some((s) => s.status === 'uploading')}
+                >
                   업로드
                 </button>
               </div>
@@ -800,6 +902,28 @@ export function InspectionDetailPage() {
               ) : null}
             </form>
 
+            {/* ── 파일별 업로드 상태 ── */}
+            {fileUploadStatuses.length > 0 ? (
+              <div className="file-upload-status-list">
+                {fileUploadStatuses.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className={`file-upload-status-item file-upload-status-item--${item.status}`}
+                  >
+                    <span className="file-upload-status-icon">
+                      {item.status === 'uploading' ? '⏳' :
+                       item.status === 'success' ? '✓' :
+                       item.status === 'error' ? '✗' : '·'}
+                    </span>
+                    <span className="file-upload-status-name truncate">{item.filename}</span>
+                    {item.error ? (
+                      <span className="file-upload-status-error">{item.error}</span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
             {/* ── 2. 업로드된 이미지 목록 ── */}
             <div className="stack-sm">
               <div className="toolbar">
@@ -817,8 +941,86 @@ export function InspectionDetailPage() {
                   description="RGB 또는 열화상 이미지를 먼저 업로드하세요."
                 />
               ) : (
-                <div className="img-list-table">
+                <>
+                  {/* 일괄 선택 툴바 */}
+                  <div className="bulk-analysis-toolbar">
+                    <div className="bulk-analysis-selection">
+                      <button
+                        className="text-button text-xs"
+                        type="button"
+                        onClick={() => setSelectedImageIds(new Set(imageRows.map((i) => i.imageId)))}
+                      >
+                        전체 선택
+                      </button>
+                      <button
+                        className="text-button text-xs"
+                        type="button"
+                        onClick={() =>
+                          setSelectedImageIds(
+                            new Set(
+                              imageRows
+                                .filter((i) => canRequestAnalysis(i, runningImageJobIds))
+                                .map((i) => i.imageId),
+                            ),
+                          )
+                        }
+                      >
+                        미분석만
+                      </button>
+                      <button
+                        className="text-button text-xs"
+                        type="button"
+                        onClick={() =>
+                          setSelectedImageIds(
+                            new Set(
+                              imageRows
+                                .filter((i) => imageJobStateMap.get(i.imageId)?.canRetry)
+                                .map((i) => i.imageId),
+                            ),
+                          )
+                        }
+                      >
+                        실패만
+                      </button>
+                      <button
+                        className="text-button muted-action text-xs"
+                        type="button"
+                        onClick={() => setSelectedImageIds(new Set())}
+                      >
+                        선택 해제
+                      </button>
+                    </div>
+                    {selectedImageIds.size > 0 ? (
+                      <button
+                        className="btn btn-primary"
+                        type="button"
+                        style={{ fontSize: '0.8rem', padding: '0.3rem 0.8rem' }}
+                        disabled={isBulkAnalysisRunning}
+                        onClick={() => void handleBulkAnalysis()}
+                      >
+                        {isBulkAnalysisRunning
+                          ? '요청 중…'
+                          : `선택 ${selectedImageIds.size}건 분석 요청`}
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div className="img-list-table">
                   <div className="img-list-header">
+                    <span className="img-list-checkbox-col">
+                      <input
+                        type="checkbox"
+                        title="전체 선택/해제"
+                        checked={selectedImageIds.size === imageRows.length && imageRows.length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedImageIds(new Set(imageRows.map((i) => i.imageId)))
+                          } else {
+                            setSelectedImageIds(new Set())
+                          }
+                        }}
+                      />
+                    </span>
                     <span>파일명</span>
                     <span>최신 분석</span>
                     <span>최신 결과</span>
@@ -838,6 +1040,21 @@ export function InspectionDetailPage() {
 
                     return (
                       <div key={image.imageId} className="img-list-row">
+                        <div className="img-list-cell img-list-checkbox-col">
+                          <input
+                            type="checkbox"
+                            title="선택"
+                            checked={selectedImageIds.has(image.imageId)}
+                            onChange={(e) => {
+                              setSelectedImageIds((prev) => {
+                                const next = new Set(prev)
+                                if (e.target.checked) next.add(image.imageId)
+                                else next.delete(image.imageId)
+                                return next
+                              })
+                            }}
+                          />
+                        </div>
                         <div className="img-list-cell img-list-cell-name">
                           <button
                             className="img-preview-btn"
@@ -941,6 +1158,7 @@ export function InspectionDetailPage() {
                     )
                   })}
                 </div>
+                </>
               )}
             </div>
 
@@ -1039,85 +1257,165 @@ export function InspectionDetailPage() {
         {activeTab === 'results' ? (
           <div className="stack-md">
             <SectionHeading
-              title="결과 검토"
-              description="분석이 완료되면 조치 후보와 심각도를 확인하고 결과 상세로 이동할 수 있습니다."
+              title="결과 요약"
+              description="이 점검에서 생성된 분석 결과를 요약합니다. 전체 결과 목록에서 상세 검색이 가능합니다."
             />
-            {resultsQuery.isLoading && !resultsQuery.data ? <LoadingState message="분석 결과를 불러오는 중입니다." /> : null}
-            {resultsQuery.isError ? <ErrorState title="분석 결과를 불러오지 못했습니다." description={getApiErrorMessage(resultsQuery.error)} /> : null}
-            {resultRows.length === 0 && !resultsQuery.isLoading ? (
-              <CompactEmptyState
-                title="등록된 분석 결과가 없습니다."
-                description="분석이 완료되면 결과를 여기서 검토할 수 있습니다."
+            {resultsQuery.isLoading && !resultsQuery.data ? (
+              <LoadingState message="분석 결과를 불러오는 중입니다." />
+            ) : null}
+            {resultsQuery.isError ? (
+              <ErrorState
+                title="분석 결과를 불러오지 못했습니다."
+                description={getApiErrorMessage(resultsQuery.error)}
               />
             ) : null}
 
-            {latestResult ? (
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="toolbar">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900">최신 분석 결과</h3>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {latestResult.analyzedAt
-                          ? `${formatDateTime(latestResult.analyzedAt)} 기준`
-                          : '분석 시각 확인 중'}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <StatusBadge
-                        label={getResultStatusLabel(latestResult.resultStatus)}
-                        tone={getResultStatusTone(latestResult.resultStatus)}
-                      />
-                      <StatusBadge
-                        label={getReviewStatusLabel(latestResult.reviewStatus)}
-                        tone={getReviewStatusTone(latestResult.reviewStatus)}
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <MiniInfo label="조치 후보" value={getActionCandidateLabel(latestResult.actionCandidate)} />
-                    <MiniInfo label="심각도" value={getSeverityLevelLabel(latestResult.severityLevel)} />
-                    <MiniInfo label="이상 개수" value={latestResult.anomalyCount == null ? '-' : `${latestResult.anomalyCount}건`} />
-                    <MiniInfo label="검토 상태" value={getReviewStatusLabel(latestResult.reviewStatus)} />
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <Link className="btn btn-primary" to={`/results/${latestResult.resultId}`}>
-                      결과 상세 보기
-                    </Link>
-                    <Link className="btn btn-secondary" to={`/results?inspectionId=${inspectionId}`}>
-                      이 점검의 결과 목록
-                    </Link>
-                  </div>
-                </section>
-                <section className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                  <h3 className="text-lg font-semibold text-slate-900">최근 결과 요약</h3>
-                  <div className="mt-4 space-y-3">
-                    {resultRows.slice(0, 3).map((result) => (
-                      <div key={result.resultId} className="rounded-2xl border border-slate-200 bg-white p-4">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <StatusBadge
-                            label={getResultStatusLabel(result.resultStatus)}
-                            tone={getResultStatusTone(result.resultStatus)}
-                          />
-                          <StatusBadge
-                            label={getSeverityLevelLabel(result.severityLevel)}
-                            tone={getSeverityLevelTone(result.severityLevel)}
-                          />
-                          <StatusBadge
-                            label={getReviewStatusLabel(result.reviewStatus)}
-                            tone={getReviewStatusTone(result.reviewStatus)}
-                          />
-                        </div>
-                        <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
-                          <span>조치 후보: {getActionCandidateLabel(result.actionCandidate)}</span>
-                          <span>분석 시각: {formatDateTime(result.analyzedAt)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              </div>
+            {!resultsQuery.isLoading && !resultsQuery.isError && resultRows.length === 0 ? (
+              <CompactEmptyState
+                title="이 점검에서 생성된 분석 결과가 없습니다."
+                description="분석이 완료되면 결과가 여기에 표시됩니다."
+              />
             ) : null}
+
+            {resultRows.length > 0 ? (() => {
+              const totalCount = resultRows.length
+              const anomalyCount = resultRows.filter((r) => r.resultStatus === 'ANOMALY').length
+              const lowConfidenceCount = resultRows.filter((r) => r.resultStatus === 'LOW_CONFIDENCE').length
+              const pendingReviewCount2 = resultRows.filter(
+                (r) => r.reviewStatus === 'UNCHECKED' || r.reviewStatus === 'RECHECK_REQUIRED',
+              ).length
+              const actionCandidateCount = resultRows.filter((r) => r.actionCandidate).length
+              const reAnalysisCount = failedJobs.length + lowConfidenceCount
+
+              return (
+                <>
+                  {/* KPI */}
+                  <div className="insp-result-kpi-strip">
+                    <div className="insp-result-kpi-card">
+                      <div className="insp-result-kpi-label">총 결과</div>
+                      <div className="insp-result-kpi-value">{totalCount}건</div>
+                    </div>
+                    <div className="insp-result-kpi-card insp-result-kpi-card--danger">
+                      <div className="insp-result-kpi-label">이상 결과</div>
+                      <div className="insp-result-kpi-value">{anomalyCount}건</div>
+                    </div>
+                    <div className="insp-result-kpi-card insp-result-kpi-card--amber">
+                      <div className="insp-result-kpi-label">검토 대기</div>
+                      <div className="insp-result-kpi-value">{pendingReviewCount2}건</div>
+                    </div>
+                    <div className="insp-result-kpi-card insp-result-kpi-card--sky">
+                      <div className="insp-result-kpi-label">조치 후보</div>
+                      <div className="insp-result-kpi-value">{actionCandidateCount}건</div>
+                    </div>
+                    <div className="insp-result-kpi-card">
+                      <div className="insp-result-kpi-label">재분석 필요</div>
+                      <div className="insp-result-kpi-value">{reAnalysisCount}건</div>
+                    </div>
+                  </div>
+
+                  {/* 분포 요약 */}
+                  <div className="insp-result-dist-grid">
+                    <div className="insp-result-dist-card">
+                      <div className="insp-result-dist-title">이미지 유형</div>
+                      {(['RGB_SINGLE', 'THERMAL_SINGLE'] as const).map((t) => {
+                        const cnt = resultRows.filter((r) => r.inputType === t).length
+                        return (
+                          <div key={t} className="insp-result-dist-row">
+                            <span>{t === 'RGB_SINGLE' ? 'RGB' : '열화상'}</span>
+                            <span className="font-semibold">{cnt}건</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="insp-result-dist-card">
+                      <div className="insp-result-dist-title">심각도</div>
+                      {(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const).map((s) => {
+                        const cnt = resultRows.filter((r) => r.severityLevel === s).length
+                        return (
+                          <div key={s} className="insp-result-dist-row">
+                            <StatusBadge label={getSeverityLevelLabel(s)} tone={getSeverityLevelTone(s)} />
+                            <span className="font-semibold">{cnt}건</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="insp-result-dist-card">
+                      <div className="insp-result-dist-title">검토 상태</div>
+                      {(['UNCHECKED', 'CONFIRMED', 'RECHECK_REQUIRED', 'ACTION_COMPLETED'] as const).map((s) => {
+                        const cnt = resultRows.filter((r) => r.reviewStatus === s).length
+                        if (cnt === 0) return null
+                        return (
+                          <div key={s} className="insp-result-dist-row">
+                            <StatusBadge
+                              label={getReviewStatusLabel(s)}
+                              tone={getReviewStatusTone(s)}
+                            />
+                            <span className="font-semibold">{cnt}건</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 결과 목록 */}
+                  <div className="table-panel">
+                    <div className="table-panel-header">
+                      <span className="table-panel-title">이 점검의 결과 목록</span>
+                      <span className="table-panel-count">총 {totalCount}건</span>
+                    </div>
+                    <div className="insp-result-table">
+                      <div className="insp-result-table-header">
+                        <span>결과 ID</span>
+                        <span>유형</span>
+                        <span>이상 수</span>
+                        <span>심각도</span>
+                        <span>조치 후보</span>
+                        <span>검토 상태</span>
+                        <span>분석 시각</span>
+                        <span></span>
+                      </div>
+                      {resultRows.map((result) => (
+                        <div key={result.resultId} className="insp-result-table-row">
+                          <div className="text-xs font-mono text-slate-500">#{result.resultId}</div>
+                          <div className="text-xs text-slate-600">
+                            {result.inputType === 'RGB_SINGLE' ? 'RGB' : '열화상'}
+                          </div>
+                          <div className={result.anomalyCount ? 'font-semibold text-rose-600 text-sm' : 'text-slate-400 text-sm'}>
+                            {result.anomalyCount != null ? `${result.anomalyCount}건` : '-'}
+                          </div>
+                          <div>
+                            <StatusBadge
+                              label={getSeverityLevelLabel(result.severityLevel)}
+                              tone={getSeverityLevelTone(result.severityLevel)}
+                            />
+                          </div>
+                          <div className="text-xs text-slate-600">
+                            {getActionCandidateLabel(result.actionCandidate)}
+                          </div>
+                          <div>
+                            <StatusBadge
+                              label={getReviewStatusLabel(result.reviewStatus)}
+                              tone={getReviewStatusTone(result.reviewStatus)}
+                            />
+                          </div>
+                          <div className="text-xs text-slate-400 whitespace-nowrap">
+                            {formatDateTime(result.analyzedAt)}
+                          </div>
+                          <div>
+                            <Link
+                              className="text-button text-sm whitespace-nowrap"
+                              to={`/results/${result.resultId}`}
+                            >
+                              결과 보기
+                            </Link>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )
+            })() : null}
           </div>
         ) : null}
 
@@ -1131,20 +1429,6 @@ export function InspectionDetailPage() {
               <DetailItem label="점검자" value={inspection.inspectorName || '-'} />
               <DetailItem label="메모" value={inspection.memo || '-'} />
               <DetailItem label="등록 시각" value={formatDateTime(inspection.createdAt)} />
-            </div>
-            <div className="management-panel">
-              <div>
-                <h3 className="panel-title">관리 작업</h3>
-                <p className="panel-description">삭제는 연결된 이미지와 분석 데이터에 영향을 줍니다.</p>
-              </div>
-              <div className="management-actions management-actions-muted">
-                <button className="btn btn-secondary" type="button" onClick={() => setIsEditModalOpen(true)}>
-                  점검 정보 수정
-                </button>
-                <button className="text-button text-button-danger" type="button" onClick={() => setIsDeleteInspectionModalOpen(true)}>
-                  점검 삭제
-                </button>
-              </div>
             </div>
           </div>
         ) : null}
@@ -1279,14 +1563,6 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   )
 }
 
-function MiniInfo({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{label}</div>
-      <div className="mt-1 break-all text-sm text-slate-900">{value}</div>
-    </div>
-  )
-}
 
 function CompactEmptyState({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
   return (
@@ -1298,15 +1574,17 @@ function CompactEmptyState({ title, description, action }: { title: string; desc
   )
 }
 
-function CompactStatusCard({ title, value, description, actionLabel, onAction }: { title: string; value: string; description: string; actionLabel: string; onAction: () => void }) {
+function CompactStatusCard({ title, value, description, actionLabel, onAction }: { title: string; value: string; description: string; actionLabel?: string; onAction?: () => void }) {
   return (
     <article className="compact-status-card">
       <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{title}</div>
       <div className="mt-2 text-lg font-semibold text-slate-950">{value}</div>
       <p className="mt-2 text-sm text-slate-600">{description}</p>
-      <button className="btn btn-secondary mt-4" type="button" onClick={onAction}>
-        {actionLabel}
-      </button>
+      {actionLabel && onAction ? (
+        <button className="btn btn-secondary mt-4" type="button" onClick={onAction}>
+          {actionLabel}
+        </button>
+      ) : null}
     </article>
   )
 }
