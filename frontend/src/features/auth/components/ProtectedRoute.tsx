@@ -1,4 +1,4 @@
-import { PropsWithChildren } from 'react'
+﻿import { PropsWithChildren } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { ErrorState } from '../../../shared/components/state/ErrorState'
 import { LoadingState } from '../../../shared/components/state/LoadingState'
@@ -18,10 +18,8 @@ export function ProtectedRoute({ children }: PropsWithChildren) {
   if (resolution === 'error') {
     return (
       <ErrorState
-        title="인증 상태를 확인할 수 없습니다."
-        description={
-          error?.detail ?? error?.message ?? '잠시 후 다시 시도해 주세요.'
-        }
+        title="인증 서버에 연결할 수 없습니다."
+        description={error?.detail ?? error?.message ?? '잠시 후 다시 시도해 주세요.'}
       />
     )
   }

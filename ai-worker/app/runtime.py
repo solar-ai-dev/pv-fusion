@@ -114,6 +114,7 @@ def create_worker_runtime(settings: Settings) -> WorkerRuntime:
         storage=storage,
         model_runner=model_runner,
         result_repository=result_repository,
+        stale_running_threshold_seconds=settings.sqsVisibilityTimeoutSeconds or 900,
     )
     queue = SqsQueueAdapter(
         sqs_client=create_sqs_client(settings),

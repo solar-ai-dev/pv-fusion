@@ -8,8 +8,9 @@ from app.infrastructure.db.result_repository import PostgresResultRepository
 
 
 class FakeCursor:
-    def __init__(self, fetchone_result=None):
+    def __init__(self, fetchone_result=None, rowcount=1):
         self.fetchone_result = fetchone_result
+        self.rowcount = rowcount
         self.executed = []
 
     def execute(self, query, params):
@@ -156,3 +157,22 @@ def test_save_defects_skips_db_call_when_defects_are_empty():
 
     assert cursor.executed == []
     assert connection.committed is False
+
+
+def test_save_completed_result_commits_result_defects_and_job_success_together():
+    cursor = FakeCursor(fetchone_result={"id": 321})
+    connection = FakeConnection(cursor)
+    repository = PostgresResultRepository(lambda: connection)
+
+    result_id = repository.save_completed_result(build_result_draft(), [build_defect(), build_defect()])
+
+    assert result_id == 321
+    assert len(cursor.executed) == 4
+    assert "INSERT INTO analysis_results" in cursor.executed[0][0]
+    assert "INSERT INTO detected_defects" in cursor.executed[1][0]
+    assert "INSERT INTO detected_defects" in cursor.executed[2][0]
+    assert "UPDATE analysis_jobs" in cursor.executed[3][0]
+    assert cursor.executed[3][1][0] == "SUCCEEDED"
+    assert cursor.executed[3][1][1] == 1000
+    assert cursor.executed[3][1][2] == "RUNNING"
+    assert connection.committed is True

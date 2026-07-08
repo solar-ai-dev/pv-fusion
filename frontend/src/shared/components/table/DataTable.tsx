@@ -25,19 +25,19 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-3xl border border-slate-200 bg-white p-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <EmptyState title={emptyTitle} description={emptyDescription} />
       </div>
     )
   }
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
-      <table className="min-w-full text-left text-sm">
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+      <table className="min-w-[720px] w-full text-left text-sm">
         <thead className="bg-slate-50 text-slate-600">
           <tr>
             {columns.map((column) => (
-              <th key={column.key} className="px-4 py-3 font-medium">
+              <th key={column.key} className="px-4 py-2.5 font-medium whitespace-nowrap">
                 {column.header}
               </th>
             ))}
@@ -52,7 +52,7 @@ export function DataTable<T>({
               {columns.map((column) => (
                 <td
                   key={column.key}
-                  className={`px-4 py-3 text-slate-700 ${column.className ?? ''}`}
+                  className={`px-4 py-2.5 text-slate-700 break-keep ${column.className ?? ''}`}
                 >
                   {column.render(row)}
                 </td>

@@ -16,6 +16,7 @@ import com.pvfusion.application.dto.image.ImageSummaryResponse;
 import com.pvfusion.application.port.in.image.DeactivateImageUseCase;
 import com.pvfusion.application.port.in.image.GetImagePreviewUseCase;
 import com.pvfusion.application.port.in.image.GetImageUseCase;
+import com.pvfusion.application.port.in.image.ManageImageDeletionUseCase;
 import com.pvfusion.application.port.in.image.QueryImageUseCase;
 import com.pvfusion.application.port.in.image.UploadImageUseCase;
 import com.pvfusion.domain.common.ResourceStatus;
@@ -50,6 +51,8 @@ class ImageControllerTest {
     private GetImagePreviewUseCase getImagePreviewUseCase;
     @Mock
     private DeactivateImageUseCase deactivateImageUseCase;
+    @Mock
+    private ManageImageDeletionUseCase manageImageDeletionUseCase;
 
     private MockMvc mockMvc;
     private LocalValidatorFactoryBean validator;
@@ -64,7 +67,8 @@ class ImageControllerTest {
                 queryImageUseCase,
                 getImageUseCase,
                 getImagePreviewUseCase,
-                deactivateImageUseCase
+                deactivateImageUseCase,
+                manageImageDeletionUseCase
         ))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)

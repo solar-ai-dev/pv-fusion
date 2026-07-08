@@ -1,5 +1,9 @@
 import { apiClient } from '../../../shared/api/client'
-import { ApiSuccessResponse } from '../../../shared/api/types'
+import {
+  ApiSuccessResponse,
+  DeleteImpact,
+  DeleteResourceResult,
+} from '../../../shared/api/types'
 import {
   CreateZoneRequest,
   UpdateZoneRequest,
@@ -35,6 +39,18 @@ export const zoneApi = {
   deactivateZone: async (zoneId: string | number) => {
     const response = await apiClient.patch<ApiSuccessResponse<Zone>>(
       `/zones/${zoneId}/deactivate`,
+    )
+    return response.data
+  },
+  fetchDeleteImpact: async (zoneId: string | number) => {
+    const response = await apiClient.get<ApiSuccessResponse<DeleteImpact>>(
+      `/zones/${zoneId}/delete-impact`,
+    )
+    return response.data
+  },
+  deleteZone: async (zoneId: string | number) => {
+    const response = await apiClient.delete<ApiSuccessResponse<DeleteResourceResult>>(
+      `/zones/${zoneId}`,
     )
     return response.data
   },

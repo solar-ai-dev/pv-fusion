@@ -5,7 +5,7 @@ from app.domain.model import ModelInfo
 from app.infrastructure.model.model_registry import ModelRegistry
 from app.infrastructure.model.onnx_session import OnnxSessionProvider
 from app.infrastructure.model.output_parser import parse_inference_output
-from app.infrastructure.model.preprocess import preprocess_image_bytes
+from app.infrastructure.model.preprocess import PreprocessedImage, preprocess_image_bytes
 
 
 class OnnxModelRunner(ModelRunnerPort):
@@ -32,9 +32,15 @@ class OnnxModelRunner(ModelRunnerPort):
             model_info.requestedModelType,
         )
         session = self._session_provider.get_session(resolved_model.modelPath)
-        tensor = self._preprocess(image_bytes, resolved_model.inputSize)
+        preprocessed = self._call_preprocess(
+            image_bytes=image_bytes,
+            input_size=resolved_model.inputSize,
+            input_type=input_data.imageType,
+            preprocess_id=resolved_model.preprocessId,
+        )
+        tensor, image_context = self._unwrap_preprocessed(preprocessed)
         raw_output = self._run_session(session, tensor)
-        return self._output_parser(raw_output, resolved_model)
+        return self._output_parser(raw_output, resolved_model, image_context=image_context)
 
     @staticmethod
     def _resolve_input_type(input_data: SingleImageInput) -> InputType:
@@ -49,3 +55,29 @@ class OnnxModelRunner(ModelRunnerPort):
         if len(outputs) == 1:
             return outputs[0]
         return outputs
+
+    @staticmethod
+    def _unwrap_preprocessed(preprocessed):
+        if isinstance(preprocessed, PreprocessedImage):
+            return preprocessed.tensor, preprocessed
+        return preprocessed, None
+
+    def _call_preprocess(
+        self,
+        *,
+        image_bytes: bytes,
+        input_size: int,
+        input_type: str,
+        preprocess_id: str | None,
+    ):
+        try:
+            return self._preprocess(
+                image_bytes,
+                input_size,
+                input_type=input_type,
+                preprocess_id=preprocess_id,
+            )
+        except TypeError as exc:
+            if "unexpected keyword argument" not in str(exc):
+                raise
+            return self._preprocess(image_bytes, input_size)

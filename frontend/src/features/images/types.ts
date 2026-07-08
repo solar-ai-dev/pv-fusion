@@ -1,4 +1,4 @@
-import type { ResourceStatus } from '../plants/types'
+﻿import type { ResourceStatus } from '../plants/types'
 
 export type TargetType = 'ZONE' | 'ARRAY' | 'PANEL' | 'MODULE'
 

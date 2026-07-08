@@ -1,4 +1,4 @@
-export type ResourceStatus = 'ACTIVE' | 'INACTIVE'
+﻿export type ResourceStatus = 'ACTIVE' | 'INACTIVE'
 
 export type PlantSummary = {
   plantId: number
@@ -40,7 +40,7 @@ export type UpdatePlantRequest = CreatePlantRequest
 export const RESOURCE_STATUS_OPTIONS: ResourceStatus[] = ['ACTIVE', 'INACTIVE']
 
 export function getResourceStatusLabel(status: ResourceStatus) {
-  return status === 'ACTIVE' ? '활성' : '비활성'
+  return status === 'ACTIVE' ? '운영 중' : '비활성'
 }
 
 export function getResourceStatusTone(status: ResourceStatus) {

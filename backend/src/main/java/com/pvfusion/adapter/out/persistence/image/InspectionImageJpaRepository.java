@@ -40,20 +40,16 @@ public interface InspectionImageJpaRepository extends JpaRepository<InspectionIm
                     SELECT ii.*
                     FROM inspection_images ii
                     WHERE ii.inspection_id = :inspectionId
-                      AND ii.target_type = :targetType
-                      AND ((:equipmentId IS NULL AND ii.equipment_id IS NULL) OR ii.equipment_id = :equipmentId)
-                      AND ii.image_type = :imageType
+                      AND ii.original_filename = :originalFilename
                       AND ii.status = :status
                     ORDER BY ii.id DESC
                     LIMIT 1
                     """,
             nativeQuery = true
     )
-    Optional<InspectionImageJpaEntity> findLatestByComposite(
+    Optional<InspectionImageJpaEntity> findLatestByInspectionIdAndOriginalFilename(
             @Param("inspectionId") Long inspectionId,
-            @Param("targetType") String targetType,
-            @Param("equipmentId") Long equipmentId,
-            @Param("imageType") String imageType,
+            @Param("originalFilename") String originalFilename,
             @Param("status") String status
     );
 }

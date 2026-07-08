@@ -6,6 +6,10 @@
 
 서비스 기능, API, DB, 인증·권한, AI Worker, 배포 구조에 대한 세부 기준은 각 설계 문서를 우선한다.
 
+현재 운영 서비스는 RGB 이미지와 열화상 이미지를 각각 독립적인 단건 이미지로 분석한다.
+
+Pair 생성·관리와 Fusion 분석은 현재 운영 기능 범위에 포함하지 않으며, 관련 실험은 `docs/07_model-data-experiment-design.md`의 후속 연구 범위로 관리한다.
+
 ---
 
 ## 2. Git 브랜치 전략
@@ -41,7 +45,7 @@
 
 예시:
 
-```
+```text
 feat/image-upload
 feat/analysis-job
 fix/login-redirect
@@ -57,7 +61,7 @@ chore/local-docker-setup
 
 커밋 메시지는 `type: 작업 내용` 형식으로 작성한다.
 
-```
+```text
 type: 작업 내용
 ```
 
@@ -74,7 +78,7 @@ type: 작업 내용
 
 ### 3.3 커밋 예시
 
-```
+```text
 feat: 이미지 업로드 API 구현
 fix: 로그인 후 승인 대기 화면 이동 오류 수정
 docs: 개발 컨벤션 문서 추가
@@ -87,6 +91,8 @@ test: 분석 작업 생성 테스트 추가
 - 커밋은 가능한 한 하나의 목적만 담는다.
 - 변경 내용을 한눈에 파악할 수 있게 작성한다.
 - 의미가 불분명한 메시지는 사용하지 않는다.
+- 운영 코드 변경과 모델 연구 산출물 변경은 가능한 한 별도 커밋으로 분리한다.
+- Pair/Fusion 연구 코드를 현재 운영 기능처럼 표현하지 않는다.
 
 ---
 
@@ -97,6 +103,7 @@ test: 분석 작업 생성 테스트 추가
 - 모든 기능 개발 및 수정 작업은 브랜치 단위로 진행한 뒤 Pull Request를 생성한다.
 - PR은 가능한 한 기능 단위로 작성한다.
 - 너무 큰 단위의 변경은 지양하고, 리뷰 가능한 크기로 나누어 올린다.
+- 운영 기능 변경과 후속 연구 실험 변경은 가능하면 별도 PR로 분리한다.
 
 ### 4.2 PR 제목
 
@@ -104,7 +111,7 @@ PR 제목은 `[type] 작업 내용` 형식으로 작성한다.
 
 예시:
 
-```
+```text
 [feat] 이미지 업로드 기능 구현
 [fix] 분석 상태 조회 오류 수정
 [docs] 개발 컨벤션 문서 추가
@@ -147,6 +154,8 @@ PR 생성 전 아래 항목을 확인한다.
 - 기능이 정상 동작하는지 직접 확인한다.
 - 민감 정보가 포함되지 않았는지 확인한다.
 - merge 충돌 가능성이 없는지 확인한다.
+- 현재 운영 API와 DB에 Pair/Fusion 기능을 임의로 다시 추가하지 않았는지 확인한다.
+- 모델 연구 산출물이 운영 계약을 변경하는 경우 별도 검토와 승인을 받았는지 확인한다.
 
 ---
 
@@ -158,6 +167,8 @@ PR 생성 전 아래 항목을 확인한다.
 - 축약어는 과하게 사용하지 않는다.
 - 의미가 불분명한 이름은 사용하지 않는다.
 - 기존 코드의 네이밍 스타일을 우선 따른다.
+- 현재 운영 코드에서는 RGB·Thermal 이미지 단건 분석이라는 의미가 드러나도록 작성한다.
+- 연구용 Pair/Fusion 코드와 운영 코드를 이름과 패키지 경로에서 구분한다.
 
 ### 5.2 Java / Spring Backend
 
@@ -169,12 +180,22 @@ PR 생성 전 아래 항목을 확인한다.
 
 예시:
 
-```
+```text
 CreateInspectionCommand
 InspectionResponse
 RequestAnalysisUseCase
 AnalysisJobRepositoryPort
 SqsAnalysisJobPublisherAdapter
+```
+
+분석 작업 관련 이름은 현재 운영 입력이 `imageId` 한 건이라는 사실과 충돌하지 않도록 작성한다.
+
+예시:
+
+```text
+CreateImageAnalysisJobCommand
+ImageAnalysisJobResponse
+ImageAnalysisRequest
 ```
 
 ### 5.3 React / TypeScript Frontend
@@ -186,12 +207,14 @@ SqsAnalysisJobPublisherAdapter
 
 예시:
 
-```
+```text
 InspectionDetailPage
 ImageUploadForm
 useAnalysisJobStatus
 fetchInspectionResults
 ```
+
+현재 운영 화면에 존재하지 않는 Pair/Fusion 기능을 나타내는 컴포넌트나 API 함수는 새로 추가하지 않는다.
 
 ### 5.4 Python / AI Worker
 
@@ -202,13 +225,15 @@ fetchInspectionResults
 
 예시:
 
-```
+```text
 analysis_worker.py
 model_router.py
 load_rgb_image
 run_onnx_inference
 save_visualization_result
 ```
+
+모델 라우팅 이름은 현재 운영 모델 유형인 `RGB_ONLY`, `THERMAL_ONLY`와 일치하도록 작성한다.
 
 ---
 
@@ -220,11 +245,22 @@ save_visualization_result
 - 임시 주석이나 TODO는 남발하지 않는다.
 - TODO를 남길 경우 이유와 후속 작업을 명확히 적는다.
 - 오래된 주석이나 실제 코드와 맞지 않는 주석은 수정하거나 제거한다.
+- Pair/Fusion이 현재 운영 기능인 것처럼 작성된 오래된 주석은 제거하거나 연구 범위임을 명확히 표시한다.
 
 예시:
 
 ```java
-// Pair 분석은 동일 점검, 동일 검사 대상의 RGB/THERMAL 이미지가 모두 있을 때만 허용한다.
+// 분석 모델은 요청값을 그대로 신뢰하지 않고 저장된 이미지 유형을 기준으로 선택한다.
+```
+
+```java
+// RGB 이미지는 RGB_ONLY, 열화상 이미지는 THERMAL_ONLY 모델로 단건 분석한다.
+```
+
+연구 코드의 경우 다음처럼 운영 범위와 구분한다.
+
+```python
+# 연구 전용: 현재 운영 API와 AI Worker 계약에는 Fusion 입력을 연결하지 않는다.
 ```
 
 ---
@@ -238,6 +274,10 @@ save_visualization_result
 - 일반 사용자는 본인이 생성했거나 접근 권한이 있는 데이터만 조회·수정할 수 있다.
 - 로그에 Secret, 토큰, 개인정보, Presigned URL 등을 남기지 않는다.
 - 원본 이미지와 분석 결과 이미지 접근은 인증 및 권한 검증을 거쳐야 한다.
+- Frontend는 S3, SQS, RDS, MinIO, AI Worker에 직접 접근하지 않는다.
+- AI Worker는 외부 사용자에게 직접 노출하지 않는다.
+- SQS 메시지에는 Secret, Presigned URL, Storage credential을 포함하지 않는다.
+- 운영 메시지는 `jobId`, `imageId` 등 처리에 필요한 최소 식별자만 포함한다.
 
 ---
 
@@ -247,34 +287,43 @@ save_visualization_result
 
 각 팀원은 본인 소유 범위를 우선 담당하되, 다른 팀원 소유 범위의 기능이 필요한 경우 직접 구현하지 않고 정해진 인터페이스나 공통 컴포넌트를 호출한다.
 
+현재 운영 기능 분리는 RGB·Thermal 이미지 단건 분석 기준으로 정의한다.
+
+Pair/Fusion 연구는 운영 기능 소유 범위에 포함하지 않으며, 모델 실험 문서와 별도 연구 작업으로 관리한다.
+
 ### 8.1 최종 분리 기준
 
-```
+```text
 팀원 1:
 인증 / 권한 / 사용자 / 발전소 / 구역 / 하위 설비 / 공통 접근 제어 / 공통 운영 설정
 
 팀원 2:
-점검 / 이미지 / RGB-Thermal Pair / 분석 Job / 분석 결과 / 대시보드 / Storage / Queue / Worker Contract
+점검 / 이미지 / 분석 Job / 분석 결과 / 대시보드 / Storage / Queue / Worker Contract
 ```
 
 ### 8.2 겹치는 범위 처리 기준
 
 | 겹치는 상황 | 최종 소유자 | 처리 방식 |
 | --- | --- | --- |
-| 권한 검증 | 팀원 1 | 팀원 1이 AccessChecker 구현, 팀원 2는 호출만 함 |
-| Zone / Equipment 조회 | 팀원 1 | 팀원 2는 점검/이미지 생성 시 검증용으로 사용 |
-| ImagePair 생성 | 팀원 2 | Pair 후보 조회, 생성, 수정, Fusion 입력 검증 담당 |
-| AnalysisJob 생성 | 팀원 2 | Job 생성, 재시도, SQS 메시지 발행 담당 |
-| Dashboard / Admin 조회 | 팀원 2 중심 | 분석 결과 기반 집계는 팀원 2, 사용자 관리는 팀원 1 |
-| DB Migration 충돌 | 공동 작업 | 최종 반영 담당자 1명 지정 |
+| 권한 검증 | 팀원 1 | 팀원 1이 AccessChecker를 구현하고, 팀원 2는 해당 컴포넌트를 호출한다. |
+| Zone / Equipment 조회 | 팀원 1 | 팀원 2는 점검 또는 이미지 생성 시 검증 목적으로 기존 조회 기능을 사용한다. |
+| 분석 대상 이미지 검증 | 팀원 2 | `imageId`, 이미지 상태, 이미지 유형, 점검 연결 정보를 검증한다. |
+| 이미지 유형 기반 모델 라우팅 | 팀원 2 | RGB 이미지는 RGB_ONLY, 열화상 이미지는 THERMAL_ONLY로 분석 작업을 생성한다. |
+| AnalysisJob 생성 | 팀원 2 | Job 생성, 재시도, SQS 메시지 발행을 담당한다. |
+| Dashboard / Admin 조회 | 팀원 2 중심 | 분석 결과 기반 집계는 팀원 2가 담당하고 사용자 관리는 팀원 1이 담당한다. |
+| DB Migration 충돌 | 공동 작업 | 최종 반영 담당자 한 명을 지정한다. |
 
 ### 8.3 작업 시 주의 사항
 
 - 각 팀원은 본인 소유 범위의 UseCase, Port, DTO, Service, Adapter, Controller 작업을 우선 담당한다.
-- 다른 팀원 소유 범위의 기능이 필요한 경우 직접 구현하지 않고, 기존 인터페이스나 공통 컴포넌트를 호출한다.
+- 다른 팀원 소유 범위의 기능이 필요한 경우 직접 구현하지 않고 기존 인터페이스나 공통 컴포넌트를 호출한다.
 - 소유 범위가 겹치거나 DB Migration 충돌이 예상되면 작업 전에 최종 반영 담당자를 정한다.
 - 인증, 권한, DB 구조, API 구조, Queue, Storage, Worker Contract는 임의로 변경하지 않는다.
 - 작업 중 소유 범위 밖의 수정이 필요하면 PR 본문 또는 작업 보고에 남긴다.
+- 분석 요청은 `imageId` 한 건을 기준으로 처리한다.
+- 현재 운영 코드에 `imagePairId`, `RGB_THERMAL_PAIR`, `FUSION`, `FUSION_AUTO` 흐름을 임의로 추가하지 않는다.
+- Fusion 운영 적용이 필요한 경우 API, DB, Queue 메시지, AI Worker 입출력, Frontend 흐름을 별도 검토한다.
+- 연구용 Pair/Fusion 코드는 현재 운영 패키지와 배포 흐름에 자동으로 포함하지 않는다.
 
 ---
 
@@ -290,6 +339,11 @@ save_visualization_result
 - 임시 파일, 로그 파일, 빌드 산출물, 디버깅 코드를 제거한다.
 - 문서 기준과 실제 코드가 다르면 PR 본문에 남긴다.
 - 남은 이슈나 확인 필요한 사항을 숨기지 않고 작성한다.
+- RGB 이미지와 열화상 이미지가 각각 독립적인 단건 분석으로 처리되는지 확인한다.
+- Public 분석 요청이 `imageId` 기준인지 확인한다.
+- SQS 메시지와 Worker 처리 흐름에 현재 사용하지 않는 Pair/Fusion 필드가 추가되지 않았는지 확인한다.
+- 모델 유형이 `RGB_ONLY`, `THERMAL_ONLY` 범위에서 처리되는지 확인한다.
+- 실패한 테스트나 확인하지 못한 내용을 성공으로 보고하지 않는다.
 
 ---
 
@@ -298,5 +352,7 @@ save_visualization_result
 본 컨벤션은 팀원이 같은 기준으로 브랜치, 커밋, PR, 코드 작성, 보안 점검, 작업 분리를 진행하기 위한 최소 기준이다.
 
 서비스 기능, API, DB, 인증·권한, AI Worker, 배포 구조에 대한 세부 기준은 각 설계 문서를 우선한다.
+
+현재 운영 서비스는 RGB·열화상 이미지 단건 분석을 기준으로 하며, Pair/Fusion은 후속 연구 범위로 분리한다.
 
 컨벤션과 설계 문서가 충돌할 경우 설계 문서를 우선 확인하고, 필요한 경우 팀 내 합의 후 컨벤션을 수정한다.

@@ -59,7 +59,8 @@ ai-worker/models/**/*.pt
 ai-worker/models/**/*.engine
 ai-worker/models/**/*.torchscript
 ai-worker/models/**/model-manifest*.yaml
-ai-worker/models/*/README.md
+!ai-worker/models/**/model-manifest.yaml
+!ai-worker/models/*/README.md
 ai-worker/tmp/*
 !ai-worker/tmp/.gitkeep
 
@@ -88,3 +89,6 @@ experiments/
 experiments/**
 
 ai-worker/.pytest-tmp/
+front_sample/
+Thermal-defect/
+Thermal-defect/**

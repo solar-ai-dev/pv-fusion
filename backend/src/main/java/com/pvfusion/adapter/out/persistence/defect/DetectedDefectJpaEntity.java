@@ -6,6 +6,7 @@ import com.pvfusion.domain.defect.DefectType;
 import com.pvfusion.domain.result.ActionCandidate;
 import com.pvfusion.domain.result.SeverityLevel;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -31,7 +32,7 @@ public class DetectedDefectJpaEntity extends BaseJpaEntity {
     @Column(name = "analysis_result_id", nullable = false)
     private Long analysisResultId;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = DefectTypeJpaConverter.class)
     @Column(nullable = false, length = 50)
     private DefectType defectType;
 

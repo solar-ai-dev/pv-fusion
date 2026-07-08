@@ -1,3 +1,5 @@
+import logging
+import time
 from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
@@ -6,6 +8,12 @@ from app.application.errors import JobStateTransitionError
 from app.application.ports import JobRepositoryPort
 from app.domain.analysis_job import AnalysisJob
 from app.domain.enums import InputType, JobStatus, ModelType, RequestedModelType
+
+logger = logging.getLogger(__name__)
+
+
+def _ms(t0: float) -> int:
+    return int((time.perf_counter() - t0) * 1000)
 
 
 class PostgresAnalysisJobRepository(JobRepositoryPort):
@@ -24,14 +32,34 @@ class PostgresAnalysisJobRepository(JobRepositoryPort):
                 requested_by_user_id,
                 trace_id,
                 failure_code,
-                failure_message
+                failure_message,
+                started_at,
+                updated_at
             FROM analysis_jobs
             WHERE id = %s
         """
-        with self._connection_factory() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(query, (job_id,))
-                row = cursor.fetchone()
+        operation = "analysis_job.get_by_id"
+        logger.info("db.acquire.before operation=%s jobId=%s", operation, job_id)
+        t_acquire = time.perf_counter()
+        row = None
+        try:
+            with self._connection_factory() as connection:
+                logger.info(
+                    "db.acquire.after operation=%s jobId=%s elapsedMs=%s",
+                    operation, job_id, _ms(t_acquire),
+                )
+                logger.info("db.execute.before operation=%s jobId=%s", operation, job_id)
+                t_exec = time.perf_counter()
+                with connection.cursor() as cursor:
+                    cursor.execute(query, (job_id,))
+                    row = cursor.fetchone()
+                logger.info(
+                    "db.execute.after operation=%s rowCount=%s elapsedMs=%s",
+                    operation, 0 if row is None else 1, _ms(t_exec),
+                )
+        finally:
+            logger.info("db.release.after operation=%s jobId=%s", operation, job_id)
+
         if row is None:
             return None
         return AnalysisJob(
@@ -45,6 +73,8 @@ class PostgresAnalysisJobRepository(JobRepositoryPort):
             traceId=row["trace_id"],
             failureCode=row["failure_code"],
             failureMessage=row["failure_message"],
+            startedAt=row["started_at"],
+            updatedAt=row["updated_at"],
         )
 
     def mark_running(self, job_id: int) -> None:
@@ -61,6 +91,8 @@ class PostgresAnalysisJobRepository(JobRepositoryPort):
             query,
             (JobStatus.RUNNING.value, now, now, job_id, JobStatus.QUEUED.value),
             "Job could not transition to RUNNING.",
+            operation="analysis_job.mark_running",
+            job_id=job_id,
         )
 
     def mark_succeeded(self, job_id: int) -> None:
@@ -77,6 +109,8 @@ class PostgresAnalysisJobRepository(JobRepositoryPort):
             query,
             (JobStatus.SUCCEEDED.value, now, now, job_id, JobStatus.RUNNING.value),
             "Job could not transition to SUCCEEDED.",
+            operation="analysis_job.mark_succeeded",
+            job_id=job_id,
         )
 
     def mark_failed(self, job_id: int, failure_code: str, failure_message: str) -> None:
@@ -104,15 +138,51 @@ class PostgresAnalysisJobRepository(JobRepositoryPort):
                 JobStatus.RUNNING.value,
             ),
             "Job could not transition to FAILED.",
+            operation="analysis_job.mark_failed",
+            job_id=job_id,
         )
 
-    def _execute_update(self, query: str, params: tuple[Any, ...], error_message: str) -> None:
-        with self._connection_factory() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(query, params)
-                if cursor.rowcount == 0:
+    def _execute_update(
+        self,
+        query: str,
+        params: tuple[Any, ...],
+        error_message: str,
+        *,
+        operation: str,
+        job_id: int,
+    ) -> None:
+        logger.info("db.acquire.before operation=%s jobId=%s", operation, job_id)
+        t_acquire = time.perf_counter()
+        try:
+            with self._connection_factory() as connection:
+                logger.info(
+                    "db.acquire.after operation=%s jobId=%s elapsedMs=%s",
+                    operation, job_id, _ms(t_acquire),
+                )
+
+                logger.info("db.execute.before operation=%s jobId=%s", operation, job_id)
+                t_exec = time.perf_counter()
+                rowcount = 0
+                with connection.cursor() as cursor:
+                    cursor.execute(query, params)
+                    rowcount = cursor.rowcount
+                logger.info(
+                    "db.execute.after operation=%s rowCount=%s elapsedMs=%s",
+                    operation, rowcount, _ms(t_exec),
+                )
+
+                if rowcount == 0:
                     raise JobStateTransitionError(error_message)
-            connection.commit()
+
+                logger.info("db.commit.before operation=%s jobId=%s", operation, job_id)
+                t_commit = time.perf_counter()
+                connection.commit()
+                logger.info(
+                    "db.commit.after operation=%s jobId=%s elapsedMs=%s",
+                    operation, job_id, _ms(t_commit),
+                )
+        finally:
+            logger.info("db.release.after operation=%s jobId=%s", operation, job_id)
 
 
 def _normalize_failure_code(value: str) -> str:

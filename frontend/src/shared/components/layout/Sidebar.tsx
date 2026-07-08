@@ -1,36 +1,68 @@
-import { NavLink } from 'react-router-dom'
+﻿import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../../../features/auth/hooks/useAuth'
 
-const menus = [
-  { to: '/dashboard', label: '대시보드' },
-  { to: '/plants', label: '발전소 관리' },
-  { to: '/inspections', label: '점검 관리' },
-  { to: '/results', label: '점검 결과' },
-  { to: '/tracking', label: '변경 추적' },
-  { to: '/admin', label: '관리자' },
-]
+const primaryMenus = [
+  {
+    to: '/dashboard',
+    label: '대시보드',
+    match: (pathname: string) => pathname === '/dashboard' || pathname === '/',
+  },
+  {
+    to: '/plants',
+    label: '발전소',
+    match: (pathname: string) =>
+      pathname.startsWith('/plants') || pathname.startsWith('/zones'),
+  },
+  {
+    to: '/inspections',
+    label: '점검',
+    match: (pathname: string) => pathname.startsWith('/inspections'),
+  },
+  {
+    to: '/results',
+    label: '결과',
+    match: (pathname: string) => pathname.startsWith('/results'),
+  },
+] as const
 
 export function Sidebar() {
+  const location = useLocation()
+  const role = useAuth((state) => state.user?.role)
+
+  const isTrackingActive = location.pathname.startsWith('/tracking')
+
   return (
     <aside className="sidebar">
-      <div className="space-y-2">
-        <span className="eyebrow">Workspace</span>
-        <h2 className="text-2xl font-semibold text-white">PV Fusion</h2>
-        <p className="text-sm text-slate-300">
-          발전소, 점검, 분석 결과를 한 흐름으로 확인하는 운영 화면입니다.
-        </p>
+      <div className="sidebar-brand">
+        <span className="sidebar-eyebrow">운영 콘솔</span>
+        <h2 className="sidebar-title">PV-Insight</h2>
+        <p className="sidebar-description">태양광 점검·분석 운영 플랫폼</p>
       </div>
-      <nav className="mt-8 space-y-2">
-        {menus.map((menu) => (
-          <NavLink
+      <nav className="sidebar-nav">
+        {primaryMenus.map((menu) => (
+          <Link
             key={menu.to}
             to={menu.to}
-            className={({ isActive }) =>
-              `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`
-            }
+            className={`sidebar-link ${menu.match(location.pathname) ? 'sidebar-link-active' : ''}`}
           >
             {menu.label}
-          </NavLink>
+          </Link>
         ))}
+        {/* 변화 추적: 결과 하위 보조 메뉴 — 항상 표시 */}
+        <Link
+          to="/tracking"
+          className={`sidebar-link sidebar-sublink ${isTrackingActive ? 'sidebar-link-active' : ''}`}
+        >
+          └ 변화 추적
+        </Link>
+        {role === 'ADMIN' ? (
+          <Link
+            to="/admin"
+            className={`sidebar-link ${location.pathname.startsWith('/admin') ? 'sidebar-link-active' : ''}`}
+          >
+            관리자
+          </Link>
+        ) : null}
       </nav>
     </aside>
   )

@@ -14,6 +14,7 @@ import com.pvfusion.application.dto.plant.PlantSummaryResponse;
 import com.pvfusion.application.port.in.plant.CreatePlantUseCase;
 import com.pvfusion.application.port.in.plant.DeactivatePlantUseCase;
 import com.pvfusion.application.port.in.plant.GetPlantUseCase;
+import com.pvfusion.application.port.in.plant.ManagePlantDeletionUseCase;
 import com.pvfusion.application.port.in.plant.QueryPlantUseCase;
 import com.pvfusion.application.port.in.plant.UpdatePlantUseCase;
 import com.pvfusion.domain.common.ResourceStatus;
@@ -41,6 +42,7 @@ class PlantControllerTest {
     @Mock private GetPlantUseCase getPlantUseCase;
     @Mock private UpdatePlantUseCase updatePlantUseCase;
     @Mock private DeactivatePlantUseCase deactivatePlantUseCase;
+    @Mock private ManagePlantDeletionUseCase managePlantDeletionUseCase;
 
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
@@ -57,7 +59,8 @@ class PlantControllerTest {
                 queryPlantUseCase,
                 getPlantUseCase,
                 updatePlantUseCase,
-                deactivatePlantUseCase
+                deactivatePlantUseCase,
+                managePlantDeletionUseCase
         ))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)

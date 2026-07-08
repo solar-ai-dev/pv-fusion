@@ -111,7 +111,7 @@ class ImageServiceTest {
 
         when(loadInspectionPort.loadInspection(10L)).thenReturn(Optional.of(inspection));
         when(accessChecker.checkInspectionAccess(1L, 10L)).thenReturn(true);
-        when(loadImagePort.loadImage(10L, TargetType.ZONE, null, ImageType.THERMAL, ResourceStatus.ACTIVE))
+        when(loadImagePort.loadImage(10L, "thermal.jpg", ResourceStatus.ACTIVE))
                 .thenReturn(Optional.empty());
         when(storeImageFilePort.store(any())).thenReturn(new ImageStorageResult("bucket", "thermal-object-key", null));
         when(saveImagePort.saveImage(any())).thenReturn(saved);
@@ -152,7 +152,7 @@ class ImageServiceTest {
 
         when(loadInspectionPort.loadInspection(10L)).thenReturn(Optional.of(inspection));
         when(accessChecker.checkInspectionAccess(1L, 10L)).thenReturn(true);
-        when(loadImagePort.loadImage(10L, TargetType.ZONE, null, ImageType.RGB, ResourceStatus.ACTIVE))
+        when(loadImagePort.loadImage(10L, "panel.jpg", ResourceStatus.ACTIVE))
                 .thenReturn(Optional.empty());
         when(storeImageFilePort.store(any())).thenReturn(new ImageStorageResult("bucket", "object-key", null));
         when(saveImagePort.saveImage(any())).thenReturn(saved);
@@ -230,7 +230,7 @@ class ImageServiceTest {
 
         when(loadInspectionPort.loadInspection(10L)).thenReturn(Optional.of(inspection));
         when(accessChecker.checkInspectionAccess(1L, 10L)).thenReturn(true);
-        when(loadImagePort.loadImage(10L, TargetType.ZONE, null, ImageType.RGB, ResourceStatus.ACTIVE))
+        when(loadImagePort.loadImage(10L, "zone-rgb.jpg", ResourceStatus.ACTIVE))
                 .thenReturn(Optional.empty());
         when(storeImageFilePort.store(any())).thenReturn(new ImageStorageResult("bucket", "zone-rgb-key", null));
         when(saveImagePort.saveImage(any())).thenReturn(saved);
@@ -370,7 +370,7 @@ class ImageServiceTest {
         when(loadInspectionPort.loadInspection(10L)).thenReturn(Optional.of(inspection));
         when(accessChecker.checkInspectionAccess(1L, 10L)).thenReturn(true);
         when(loadEquipmentPort.loadEquipment(200L)).thenReturn(Optional.of(equipment));
-        when(loadImagePort.loadImage(10L, TargetType.PANEL, 200L, ImageType.RGB, ResourceStatus.ACTIVE))
+        when(loadImagePort.loadImage(10L, "panel.jpg", ResourceStatus.ACTIVE))
                 .thenReturn(Optional.empty());
         when(storeImageFilePort.store(any())).thenReturn(new ImageStorageResult("bucket", "object-key", null));
         when(saveImagePort.saveImage(any())).thenReturn(saved);
@@ -434,20 +434,58 @@ class ImageServiceTest {
                 null, 1L, OffsetDateTime.now(), OffsetDateTime.now()
         );
         InspectionImage existing = new InspectionImage(
-                31L, 10L, null, TargetType.ZONE, ImageType.RGB, "existing.jpg", "image/jpeg", 10L,
+                31L, 10L, null, TargetType.ZONE, ImageType.THERMAL, "panel.jpg", "image/jpeg", 10L,
                 "bucket", "object-key", null, OffsetDateTime.now(), UploadStatus.UPLOADED, ResourceStatus.ACTIVE,
                 1L, OffsetDateTime.now(), OffsetDateTime.now()
         );
 
         when(loadInspectionPort.loadInspection(10L)).thenReturn(Optional.of(inspection));
         when(accessChecker.checkInspectionAccess(1L, 10L)).thenReturn(true);
-        when(loadImagePort.loadImage(10L, TargetType.ZONE, null, ImageType.RGB, ResourceStatus.ACTIVE))
+        when(loadImagePort.loadImage(10L, "panel.jpg", ResourceStatus.ACTIVE))
                 .thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> imageService.execute(command))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.DUPLICATE_IMAGE_UPLOAD);
+    }
+
+    @Test
+    void uploadImageAllowsSameInspectionWhenOriginalFilenameDiffers() {
+        UploadImageCommand command = new UploadImageCommand(
+                1L,
+                10L,
+                null,
+                TargetType.ZONE,
+                ImageType.RGB,
+                "panel-2.jpg",
+                "image/jpeg",
+                3L,
+                OffsetDateTime.parse("2026-06-05T09:00:00+09:00"),
+                null,
+                "panel-2.jpg",
+                new byte[]{1, 2, 3}
+        );
+        Inspection inspection = new Inspection(
+                10L, 20L, "Inspection", null, CaptureMethod.DRONE, null, null,
+                null, 1L, OffsetDateTime.now(), OffsetDateTime.now()
+        );
+        InspectionImage saved = new InspectionImage(
+                30L, 10L, null, TargetType.ZONE, ImageType.RGB, "panel-2.jpg", "image/jpeg", 3L,
+                "bucket", "object-key", null, command.capturedAt(), UploadStatus.UPLOADED, ResourceStatus.ACTIVE,
+                1L, OffsetDateTime.now(), OffsetDateTime.now()
+        );
+
+        when(loadInspectionPort.loadInspection(10L)).thenReturn(Optional.of(inspection));
+        when(accessChecker.checkInspectionAccess(1L, 10L)).thenReturn(true);
+        when(loadImagePort.loadImage(10L, "panel-2.jpg", ResourceStatus.ACTIVE))
+                .thenReturn(Optional.empty());
+        when(storeImageFilePort.store(any())).thenReturn(new ImageStorageResult("bucket", "object-key", null));
+        when(saveImagePort.saveImage(any())).thenReturn(saved);
+
+        var response = imageService.execute(command);
+
+        assertThat(response.originalFilename()).isEqualTo("panel-2.jpg");
     }
 
     @Test

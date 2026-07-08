@@ -1,4 +1,4 @@
-import { PropsWithChildren } from 'react'
+﻿import { PropsWithChildren } from 'react'
 import { Navigate } from 'react-router-dom'
 import { LoadingState } from '../../../shared/components/state/LoadingState'
 import { useAuth } from '../hooks/useAuth'

@@ -1,6 +1,18 @@
+export type StatusBadgeTone =
+  | 'default'
+  | 'success'
+  | 'warning'
+  | 'danger'
+  | 'slate'
+  | 'sky'
+  | 'emerald'
+  | 'amber'
+  | 'cyan'
+  | 'orange'
+
 type StatusBadgeProps = {
   label: string
-  tone?: 'default' | 'success' | 'warning' | 'danger'
+  tone?: StatusBadgeTone
 }
 
 export function StatusBadge({

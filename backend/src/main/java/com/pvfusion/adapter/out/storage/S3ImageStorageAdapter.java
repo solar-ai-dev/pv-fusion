@@ -20,7 +20,9 @@ import com.pvfusion.global.error.ErrorCode;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
@@ -67,6 +69,7 @@ public class S3ImageStorageAdapter implements StoreImageFilePort, GenerateImageA
     public ImageAccessUrlResult generate(ImageAccessUrlRequest request) {
         validateBucketName();
         try {
+            assertObjectExists(request.bucketName(), request.objectKey());
             GetObjectRequest getObjectRequest = GetObjectRequest.builder()
                     .bucket(request.bucketName())
                     .key(request.objectKey())
@@ -81,6 +84,8 @@ public class S3ImageStorageAdapter implements StoreImageFilePort, GenerateImageA
                     presignedRequest.url().toString(),
                     OffsetDateTime.ofInstant(presignedRequest.expiration(), ZoneOffset.UTC)
             );
+        } catch (BusinessException exception) {
+            throw exception;
         } catch (Exception exception) {
             throw new BusinessException(ErrorCode.FILE_STORAGE_FAILED, "Failed to generate image access URL.");
         }
@@ -89,6 +94,23 @@ public class S3ImageStorageAdapter implements StoreImageFilePort, GenerateImageA
     private void validateBucketName() {
         if (bucketName == null || bucketName.isBlank()) {
             throw new BusinessException(ErrorCode.FILE_STORAGE_FAILED, "Storage bucket is not configured.");
+        }
+    }
+
+    private void assertObjectExists(String targetBucketName, String objectKey) {
+        try {
+            s3Client.headObject(HeadObjectRequest.builder()
+                    .bucket(targetBucketName)
+                    .key(objectKey)
+                    .build());
+        } catch (S3Exception exception) {
+            if (exception.statusCode() == 404) {
+                throw new BusinessException(
+                        ErrorCode.STORAGE_OBJECT_NOT_FOUND,
+                        "Storage object not found: %s/%s".formatted(targetBucketName, objectKey)
+                );
+            }
+            throw exception;
         }
     }
 

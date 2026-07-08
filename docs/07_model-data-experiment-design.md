@@ -8,16 +8,39 @@ Fusion 실험은 RGB-only / Thermal-only 단건 baseline과 단건 모델 배포
 
 모델 구조는 실험 전반에서 **YOLO26 계열로 고정**한다. 단건 모델 선정은 PyTorch 학습 성능뿐 아니라, 무료 또는 저사양 AWS CPU 환경에서 AI Worker가 ONNX Runtime으로 안정적으로 추론 가능한지도 함께 고려한다.
 
+### 운영 범위
+
+- 현재 서비스 운영 모델은 RGB-only와 Thermal-only 단건 모델이다.
+- RGB 이미지와 열화상 이미지는 각각 독립적인 이미지 단위로 분석한다.
+- 운영 분석 요청과 AI Worker 처리는 `imageId` 기준으로 수행한다.
+- RGB 입력은 RGB-only 모델로 라우팅한다.
+- 열화상 입력은 Thermal-only 모델로 라우팅한다.
+- 현재 운영 API, DB, Queue 메시지 및 AI Worker 계약에는 Pair 생성·관리와 Fusion 분석을 포함하지 않는다.
+
+### 연구 범위
+
+- RGB-Thermal 정상 pair 구성과 synthetic paired dataset 생성은 후속 연구 범위이다.
+- Anomalib 기반 synthetic 품질 검증은 후속 연구 범위이다.
+- Early Fusion과 Late Fusion 성능 비교는 후속 연구 범위이다.
+- 연구용 Pair와 Fusion 데이터 구조는 모델 실험 및 성능 비교를 위한 것이며 현재 서비스의 운영 데이터 계약을 의미하지 않는다.
+- Fusion 연구 결과가 단건 모델보다 유의미한 개선을 보이더라도 운영 적용 여부는 별도로 검토한다.
+- Fusion을 운영에 적용하려면 API, DB, Queue 메시지, AI Worker 입출력, Frontend 흐름 및 배포 구조에 대한 별도 검토와 승인이 필요하다.
+
 ---
 
 ## 2. 전체 실험 흐름
 
 ```
+[운영 범위]
+
 단건 데이터셋 선정
 → YOLO26 RGB-only baseline 실험
 → YOLO26 Thermal-only baseline 실험 및 무료/저사양 CPU 기준 1차 후보 선정
 → 단건 모델 ONNX 변환 및 CPU 추론 검증
-→ O&M RGB-Thermal 정상 pair 기반 crop pair 생성
+
+[연구 범위]
+
+O&M RGB-Thermal 정상 pair 기반 crop pair 생성
 → Synthetic paired dataset 생성
 → Anomalib 기반 synthetic 품질 검증
 → YOLO26 기반 RGB-Thermal Fusion 후속 실험
@@ -36,9 +59,25 @@ RGB 단건, 열화상 단건, 단건 배포 검증, Synthetic 품질 검증, Fus
 
 각 실험 기록에는 비교 대상, 고정 조건, 핵심 지표, 보조 지표, 결과 및 계산 기준, 최종 선택, 판정, 산출물, 메모를 남긴다.
 
+운영 모델과 연구 모델의 결과는 다음 기준으로 구분한다.
+
+| 실험 구분 | 실험 ID | 적용 범위 |
+| --- | --- | --- |
+| RGB 단건 모델 | `RGB-EXP` | 현재 운영 모델 후보 |
+| Thermal 단건 모델 | `TH-EXP` | 현재 운영 모델 후보 |
+| 단건 배포 검증 | `DEP-EXP` | 현재 운영 배포 검증 |
+| Synthetic 품질 검증 | `ANO-EXP` | 후속 연구 |
+| RGB-Thermal Fusion | `FUS-EXP` | 후속 연구 |
+
+`ANO-EXP`와 `FUS-EXP` 결과는 연구 결과로 관리하며, 해당 실험의 채택 판정만으로 서비스 운영 계약을 변경하지 않는다.
+
 ---
 
 ## 4. 실험 방향 요약
+
+> RGB 단건, 열화상 단건, 단건 배포 검증은 현재 운영 모델 구축 범위이다.
+>
+> RGB-Thermal 정상 pair, crop pair, synthetic paired dataset, Anomalib 품질 검증 및 Fusion 실험은 후속 연구 범위이다.
 
 | 구분 | 데이터셋 | 실험 방향 |
 | --- | --- | --- |
@@ -57,6 +96,19 @@ RGB 단건, 열화상 단건, 단건 배포 검증, Synthetic 품질 검증, Fus
 ---
 
 ## 4. 하위 문서 구성
+
+### 적용 범위 구분
+
+| 하위 문서 | 적용 범위 |
+| --- | --- |
+| RGB 단건 분석 실험 | 현재 운영 모델 후보 실험 |
+| 열화상 단건 분석 실험 | 현재 운영 모델 후보 실험 |
+| 단건 모델 배포 최적화 실험 | 현재 운영 배포 검증 |
+| Synthetic Defect 생성 및 라벨링 | 후속 연구 |
+| Anomalib 품질 검증 | 후속 연구 |
+| RGB-Thermal Fusion 후속 실험 | 후속 연구 |
+
+연구 범위의 데이터 구조와 실험 결과는 현재 운영 API, DB, Queue, AI Worker 및 Frontend 계약에 직접 반영하지 않는다.
 
 ## 데이터셋 선정
 
@@ -102,6 +154,7 @@ cell < module < panel < array
 | 열화상 | Solar Panel Hot Spots | 열화상 diode/hotspot 탐지 데이터 | object detection, diode, hotspot | 3,506장 | ○ |
 | 열화상 | Photovoltaic Module Dataset, PVMD | 열화상 결함 분류 데이터 | class 분류, Hotspots, Cracks, Shadings | 1,000장 | ○ |
 | 열화상 | Thermal Solar PV Anomaly Detection Dataset / ThermoSolar-PV | 열화상 anomaly 탐지 데이터 | object detection, Single Hotspot, Multi Hotspots, Single Diode, Multi Diode, Single Bypassed Substring, Multi Bypassed Substring, String Open Circuit, String Reversed Polarity | 확인 필요 | ○~△ |
+
 - **RGB-Thermal 정상 pair**: Fusion 학습용 synthetic paired dataset을 만들기 위한 기준 데이터
 - **정규화됨**: 이미지 크기, 각도, 위치 등이 일정하게 맞춰진 상태
 - **annotation**: 라벨은 제공되지만 bbox, mask, class 중 어떤 형태인지 추가 확인이 필요한 상태
@@ -134,6 +187,12 @@ Fusion 모델은 공개 데이터셋을 그대로 사용하는 것이 아니라,
 | Thermal 발열 결함 기준 | **Thermal Solar PV Anomaly Detection Dataset / ThermoSolar-PV** | 열화상 anomaly bbox 라벨과 diode·hotspot·substring·string fault class를 제공하므로 Thermal-only bbox baseline, synthetic thermal 결함 합성, Fusion class 설계에 활용 가능 |
 
 ## RGB 단건 분석 실험
+
+> **운영 모델 범위**
+>
+> 본 실험은 현재 서비스에서 RGB 이미지를 단건 분석하기 위한 RGB-only 운영 모델 후보를 선정하는 실험이다.
+>
+> 분석 입력은 `imageId`로 식별되는 RGB 이미지 한 건이다.
 
 ## 1. 목적
 
@@ -414,6 +473,12 @@ RGB-only baseline 후보를 선정한 뒤, 서비스 적용 가능성을 확인�
 | Fusion 연계 | RGB-only 최종 후보 모델을 Fusion 후속 실험의 단일 모달 비교 기준으로 사용 | RGB-only baseline 확정 후 수행 |
 
 ## 열화상 단건 분석 실험
+
+> **운영 모델 범위**
+>
+> 본 실험은 현재 서비스에서 열화상 이미지를 단건 분석하기 위한 Thermal-only 운영 모델 후보를 선정하는 실험이다.
+>
+> 분석 입력은 `imageId`로 식별되는 열화상 이미지 한 건이다.
 
 ## 1. 목적
 
@@ -707,14 +772,19 @@ Thermal-only baseline 후보를 선정한 뒤, 서비스 적용 가능성을 확
 | 구분 | 후속 비교 항목 | 수행 조건 |
 | --- | --- | --- |
 | Learning rate | 기본값 / 낮은 LR / 높은 LR | loss 수렴이 불안정하거나 validation 성능이 흔들릴 때 |
-| 클래스 보정 | TH-EXP-03-OS-01 rare class oversampling, class weight, rare class 중심 샘플링 |  TH-EXP-02에서 선정한 YOLO26s 기준으로 MultiByPassed, MultiDiode, StringOpenCircuit, StringReversedPolarity 등 rare class Recall이 낮거나 class imbalance 영향이 확인될 때 수행 |
+| 클래스 보정 | TH-EXP-03-OS-01 rare class oversampling, class weight, rare class 중심 샘플링 | TH-EXP-02에서 선정한 YOLO26s 기준으로 MultiByPassed, MultiDiode, StringOpenCircuit, StringReversedPolarity 등 rare class Recall이 낮거나 class imbalance 영향이 확인될 때 수행 |
 | Epoch 조정 | 20~30 epoch 이후 epoch 증가 검토 | train/val loss가 계속 개선되는데 학습이 중단된 경우 |
 | Batch size 확장 | 16 기준 학습이 안정적으로 완료되고 GPU 메모리 여유가 충분할 때 32를 선택적으로 시도 | 기본 비교 조건에는 포함하지 않고 참고 결과로만 기록 |
 | 데이터 보강 | synthetic Thermal defect dataset 추가 또는 공개+synthetic 혼합 | Thermal-only 단독 baseline 확정 후 synthetic 데이터가 실제 생성된 경우에만 별도 후속 실험으로 수행 |
 | Fusion 연계 | Thermal-only 최종 후보 모델을 Fusion 후속 실험의 단일 모달 비교 기준으로 사용 | Thermal-only baseline 확정 후 수행 |
 
-
 ## 단건 모델 배포 최적화 실험
+
+> **운영 배포 검증 범위**
+>
+> 본 실험은 RGB-only와 Thermal-only 단건 모델의 현재 운영 환경 적용 가능성을 검증한다.
+>
+> 운영 분석 입력은 이미지 한 건이며, Pair 입력과 Fusion 모델은 본 배포 검증 범위에 포함하지 않는다.
 
 ## 1. 목적
 
@@ -746,7 +816,7 @@ PyTorch 모델을 ONNX 형식으로 변환하고, ONNX Runtime 기반 CPU 단건
 
 배포 최적화 실험은 RGB-only 최종 후보 모델과 Thermal-only 최종 후보 모델을 각각 독립적으로 수행한다.
 
-두 모델의 학습 담당자가 다르므로 실험 ID는 `DEP-EXP-01-RGB` , `DEP-EXP-01-THERMAL`처럼 대상 모델 suffix를 붙여 기록한다.
+두 모델의 학습 담당자가 다르므로 실험 ID는 `DEP-EXP-01-RGB`, `DEP-EXP-01-THERMAL`처럼 대상 모델 suffix를 붙여 기록한다.
 
 RGB-Thermal Fusion 모델은 아직 최종 후보가 없으므로 본 실험 범위에서 제외한다.
 
@@ -1032,6 +1102,12 @@ INT8 양자화는 ONNX FP32 기준 추론 시간이 부족하거나 모델 크�
 
 ## Synthetic Defect 생성 및 라벨링
 
+> **연구 범위**
+>
+> 본 단계는 Fusion 가능성을 검증하기 위한 후속 연구용 데이터 생성 단계이다.
+>
+> 여기서 사용하는 RGB-Thermal pair, `pair_type`, `fusion_class`는 연구 데이터셋의 메타데이터이며 현재 운영 DB나 API 계약을 의미하지 않는다.
+
 ## 1. 목적
 
 RGB-only / Thermal-only 단건 baseline 확보 이후, 실제 RGB-Thermal 결함 pair 데이터가 부족한 문제를 보완하기 위해 **O&M RGB-Thermal 정상 pair** 위에 RGB 결함과 Thermal 결함을 합성하여 **Fusion 후속 실험용 synthetic paired dataset**을 생성한다.
@@ -1171,6 +1247,12 @@ fusion_class = ELECTRICAL_THERMAL_DEFECT
 현재 1차 범위는 단건 RGB/Thermal baseline 구축과 단건 모델 배포 검증이며, 본 synthetic paired dataset 생성은 그 이후 단계에서 수행한다.
 
 ## Anomalib 품질 검증
+
+> **연구 범위**
+>
+> 본 단계는 후속 연구용 synthetic paired dataset의 품질을 검증하는 과정이다.
+>
+> Anomalib heatmap과 검증 결과는 연구 샘플의 사용 여부를 판단하기 위한 자료이며 현재 운영 분석 결과의 필수 출력 계약이 아니다.
 
 ## 1. 목적
 
@@ -1383,6 +1465,16 @@ Anomalib 결과만으로 최종 라벨을 수정하지 않는다.
 현재 1차 범위는 RGB-only / Thermal-only 단건 baseline 구축과 단건 모델 배포 검증이며, 본 Anomalib 품질 검증은 Fusion 후속 실험용 synthetic paired dataset 생성 이후 수행한다.
 
 ## RGB-Thermal Fusion 후속 실험
+
+> **연구 범위**
+>
+> 본 실험은 RGB-only와 Thermal-only 단건 운영 모델이 확정된 이후 수행하는 후속 연구이다.
+>
+> Pair 생성·관리와 Fusion 분석은 현재 서비스 운영 범위에 포함되지 않는다.
+>
+> Fusion 성능이 단건 baseline보다 개선되더라도 운영 적용을 자동으로 확정하지 않는다.
+>
+> 운영 적용 전 API, DB, Queue 메시지, AI Worker 입출력, Frontend 흐름 및 배포 구조에 대한 별도 검토와 사용자 승인이 필요하다.
 
 ## 1. 목적
 
@@ -1662,3 +1754,15 @@ Intermediate Fusion, Attention Fusion, Transformer Fusion은 초기 Fusion 실�
 본 문서는 **RGB-only / Thermal-only 단건 baseline과 단건 모델 배포 검증 이후 수행하는 Fusion 후속 실험**을 대상으로 한다.
 
 현재 1차 범위는 RGB-only / Thermal-only 단건 baseline 구축과 단건 모델 배포 최적화이며, 본 Fusion 실험은 synthetic paired dataset과 Anomalib 품질 검증이 완료된 이후 수행한다.
+
+---
+
+## 운영 적용 원칙
+
+- 현재 운영 분석은 RGB 이미지와 열화상 이미지의 단건 분석만 지원한다.
+- 운영 분석 입력은 `imageId`로 식별되는 이미지 한 건이다.
+- 운영 입력 유형은 `RGB_SINGLE`, `THERMAL_SINGLE`이다.
+- 운영 모델 유형은 `RGB_ONLY`, `THERMAL_ONLY`이다.
+- Pair 및 Fusion 관련 실험 데이터와 모델은 연구 산출물로 분리해 관리한다.
+- 연구 결과가 채택되더라도 현재 운영 기능, API, DB 및 AI Worker 계약은 자동으로 변경되지 않는다.
+- Fusion 운영 전환이 필요한 경우 별도의 소스 수정 제안, 영향 범위 검토, 테스트 및 사용자 승인을 거쳐야 한다.

@@ -1,8 +1,8 @@
-import { ReactNode } from 'react'
+﻿import { ReactNode } from 'react'
 
 type PageHeaderProps = {
   title: string
-  description: string
+  description?: string
   actions?: ReactNode
 }
 
@@ -13,11 +13,11 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <header className="page-header">
-      <div>
+      <div className="min-w-0 flex-1">
         <h1 className="text-3xl font-semibold text-slate-950">{title}</h1>
-        <p className="mt-2 text-sm text-slate-600">{description}</p>
+        {description ? <p className="mt-2 text-sm text-slate-600">{description}</p> : null}
       </div>
-      {actions ? <div className="flex items-center gap-3">{actions}</div> : null}
+      {actions ? <div className="page-actions">{actions}</div> : null}
     </header>
   )
 }

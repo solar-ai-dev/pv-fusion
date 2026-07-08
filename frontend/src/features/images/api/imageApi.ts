@@ -1,5 +1,9 @@
 import { apiClient } from '../../../shared/api/client'
-import { ApiSuccessResponse } from '../../../shared/api/types'
+import {
+  ApiSuccessResponse,
+  DeleteImpact,
+  DeleteResourceResult,
+} from '../../../shared/api/types'
 import type {
   Image,
   ImageListParams,
@@ -61,6 +65,18 @@ export const imageApi = {
   deactivateImage: async (imageId: string | number) => {
     const response = await apiClient.patch<ApiSuccessResponse<Image>>(
       `/images/${imageId}/deactivate`,
+    )
+    return response.data
+  },
+  fetchDeleteImpact: async (imageId: string | number) => {
+    const response = await apiClient.get<ApiSuccessResponse<DeleteImpact>>(
+      `/images/${imageId}/delete-impact`,
+    )
+    return response.data
+  },
+  deleteImage: async (imageId: string | number) => {
+    const response = await apiClient.delete<ApiSuccessResponse<DeleteResourceResult>>(
+      `/images/${imageId}`,
     )
     return response.data
   },

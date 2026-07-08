@@ -53,10 +53,15 @@ def test_create_storage_client_uses_prod_defaults_without_endpoint_override(monk
 
     create_storage_client(settings)
 
-    assert captured == {
-        "service_name": "s3",
-        "region_name": "ap-northeast-2",
-    }
+    assert captured["service_name"] == "s3"
+    assert captured["region_name"] == "ap-northeast-2"
+    assert "endpoint_url" not in captured
+    # timeout Config는 prod에서도 항상 설정된다
+    assert captured["config"] is not None
+    assert captured["config"].connect_timeout == 10
+    assert captured["config"].read_timeout == 60
+    # prod + path_style 미설정 → s3 addressing_style 없음
+    assert getattr(captured["config"], "s3", None) is None or captured["config"].s3.get("addressing_style") is None
 
 
 def test_create_sqs_client_uses_local_endpoint_and_static_credentials(monkeypatch):

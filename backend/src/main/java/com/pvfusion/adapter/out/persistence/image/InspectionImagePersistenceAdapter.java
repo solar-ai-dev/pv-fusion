@@ -5,8 +5,6 @@ import com.pvfusion.application.port.out.image.LoadImagePort;
 import com.pvfusion.application.port.out.image.SaveImagePort;
 import com.pvfusion.application.port.out.image.UpdateImagePort;
 import com.pvfusion.domain.common.ResourceStatus;
-import com.pvfusion.domain.common.TargetType;
-import com.pvfusion.domain.image.ImageType;
 import com.pvfusion.domain.image.InspectionImage;
 import java.util.List;
 import java.util.Optional;
@@ -44,16 +42,12 @@ public class InspectionImagePersistenceAdapter implements LoadImagePort, SaveIma
     @Override
     public Optional<InspectionImage> loadImage(
             Long inspectionId,
-            TargetType targetType,
-            Long equipmentId,
-            ImageType imageType,
+            String originalFilename,
             ResourceStatus status
     ) {
-        return inspectionImageJpaRepository.findLatestByComposite(
+        return inspectionImageJpaRepository.findLatestByInspectionIdAndOriginalFilename(
                         inspectionId,
-                        targetType.name(),
-                        equipmentId,
-                        imageType.name(),
+                        originalFilename,
                         status.name()
                 )
                 .map(InspectionImagePersistenceMapper::toDomain);

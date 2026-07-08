@@ -41,8 +41,8 @@ public class TrackingService implements
     public TrackingResponse execute(TrackingQuery query) {
         Long currentUserId = requireCurrentUserId();
         validateDateRange(query.from(), query.to());
-        validateTrackingScope(currentUserId, query.plantId(), query.zoneId(), query.equipmentId());
-        return new TrackingResponse(loadTrackingPort.loadTracking(query));
+        TrackingQuery execQuery = applyTrackingScope(currentUserId, query);
+        return new TrackingResponse(loadTrackingPort.loadTracking(execQuery));
     }
 
     @Override
@@ -66,25 +66,40 @@ public class TrackingService implements
     public List<RepeatedAnomalyResponse> execute(RepeatedAnomalyQuery query) {
         Long currentUserId = requireCurrentUserId();
         validateDateRange(query.from(), query.to());
-        validateTrackingScope(currentUserId, query.plantId(), query.zoneId(), query.equipmentId());
-        return loadTrackingPort.loadRepeatedAnomalies(query);
+        RepeatedAnomalyQuery execQuery = applyTrackingScope(currentUserId, query);
+        return loadTrackingPort.loadRepeatedAnomalies(execQuery);
     }
 
-    private void validateTrackingScope(Long actorUserId, Long plantId, Long zoneId, Long equipmentId) {
+    private TrackingQuery applyTrackingScope(Long actorUserId, TrackingQuery query) {
         boolean admin = accessChecker.isAdmin(actorUserId);
-        if (!admin && plantId == null && zoneId == null && equipmentId == null) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "Non-admin tracking queries require scoped filters.");
+        if (query.plantId() != null) {
+            ensureAllowed(accessChecker.checkPlantAccess(actorUserId, query.plantId()));
+        } else if (query.zoneId() != null) {
+            ensureAllowed(accessChecker.checkZoneAccess(actorUserId, query.zoneId()));
+        } else if (query.equipmentId() != null) {
+            ensureAllowed(accessChecker.checkEquipmentAccess(actorUserId, query.equipmentId()));
+        } else if (!admin) {
+            // non-admin, no explicit scope: auto-filter by plant membership
+            return new TrackingQuery(actorUserId, query.plantId(), query.zoneId(), query.equipmentId(),
+                    query.targetType(), query.from(), query.to(), query.inputType(), query.modelType(),
+                    query.actionCandidate(), query.priorityLevel(), query.severityLevel());
         }
+        return query;
+    }
 
-        if (plantId != null) {
-            ensureAllowed(accessChecker.checkPlantAccess(actorUserId, plantId));
+    private RepeatedAnomalyQuery applyTrackingScope(Long actorUserId, RepeatedAnomalyQuery query) {
+        boolean admin = accessChecker.isAdmin(actorUserId);
+        if (query.plantId() != null) {
+            ensureAllowed(accessChecker.checkPlantAccess(actorUserId, query.plantId()));
+        } else if (query.zoneId() != null) {
+            ensureAllowed(accessChecker.checkZoneAccess(actorUserId, query.zoneId()));
+        } else if (query.equipmentId() != null) {
+            ensureAllowed(accessChecker.checkEquipmentAccess(actorUserId, query.equipmentId()));
+        } else if (!admin) {
+            return new RepeatedAnomalyQuery(actorUserId, query.plantId(), query.zoneId(), query.equipmentId(),
+                    query.targetType(), query.from(), query.to());
         }
-        if (zoneId != null) {
-            ensureAllowed(accessChecker.checkZoneAccess(actorUserId, zoneId));
-        }
-        if (equipmentId != null) {
-            ensureAllowed(accessChecker.checkEquipmentAccess(actorUserId, equipmentId));
-        }
+        return query;
     }
 
     private void ensureResultExists(Long resultId) {

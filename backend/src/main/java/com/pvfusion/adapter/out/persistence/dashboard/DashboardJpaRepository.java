@@ -18,24 +18,24 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
-                           AND (:fromDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) <= CAST(:toDate AS date))
                         ) AS totalPlantCount,
                         (SELECT COUNT(DISTINCT i.zone_id)
                          FROM inspections i
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
-                           AND (:fromDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) <= CAST(:toDate AS date))
                         ) AS totalZoneCount,
                         (SELECT COUNT(*)
                          FROM inspections i
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
-                           AND (:fromDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) <= CAST(:toDate AS date))
                         ) AS totalInspectionCount,
                         (SELECT COUNT(*)
                          FROM inspections i
@@ -43,8 +43,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                            AND i.inspection_status IN ('READY', 'UPLOADING', 'ANALYZING')
-                           AND (:fromDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) <= CAST(:toDate AS date))
                         ) AS inProgressInspectionCount,
                         (SELECT COUNT(*)
                          FROM inspections i
@@ -52,8 +52,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                            AND i.inspection_status = 'COMPLETED'
-                           AND (:fromDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) <= CAST(:toDate AS date))
                         ) AS completedInspectionCount,
                         (SELECT COUNT(*)
                          FROM inspection_images ii
@@ -61,8 +61,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
-                           AND (:fromDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) <= CAST(:toDate AS date))
                         ) AS totalImageCount,
                         0 AS totalImagePairCount,
                         (SELECT COUNT(*)
@@ -72,8 +72,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
-                           AND (:fromDate IS NULL OR CAST(aj.requested_at AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(aj.requested_at AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(aj.requested_at AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(aj.requested_at AS date) <= CAST(:toDate AS date))
                         ) AS totalAnalysisJobCount,
                         (SELECT COUNT(*)
                          FROM analysis_jobs aj
@@ -83,8 +83,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                            AND aj.job_status = 'QUEUED'
-                           AND (:fromDate IS NULL OR CAST(aj.requested_at AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(aj.requested_at AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(aj.requested_at AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(aj.requested_at AS date) <= CAST(:toDate AS date))
                         ) AS queuedJobCount,
                         (SELECT COUNT(*)
                          FROM analysis_jobs aj
@@ -94,8 +94,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                            AND aj.job_status = 'RUNNING'
-                           AND (:fromDate IS NULL OR CAST(aj.requested_at AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(aj.requested_at AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(aj.requested_at AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(aj.requested_at AS date) <= CAST(:toDate AS date))
                         ) AS runningJobCount,
                         (SELECT COUNT(*)
                          FROM analysis_jobs aj
@@ -105,8 +105,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                            AND aj.job_status = 'SUCCEEDED'
-                           AND (:fromDate IS NULL OR CAST(aj.requested_at AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(aj.requested_at AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(aj.requested_at AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(aj.requested_at AS date) <= CAST(:toDate AS date))
                         ) AS succeededJobCount,
                         (SELECT COUNT(*)
                          FROM analysis_jobs aj
@@ -116,8 +116,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                            AND aj.job_status = 'FAILED'
-                           AND (:fromDate IS NULL OR CAST(aj.requested_at AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(aj.requested_at AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(aj.requested_at AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(aj.requested_at AS date) <= CAST(:toDate AS date))
                         ) AS failedJobCount,
                         (SELECT COUNT(*)
                          FROM analysis_results ar
@@ -127,8 +127,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                          JOIN zones z ON z.id = i.zone_id
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
-                           AND (:fromDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= CAST(:toDate AS date))
                         ) AS totalAnalysisResultCount,
                         (SELECT COUNT(*)
                          FROM analysis_results ar
@@ -139,8 +139,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                            AND ar.result_status = 'NORMAL'
-                           AND (:fromDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= CAST(:toDate AS date))
                         ) AS normalResultCount,
                         (SELECT COUNT(*)
                          FROM analysis_results ar
@@ -151,8 +151,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                            AND ar.result_status = 'ANOMALY'
-                           AND (:fromDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= CAST(:toDate AS date))
                         ) AS anomalyResultCount,
                         (SELECT COUNT(*)
                          FROM analysis_results ar
@@ -163,8 +163,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                            AND ar.result_status = 'LOW_CONFIDENCE'
-                           AND (:fromDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= CAST(:toDate AS date))
                         ) AS lowConfidenceResultCount,
                         (SELECT COUNT(DISTINCT i.zone_id)
                          FROM analysis_results ar
@@ -175,8 +175,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                            AND ar.result_status = 'ANOMALY'
-                           AND (:fromDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= CAST(:toDate AS date))
                         ) AS anomalyZoneCount,
                         (SELECT COUNT(*)
                          FROM analysis_results ar
@@ -187,8 +187,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                            AND ar.priority_level IN ('HIGH', 'URGENT')
-                           AND (:fromDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= CAST(:toDate AS date))
                         ) AS highPriorityCount,
                         (SELECT COUNT(*)
                          FROM analysis_results ar
@@ -199,8 +199,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                          WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                            AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                            AND ar.review_status = 'UNCHECKED'
-                           AND (:fromDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= :fromDate)
-                           AND (:toDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= :toDate)
+                           AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= CAST(:fromDate AS date))
+                           AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= CAST(:toDate AS date))
                         ) AS pendingReviewCount
                     """,
             nativeQuery = true
@@ -234,8 +234,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                     JOIN plants p ON p.id = z.plant_id
                     WHERE (:plantId IS NULL OR p.id = :plantId)
                       AND (:zoneId IS NULL OR z.id = :zoneId)
-                      AND (:fromDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= :fromDate)
-                      AND (:toDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= :toDate)
+                      AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= CAST(:fromDate AS date))
+                      AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= CAST(:toDate AS date))
                     ORDER BY COALESCE(ar.analyzed_at, ar.created_at) DESC, ar.id DESC
                     """,
             nativeQuery = true
@@ -258,8 +258,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                     JOIN zones z ON z.id = i.zone_id
                     WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                       AND (:zoneId IS NULL OR i.zone_id = :zoneId)
-                      AND (:fromDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= :fromDate)
-                      AND (:toDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= :toDate)
+                      AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= CAST(:fromDate AS date))
+                      AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= CAST(:toDate AS date))
                     GROUP BY ar.action_candidate
                     """,
             nativeQuery = true
@@ -281,8 +281,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                     JOIN zones z ON z.id = i.zone_id
                     WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                       AND (:zoneId IS NULL OR i.zone_id = :zoneId)
-                      AND (:fromDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= :fromDate)
-                      AND (:toDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= :toDate)
+                      AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= CAST(:fromDate AS date))
+                      AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= CAST(:toDate AS date))
                     GROUP BY ar.severity_level
                     """,
             nativeQuery = true
@@ -301,8 +301,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                     JOIN zones z ON z.id = i.zone_id
                     WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                       AND (:zoneId IS NULL OR i.zone_id = :zoneId)
-                      AND (:fromDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) >= :fromDate)
-                      AND (:toDate IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) <= :toDate)
+                      AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) >= CAST(:fromDate AS date))
+                      AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(i.captured_at, i.created_at) AS date) <= CAST(:toDate AS date))
                     GROUP BY CAST(COALESCE(i.captured_at, i.created_at) AS date)
                     ORDER BY trendDate ASC
                     """,
@@ -326,8 +326,8 @@ public interface DashboardJpaRepository extends Repository<AnalysisResultJpaEnti
                     WHERE (:plantId IS NULL OR z.plant_id = :plantId)
                       AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                       AND ar.result_status = 'ANOMALY'
-                      AND (:fromDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= :fromDate)
-                      AND (:toDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= :toDate)
+                      AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= CAST(:fromDate AS date))
+                      AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= CAST(:toDate AS date))
                     GROUP BY CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date)
                     ORDER BY trendDate ASC
                     """,

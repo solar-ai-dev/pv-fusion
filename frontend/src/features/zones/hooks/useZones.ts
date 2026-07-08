@@ -30,6 +30,14 @@ export function useZone(zoneId: number) {
   })
 }
 
+export function useZoneDeleteImpact(zoneId: number, enabled = true) {
+  return useQuery({
+    queryKey: [...zoneQueryKeys.detail(zoneId), 'delete-impact'] as const,
+    queryFn: () => zoneApi.fetchDeleteImpact(zoneId),
+    enabled: enabled && Number.isInteger(zoneId) && zoneId > 0,
+  })
+}
+
 export function useCreateZone(plantId: number) {
   const queryClient = useQueryClient()
 
@@ -73,6 +81,19 @@ export function useDeactivateZone(zoneId: number) {
       void queryClient.invalidateQueries({
         queryKey: plantQueryKeys.detail(response.data.plantId),
       })
+    },
+  })
+}
+
+export function useDeleteZone(zoneId: number) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => zoneApi.deleteZone(zoneId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: zoneQueryKeys.detail(zoneId) })
+      void queryClient.invalidateQueries({ queryKey: zoneQueryKeys.all })
+      void queryClient.invalidateQueries({ queryKey: plantQueryKeys.all })
     },
   })
 }

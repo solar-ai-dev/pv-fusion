@@ -20,6 +20,7 @@ public record AnalysisResultResponse(
         Long plantId,
         Long zoneId,
         Long inspectionId,
+        Long imageId,
         TargetType targetType,
         Long equipmentId,
         AnalysisInputType inputType,

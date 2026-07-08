@@ -32,6 +32,15 @@ public interface AnalysisResultJpaRepository extends JpaRepository<AnalysisResul
                       AND (:severityLevel IS NULL OR ar.severity_level = :severityLevel)
                       AND (:reviewStatus IS NULL OR ar.review_status = :reviewStatus)
                       AND (:analysisJobId IS NULL OR ar.analysis_job_id = :analysisJobId)
+                      AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= CAST(:fromDate AS date))
+                      AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= CAST(:toDate AS date))
+                      AND (:actorUserId IS NULL
+                           OR EXISTS (
+                               SELECT 1 FROM plant_members pm
+                               WHERE pm.plant_id = z.plant_id
+                                 AND pm.user_id = :actorUserId
+                                 AND pm.status = 'ACTIVE'
+                           ))
                     ORDER BY COALESCE(ar.analyzed_at, ar.created_at) DESC, ar.id DESC
                     """,
             countQuery = """
@@ -54,10 +63,20 @@ public interface AnalysisResultJpaRepository extends JpaRepository<AnalysisResul
                       AND (:severityLevel IS NULL OR ar.severity_level = :severityLevel)
                       AND (:reviewStatus IS NULL OR ar.review_status = :reviewStatus)
                       AND (:analysisJobId IS NULL OR ar.analysis_job_id = :analysisJobId)
+                      AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= CAST(:fromDate AS date))
+                      AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= CAST(:toDate AS date))
+                      AND (:actorUserId IS NULL
+                           OR EXISTS (
+                               SELECT 1 FROM plant_members pm
+                               WHERE pm.plant_id = z.plant_id
+                                 AND pm.user_id = :actorUserId
+                                 AND pm.status = 'ACTIVE'
+                           ))
                     """,
             nativeQuery = true
     )
     Page<AnalysisResultJpaEntity> search(
+            @Param("actorUserId") Long actorUserId,
             @Param("plantId") Long plantId,
             @Param("zoneId") Long zoneId,
             @Param("inspectionId") Long inspectionId,
@@ -71,6 +90,8 @@ public interface AnalysisResultJpaRepository extends JpaRepository<AnalysisResul
             @Param("severityLevel") String severityLevel,
             @Param("reviewStatus") String reviewStatus,
             @Param("analysisJobId") Long analysisJobId,
+            @Param("fromDate") String fromDate,
+            @Param("toDate") String toDate,
             Pageable pageable
     );
 }
