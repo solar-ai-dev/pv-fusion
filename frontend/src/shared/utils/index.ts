@@ -4,21 +4,32 @@ export function noop() {
   return undefined
 }
 
-export function formatDateTime(value?: string | null) {
-  if (!value) {
-    return '-'
-  }
-
+/** 테이블용: 2026-07-05 22:14 (compact, 항상 동일 너비) */
+export function formatTableDateTime(value?: string | null) {
+  if (!value) return '-'
   const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  const y = date.getFullYear()
+  const mo = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const h = String(date.getHours()).padStart(2, '0')
+  const mi = String(date.getMinutes()).padStart(2, '0')
+  return `${y}-${mo}-${d} ${h}:${mi}`
+}
 
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
+/** 카드/상세용: 2026년 7월 5일 22:14 */
+export function formatCardDateTime(value?: string | null) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  const h = String(date.getHours()).padStart(2, '0')
+  const mi = String(date.getMinutes()).padStart(2, '0')
+  return `${new Intl.DateTimeFormat('ko-KR', { dateStyle: 'long' }).format(date)} ${h}:${mi}`
+}
 
-  return new Intl.DateTimeFormat('ko-KR', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date)
+/** 기존 호환 유지 (ko-KR medium dateStyle) - 기존 코드에서 계속 사용 가능 */
+export function formatDateTime(value?: string | null) {
+  return formatTableDateTime(value)
 }
 
 export function formatDate(value?: string | null) {
@@ -32,9 +43,10 @@ export function formatDate(value?: string | null) {
     return value
   }
 
-  return new Intl.DateTimeFormat('ko-KR', {
-    dateStyle: 'medium',
-  }).format(date)
+  const y = date.getFullYear()
+  const mo = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${mo}-${d}`
 }
 
 export function formatCount(value?: number | null) {

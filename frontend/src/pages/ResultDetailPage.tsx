@@ -4,36 +4,39 @@ import axios from 'axios'
 import type {
   ActionCandidate,
   DefectType,
-  ResultVisualizationType,
   ReviewStatus,
   SeverityLevel,
 } from '../features/results/types'
-import { getDefectTaxonomyLabel, getDefectSourceLabel, getInputTypeShortLabel } from '../features/results/defectTaxonomy'
+import { getDefectTaxonomyLabel, getInputTypeShortLabel } from '../features/results/defectTaxonomy'
 import {
   ACTION_CANDIDATE_OPTIONS,
   REVIEW_STATUS_OPTIONS,
-  VISUALIZATION_TYPE_OPTIONS,
 } from '../features/results/types'
 import {
   useResult,
-  useResultVisualization,
   useUpdateActionCandidate,
   useUpdateReviewStatus,
 } from '../features/results/hooks/useResults'
+import { ResultDefectPanel } from '../features/results/components/ResultDefectPanel'
+import { ResultImageViewer } from '../features/results/components/ResultImageViewer'
+import {
+  getDefaultVisualizationType,
+  type ImageViewMode,
+} from '../features/results/resultViewerUtils'
+import type { ResultVisualizationType } from '../features/results/types'
 import type { AnalysisInputType, AnalysisModelType } from '../features/analysisJobs/types'
 import { useTrackingCompare } from '../features/tracking/hooks/useTracking'
 import type { TargetType } from '../features/images/types'
 import { FormField } from '../shared/components/form/FormField'
 import { ConfirmModal } from '../shared/components/feedback/ConfirmModal'
 import { PageHeader } from '../shared/components/layout/PageHeader'
-import { EmptyState } from '../shared/components/state/EmptyState'
 import { ErrorState } from '../shared/components/state/ErrorState'
 import { LoadingState } from '../shared/components/state/LoadingState'
 import { StatusBadge } from '../shared/components/state/StatusBadge'
 import { DataTable } from '../shared/components/table/DataTable'
 import { useToast } from '../shared/hooks/useToast'
 import {
-  formatDateTime,
+  formatTableDateTime,
   formatDecimal,
   formatRatioPercent,
   getApiErrorMessage,
@@ -45,7 +48,9 @@ export function ResultDetailPage() {
   const toast = useToast()
   const resultId = parsePositiveNumber(params.resultId)
 
+  const [viewMode, setViewMode] = useState<ImageViewMode>('split')
   const [visualizationType, setVisualizationType] = useState<ResultVisualizationType>('bbox')
+  const [selectedDefectId, setSelectedDefectId] = useState<number | null>(null)
   const [nextActionCandidate, setNextActionCandidate] = useState<ActionCandidate>('CLEANING')
   const [actionMemo, setActionMemo] = useState('')
   const [nextReviewStatus, setNextReviewStatus] = useState<ReviewStatus>('UNCHECKED')
@@ -53,12 +58,13 @@ export function ResultDetailPage() {
   const [reviewMemo, setReviewMemo] = useState('')
   const [isActionConfirmOpen, setIsActionConfirmOpen] = useState(false)
   const [isReviewConfirmOpen, setIsReviewConfirmOpen] = useState(false)
+  const [origActionCandidate, setOrigActionCandidate] = useState<ActionCandidate>('CLEANING')
+  const [origReviewStatus, setOrigReviewStatus] = useState<ReviewStatus>('UNCHECKED')
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [isTechInfoOpen, setIsTechInfoOpen] = useState(false)
   const [isCompareExpanded, setIsCompareExpanded] = useState(false)
 
   const resultQuery = useResult(resultId ?? 0)
-  const visualizationQuery = useResultVisualization(resultId ?? 0, visualizationType, Boolean(resultId))
   const updateActionMutation = useUpdateActionCandidate(resultId ?? 0)
   const updateReviewMutation = useUpdateReviewStatus(resultId ?? 0)
   const compareQuery = useTrackingCompare({ currentResultId: resultId ?? 0 }, Boolean(resultId))
@@ -66,9 +72,20 @@ export function ResultDetailPage() {
   useEffect(() => {
     if (!resultQuery.data) return
     const result = resultQuery.data.data
-    setNextActionCandidate(result.actionCandidate ?? ACTION_CANDIDATE_OPTIONS[0])
-    setReviewActionCandidate(result.actionCandidate ?? ACTION_CANDIDATE_OPTIONS[0])
-    setNextReviewStatus(result.reviewStatus ?? REVIEW_STATUS_OPTIONS[0])
+    const ac = result.actionCandidate ?? ACTION_CANDIDATE_OPTIONS[0]
+    const rs = result.reviewStatus ?? REVIEW_STATUS_OPTIONS[0]
+    setNextActionCandidate(ac)
+    setReviewActionCandidate(ac)
+    setNextReviewStatus(rs)
+    setOrigActionCandidate(ac)
+    setOrigReviewStatus(rs)
+    setVisualizationType(getDefaultVisualizationType(result))
+    setSelectedDefectId((current) => {
+      if (current && result.detections.some((defect) => defect.defectId === current)) {
+        return current
+      }
+      return result.detections[0]?.defectId ?? null
+    })
   }, [resultQuery.data])
 
   if (!resultId) {
@@ -92,6 +109,8 @@ export function ResultDetailPage() {
   }
 
   const result = resultQuery.data.data
+  const selectedDefect =
+    result.detections.find((defect) => defect.defectId === selectedDefectId) ?? null
 
   const handleSaveActionCandidate = async () => {
     try {
@@ -173,7 +192,7 @@ export function ResultDetailPage() {
             tone={getReviewStatusTone(result.reviewStatus)}
           />
         </div>
-        <span className="result-summary-time">분석 {formatDateTime(result.analyzedAt)}</span>
+        <span className="result-summary-time">분석 {formatTableDateTime(result.analyzedAt)}</span>
       </div>
 
       {/* ── 2. 2컬럼 workspace ── */}
@@ -181,125 +200,39 @@ export function ResultDetailPage() {
 
         {/* 좌측: 시각화 + 결함 목록 */}
         <div className="result-main-column">
+          <ResultImageViewer
+            result={result}
+            resultId={resultId}
+            selectedDefect={selectedDefect}
+            viewMode={viewMode}
+            visualizationType={visualizationType}
+            onViewModeChange={setViewMode}
+            onVisualizationTypeChange={setVisualizationType}
+          />
 
-          {/* 결과 시각화 compact */}
-          <div className="result-viz-panel panel">
-            <div className="result-viz-toolbar">
-              <span className="result-viz-label">결과 시각화</span>
-              <div className="inline-actions">
-                {VISUALIZATION_TYPE_OPTIONS.map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    className={type === visualizationType ? 'btn btn-primary' : 'btn btn-secondary'}
-                    onClick={() => setVisualizationType(type)}
-                  >
-                    {getVizLabel(type)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="result-viz-image-container">
-              {visualizationQuery.isLoading ? (
-                <div className="image-placeholder">시각화 이미지를 불러오는 중입니다.</div>
-              ) : visualizationQuery.data?.data.url ? (
-                <img
-                  className="compare-image"
-                  src={visualizationQuery.data.data.url}
-                  alt={`${getVizLabel(visualizationType)} 시각화`}
-                />
-              ) : (
-                <EmptyState
-                  title="시각화 이미지를 표시할 수 없습니다."
-                  description={
-                    visualizationQuery.isError
-                      ? getApiErrorMessage(visualizationQuery.error, '잠시 후 다시 시도하거나 다른 방식을 선택하세요.')
-                      : '현재 선택한 시각화가 아직 생성되지 않았습니다.'
-                  }
-                />
-              )}
-            </div>
-          </div>
-
-          {/* 결함 후보 목록 compact */}
-          <div className="result-defect-panel panel">
-            <div className="result-defect-header">결함 후보 목록</div>
-            <DataTable
-              columns={[
-                {
-                  key: 'defect',
-                  header: '결함 유형',
-                  render: (row) => {
-                    const { label, isKnown } = getDefectTaxonomyLabel(row.defectType)
-                    return (
-                      <div className="stack-sm">
-                        <span
-                          className={`font-semibold text-sm ${isKnown ? 'text-slate-900' : 'text-slate-500'}`}
-                          title={!isKnown && row.defectType ? `원본 값: ${row.defectType}` : undefined}
-                        >
-                          {label}
-                        </span>
-                        <span className="text-xs text-slate-400">{getDefectSourceLabel(row.defectSource)}</span>
-                      </div>
-                    )
-                  },
-                },
-                {
-                  key: 'confidence',
-                  header: '신뢰도',
-                  render: (row) => (
-                    <span className="text-sm text-slate-600">{row.confidence ?? '-'}</span>
-                  ),
-                },
-                {
-                  key: 'bbox',
-                  header: '영역',
-                  render: (row) => (
-                    <span className="text-xs text-slate-500">
-                      {row.bboxX != null
-                        ? `x:${row.bboxX} y:${row.bboxY} ${row.bboxWidth}×${row.bboxHeight}`
-                        : '-'}
-                    </span>
-                  ),
-                },
-                {
-                  key: 'severity',
-                  header: '심각도',
-                  render: (row) => (
-                    <StatusBadge
-                      label={getSeverityLabel(row.severityLevel)}
-                      tone={getSeverityTone(row.severityLevel)}
-                    />
-                  ),
-                },
-                {
-                  key: 'action',
-                  header: '조치 후보',
-                  render: (row) => (
-                    <span className="text-sm text-slate-600">{getActionLabel(row.actionCandidate)}</span>
-                  ),
-                },
-                {
-                  key: 'createdAt',
-                  header: '기록 시각',
-                  render: (row) => (
-                    <span className="text-xs text-slate-400 whitespace-nowrap">
-                      {formatDateTime(row.createdAt)}
-                    </span>
-                  ),
-                },
-              ]}
-              rows={result.detections}
-              rowKey={(row) => row.defectId}
-              emptyTitle="결함 후보가 없습니다."
-              emptyDescription="이번 결과에는 기록된 결함 후보가 없습니다."
-            />
-          </div>
+          <ResultDefectPanel
+            defects={result.detections}
+            selectedDefectId={selectedDefectId}
+            onSelectDefect={(defect) => setSelectedDefectId(defect.defectId)}
+          />
         </div>
 
         {/* 우측: 조치·검토 sticky + 이전 점검 비교 */}
         <div className="result-side-column">
           <div className="result-action-sticky panel">
+            {selectedDefect ? (
+              <div className="result-selected-defect-summary">
+                <div className="result-compare-title">검토 참고 · 선택 결함</div>
+                <div className="result-selected-defect-summary-body">
+                  <strong>{getDefectTaxonomyLabel(selectedDefect.defectType).label}</strong>
+                  <span>
+                    {getSeverityLabel(selectedDefect.severityLevel)} ·{' '}
+                    {getActionLabel(selectedDefect.actionCandidate)} · 신뢰도{' '}
+                    {selectedDefect.confidence ?? '-'}
+                  </span>
+                </div>
+              </div>
+            ) : null}
 
             {/* 조치 후보 */}
             <div className="result-action-section">
@@ -330,9 +263,10 @@ export function ResultDetailPage() {
                 <button
                   className="btn btn-primary"
                   type="button"
+                  disabled={updateActionMutation.isPending || (nextActionCandidate === origActionCandidate && !actionMemo.trim())}
                   onClick={() => setIsActionConfirmOpen(true)}
                 >
-                  저장
+                  {updateActionMutation.isPending ? '저장 중...' : '조치 후보 저장'}
                 </button>
               </div>
             </div>
@@ -342,8 +276,14 @@ export function ResultDetailPage() {
             {/* 검토 상태 */}
             <div className="result-action-section">
               <div className="result-compare-title">검토 상태</div>
-              <div className="result-action-current">
-                현재: <strong>{getReviewStatusLabel(result.reviewStatus)}</strong>
+              <div className="result-review-status-row">
+                <StatusBadge
+                  label={getReviewStatusLabel(result.reviewStatus)}
+                  tone={getReviewStatusTone(result.reviewStatus)}
+                />
+                <span className="result-action-current">
+                  현재 상태 · 다음 변경: <strong>{getReviewStatusLabel(nextReviewStatus)}</strong>
+                </span>
               </div>
               <FormField label="변경">
                 <select
@@ -379,9 +319,10 @@ export function ResultDetailPage() {
                 <button
                   className="btn btn-primary"
                   type="button"
+                  disabled={updateReviewMutation.isPending || (nextReviewStatus === origReviewStatus && reviewActionCandidate === origActionCandidate && !reviewMemo.trim())}
                   onClick={() => setIsReviewConfirmOpen(true)}
                 >
-                  저장
+                  {updateReviewMutation.isPending ? '저장 중...' : '검토 상태 저장'}
                 </button>
               </div>
             </div>
@@ -492,7 +433,7 @@ export function ResultDetailPage() {
                 {
                   key: 'createdAt',
                   header: '기록 시각',
-                  render: (row) => formatDateTime(row.createdAt),
+                  render: (row) => formatTableDateTime(row.createdAt),
                 },
               ]}
               rows={result.reviewHistories}
@@ -602,14 +543,6 @@ function CompareItem({
 }
 
 /* ── Pure helper functions ── */
-
-function getVizLabel(type: ResultVisualizationType) {
-  switch (type) {
-    case 'bbox': return '경계 상자'
-    case 'heatmap': return '히트맵'
-    case 'mask': return '마스크'
-  }
-}
 
 function getTargetLabel(value?: TargetType | null) {
   switch (value) {

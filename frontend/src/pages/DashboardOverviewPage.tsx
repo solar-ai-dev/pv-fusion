@@ -16,21 +16,31 @@ import {
   getPriorityReasonText,
   type DashboardQueryParams,
   type DashboardTrendInterval,
+  type PriorityTarget,
+  type RecentInspectionResult,
 } from "../features/dashboard/types";
+import { useInspections } from "../features/inspections/hooks/useInspections";
+import {
+  getInspectionStatusLabel,
+  getInspectionStatusTone,
+  type InspectionSummary,
+} from "../features/inspections/types";
 import { usePlants } from "../features/plants/hooks/usePlants";
 import {
   getActionCandidateLabel,
   getPriorityLevelLabel,
   getSeverityLevelLabel,
+  getSeverityLevelTone,
 } from "../features/results/types";
 import { useZonesByPlantId } from "../features/zones/hooks/useZones";
 import { FormField } from "../shared/components/form/FormField";
 import { PageHeader } from "../shared/components/layout/PageHeader";
+import { StatusBadge } from "../shared/components/state/StatusBadge";
 import { EmptyState } from "../shared/components/state/EmptyState";
 import { ErrorState } from "../shared/components/state/ErrorState";
 import { LoadingState } from "../shared/components/state/LoadingState";
 import {
-  formatDateTime,
+  formatTableDateTime,
   getApiErrorMessage,
   parsePositiveNumber,
 } from "../shared/utils";
@@ -63,11 +73,26 @@ export function DashboardOverviewPage() {
   const actionStatsQuery = useDashboardActionStats(params, canQuery);
   const severityStatsQuery = useDashboardSeverityStats(params, canQuery);
   const trendsQuery = useDashboardTrends({ ...params, interval }, canQuery);
+  const inspectionsQuery = useInspections(
+    { ...params, page: 0, size: 5 },
+    canQuery,
+  );
 
   const summary = summaryQuery.data?.data.summary ?? null;
   const recentResults = summaryQuery.data?.data.recentResults ?? [];
   const priorityTargets = summaryQuery.data?.data.priorityTargets ?? [];
+  const recentInspections = inspectionsQuery.data?.data.content ?? [];
   const trendPoints = trendsQuery.data?.data.points ?? [];
+  const actionStatItems = actionStatsQuery.data?.data.items ?? [];
+
+  const plantMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const plant of plantsQuery.data?.data.content ?? []) {
+      map.set(plant.plantId, plant.name);
+    }
+    return map;
+  }, [plantsQuery.data]);
+
   const selectedPlantName = plantId
     ? (plantsQuery.data?.data.content.find((plant) => plant.plantId === plantId)
         ?.name ?? `발전소 #${plantId}`)
@@ -76,17 +101,35 @@ export function DashboardOverviewPage() {
     ? (zonesQuery.data?.data.find((zone) => zone.zoneId === zoneId)?.name ??
       `구역 #${zoneId}`)
     : "전체 구역";
+
+  const actionCandidateTotal = actionStatItems.reduce(
+    (sum, item) => sum + item.count,
+    0,
+  );
+  const retakeCount =
+    actionStatItems.find((item) => item.actionCandidate === "RETAKE")?.count ??
+    0;
+
   const severityItems = (severityStatsQuery.data?.data.items ?? []).map(
     (item) => ({
       label: getSeverityLevelLabel(item.severityLevel),
       value: item.count,
-      hint: `${item.severityLevel} 등급`,
+      hint: item.severityLevel,
     }),
   );
 
+  const actionItems = actionStatItems.map((item) => ({
+    label: getActionCandidateLabel(item.actionCandidate),
+    value: item.count,
+    hint: item.actionCandidate,
+  }));
+
   const plantAnomalySummary = useMemo(() => {
     const results = summaryQuery.data?.data.recentResults ?? [];
-    const map = new Map<string, { anomaly: number; total: number; criticalOrHigh: number }>();
+    const map = new Map<
+      string,
+      { anomaly: number; total: number; criticalOrHigh: number }
+    >();
     for (const result of results) {
       const key = result.plantName ?? "미지정";
       const entry = map.get(key) ?? { anomaly: 0, total: 0, criticalOrHigh: 0 };
@@ -107,17 +150,75 @@ export function DashboardOverviewPage() {
       ...stats,
     }));
   }, [summaryQuery.data]);
-  const actionItems = (actionStatsQuery.data?.data.items ?? []).map((item) => ({
-    label: getActionCandidateLabel(item.actionCandidate),
-    value: item.count,
-    hint: item.actionCandidate,
-  }));
+
+  const opsPriorityCards = useMemo(
+    () => [
+      {
+        key: "failed",
+        label: "실패 분석",
+        count: summary?.failedJobCount ?? 0,
+        hint: "재실행 또는 원인 확인",
+        href: buildDashboardPath("/inspections", params, {
+          inspectionStatus: "FAILED",
+        }),
+        tone: "danger" as const,
+      },
+      {
+        key: "review",
+        label: "검토 대기",
+        count: summary?.pendingReviewCount ?? 0,
+        hint: "미검토 결과 확인",
+        href: buildDashboardPath("/results", params, {
+          reviewStatus: "UNCHECKED",
+        }),
+        tone: "amber" as const,
+      },
+      {
+        key: "anomaly",
+        label: "이상 후보",
+        count: summary?.anomalyResultCount ?? 0,
+        hint: "이상 결과 우선 확인",
+        href: buildDashboardPath("/results", params, {
+          resultStatus: "ANOMALY",
+        }),
+        tone: "rose" as const,
+      },
+      {
+        key: "repeated",
+        label: "반복 이상",
+        count: summary?.repeatedAnomalyCount ?? 0,
+        hint: "변화 추적 대상",
+        href: buildDashboardPath("/tracking", params),
+        tone: "sky" as const,
+      },
+      {
+        key: "retake",
+        label: "재촬영 후보",
+        count: retakeCount,
+        hint: "재촬영 검토 필요",
+        href: buildDashboardPath("/results", params, {
+          actionCandidate: "RETAKE",
+        }),
+        tone: "cyan" as const,
+      },
+      {
+        key: "action",
+        label: "조치 후보",
+        count: actionCandidateTotal,
+        hint: "조치 유형별 확인",
+        href: buildDashboardPath("/results", params),
+        tone: "orange" as const,
+      },
+    ],
+    [actionCandidateTotal, params, retakeCount, summary],
+  );
+
   const reviewStatusItems = [
     {
-      label: "검토 대기",
-      value: summary?.pendingReviewCount ?? 0,
-      tone: "rose" as const,
-      description: "즉시 확인 필요",
+      label: "분석 대기",
+      value: summary?.queuedJobCount ?? 0,
+      tone: "slate" as const,
+      description: "분석 큐 대기",
     },
     {
       label: "분석 중",
@@ -126,9 +227,15 @@ export function DashboardOverviewPage() {
       description: "처리 진행 중",
     },
     {
+      label: "검토 대기",
+      value: summary?.pendingReviewCount ?? 0,
+      tone: "amber" as const,
+      description: "즉시 확인 필요",
+    },
+    {
       label: "실패",
       value: summary?.failedJobCount ?? 0,
-      tone: "rose" as const,
+      tone: "orange" as const,
       description: "재실행 또는 원인 확인",
     },
     {
@@ -142,11 +249,28 @@ export function DashboardOverviewPage() {
     reviewStatusItems.reduce((sum, item) => sum + item.value, 0),
     1,
   );
+
   const scopeChips = [
     selectedPlantName,
     selectedZoneName,
     `${getDashboardIntervalText(interval)} 기준`,
   ];
+
+  const isLoading =
+    canQuery &&
+    (summaryQuery.isLoading ||
+      actionStatsQuery.isLoading ||
+      severityStatsQuery.isLoading ||
+      trendsQuery.isLoading ||
+      inspectionsQuery.isLoading) &&
+    !summary;
+
+  const queryError =
+    summaryQuery.error ??
+    actionStatsQuery.error ??
+    severityStatsQuery.error ??
+    trendsQuery.error ??
+    inspectionsQuery.error;
 
   return (
     <section className="dashboard-shell">
@@ -154,7 +278,7 @@ export function DashboardOverviewPage() {
         <div className="dashboard-hero-main">
           <PageHeader
             title="대시보드"
-            description="기간과 범위를 기준으로 점검, 분석, 이상 징후를 한 화면에서 확인합니다."
+            description="오늘 확인할 운영 우선순위와 점검·분석 현황을 한 화면에서 판단합니다."
           />
           <div className="dashboard-chip-row">
             {scopeChips.map((chip) => (
@@ -164,21 +288,16 @@ export function DashboardOverviewPage() {
             ))}
           </div>
         </div>
-        <div className="dashboard-highlight-grid">
-          <DashboardHighlightCard
-            label="분석 대기"
-            value={`${summary?.queuedJobCount ?? 0}건`}
-          />
-          <DashboardHighlightCard
-            label="분석 중"
-            value={`${summary?.runningJobCount ?? 0}건`}
-            tone="warning"
-          />
-          <DashboardHighlightCard
-            label="검토 대기"
-            value={`${summary?.pendingReviewCount ?? 0}건`}
-            tone="danger"
-          />
+        <div className="dashboard-hero-actions">
+          <Link className="btn btn-secondary" to="/results">
+            결과 보기
+          </Link>
+          <Link className="btn btn-secondary" to="/inspections">
+            점검 보기
+          </Link>
+          <Link className="btn btn-secondary" to="/tracking">
+            변화 추적
+          </Link>
         </div>
       </section>
 
@@ -284,7 +403,7 @@ export function DashboardOverviewPage() {
         <section className="panel">
           <EmptyState
             title="먼저 발전소 또는 구역을 선택하세요."
-            description="범위를 정하면 점검 추세, 이상 분포, 최근 결과 요약이 한 화면에 표시됩니다."
+            description="범위를 정하면 운영 우선순위, 점검 추세, 최근 결과 요약이 한 화면에 표시됩니다."
             action={
               <Link className="btn btn-secondary" to="/plants">
                 발전소 보기
@@ -294,33 +413,72 @@ export function DashboardOverviewPage() {
         </section>
       ) : null}
 
-      {canQuery &&
-      (summaryQuery.isLoading ||
-        actionStatsQuery.isLoading ||
-        severityStatsQuery.isLoading ||
-        trendsQuery.isLoading) &&
-      !summary ? (
+      {isLoading ? (
         <LoadingState message="대시보드를 불러오는 중입니다." />
       ) : null}
 
-      {canQuery &&
-      (summaryQuery.isError ||
-        actionStatsQuery.isError ||
-        severityStatsQuery.isError ||
-        trendsQuery.isError) ? (
+      {canQuery && queryError ? (
         <ErrorState
           title="대시보드를 불러오지 못했습니다."
-          description={getApiErrorMessage(
-            summaryQuery.error ??
-              actionStatsQuery.error ??
-              severityStatsQuery.error ??
-              trendsQuery.error,
-          )}
+          description={getApiErrorMessage(queryError)}
         />
       ) : null}
 
       {canQuery && summary ? (
         <>
+          <section className="panel dashboard-card dashboard-ops-panel">
+            <div className="section-header">
+              <div>
+                <h2 className="panel-title">운영 우선순위</h2>
+                <p className="panel-description">
+                  오늘 먼저 확인하고 처리해야 할 항목입니다.
+                </p>
+              </div>
+              <Link
+                className="text-button"
+                to={buildDashboardPath("/tracking", params)}
+              >
+                변화 추적 보기
+              </Link>
+            </div>
+            <div className="dashboard-ops-priority-grid">
+              {opsPriorityCards.map((card) => (
+                <OpsPriorityCard
+                  key={card.key}
+                  count={card.count}
+                  hint={card.hint}
+                  href={card.href}
+                  label={card.label}
+                  tone={card.tone}
+                />
+              ))}
+            </div>
+            <div className="dashboard-ops-queue">
+              <div className="dashboard-ops-queue-header">
+                <span className="dashboard-section-label">즉시 확인 필요</span>
+                <span className="dashboard-ops-queue-count">
+                  {priorityTargets.length}건
+                </span>
+              </div>
+              {priorityTargets.length > 0 ? (
+                <div className="dashboard-ops-queue-list">
+                  {priorityTargets.slice(0, 6).map((target, index) => (
+                    <PriorityQueueItem
+                      key={`${target.resultId ?? "target"}-${index}`}
+                      target={target}
+                      params={params}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <SingleEmptyMessage
+                  title="즉시 확인 대상 없음"
+                  description="현재 조건에서 우선 확인할 결과가 없습니다."
+                />
+              )}
+            </div>
+          </section>
+
           <section className="dashboard-kpi-grid">
             <DashboardKpiCard
               label="점검 건수"
@@ -351,8 +509,38 @@ export function DashboardOverviewPage() {
             />
           </section>
 
-          <section className="dashboard-chart-grid">
-            <article className="panel dashboard-card dashboard-chart-panel">
+          <section className="dashboard-mid-grid">
+            <article className="panel dashboard-card dashboard-card-compact">
+              <div className="section-header">
+                <div>
+                  <h2 className="panel-title">분석/검토 상태</h2>
+                  <p className="panel-description">
+                    분석 대기·진행·검토·실패·완료 현황입니다.
+                  </p>
+                </div>
+              </div>
+              <div className="dashboard-status-grid">
+                {reviewStatusItems.map((item) => (
+                  <div key={item.label} className="dashboard-status-card">
+                    <div className="dashboard-status-card-top">
+                      <span>{item.label}</span>
+                      <strong>{`${item.value}건`}</strong>
+                    </div>
+                    <div className="dashboard-status-track">
+                      <div
+                        className={`dashboard-status-fill dashboard-status-fill-${item.tone}`}
+                        style={{
+                          width: `${Math.max((item.value / reviewStatusTotal) * 100, item.value > 0 ? 12 : 0)}%`,
+                        }}
+                      />
+                    </div>
+                    <p>{item.description}</p>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="panel dashboard-card dashboard-chart-panel dashboard-chart-panel-compact">
               <div className="section-header">
                 <div>
                   <h2 className="panel-title">점검 추세</h2>
@@ -379,76 +567,35 @@ export function DashboardOverviewPage() {
                   description="점검과 분석 결과가 쌓이면 추세 그래프가 표시됩니다."
                 />
               )}
-              <div className="dashboard-trend-footer">
-                <MiniInsight
-                  label="완료 점검"
-                  value={`${summary.completedInspectionCount}건`}
-                />
-                <MiniInsight
-                  label="분석 성공"
-                  value={`${summary.succeededJobCount}건`}
-                />
-                <MiniInsight
-                  label="이상 결과"
-                  value={`${summary.anomalyResultCount}건`}
-                />
-              </div>
             </article>
+          </section>
 
-            <div className="dashboard-side-stack">
-              <article className="panel dashboard-card dashboard-card-compact">
-                <div className="section-header">
-                  <div>
-                    <h2 className="panel-title">분석/검토 상태</h2>
-                    <p className="panel-description">
-                      검토 대기·처리 상태를 항목별로 확인합니다.
-                    </p>
-                  </div>
+          <section className="dashboard-dist-compact-grid">
+            <article className="panel dashboard-card dashboard-card-compact">
+              <div className="section-header">
+                <div>
+                  <h2 className="panel-title">조치 후보 분포</h2>
+                  <p className="panel-description">
+                    청소·재촬영·현장 점검·교체 검토 후보 수입니다.
+                  </p>
                 </div>
-                <div className="dashboard-status-grid">
-                  {reviewStatusItems.map((item) => (
-                    <div key={item.label} className="dashboard-status-card">
-                      <div className="dashboard-status-card-top">
-                        <span>{item.label}</span>
-                        <strong>{`${item.value}건`}</strong>
-                      </div>
-                      <div className="dashboard-status-track">
-                        <div
-                          className={`dashboard-status-fill dashboard-status-fill-${item.tone}`}
-                          style={{
-                            width: `${Math.max((item.value / reviewStatusTotal) * 100, item.value > 0 ? 12 : 0)}%`,
-                          }}
-                        />
-                      </div>
-                      <p>{item.description}</p>
-                    </div>
-                  ))}
+              </div>
+              <DistributionPanel items={actionItems} tone="sky" compact />
+            </article>
+            <article className="panel dashboard-card dashboard-card-compact">
+              <div className="section-header">
+                <div>
+                  <h2 className="panel-title">심각도 분포</h2>
+                  <p className="panel-description">
+                    낮음 등급은 중립 색상으로 표시합니다.
+                  </p>
                 </div>
-                <div className="dashboard-snapshot-list">
-                  <SnapshotRow
-                    label="총 분석 작업"
-                    value={`${summary.totalAnalysisJobCount}건`}
-                  />
-                  <SnapshotRow
-                    label="분석 대기"
-                    value={`${summary.queuedJobCount}건`}
-                  />
-                  <SnapshotRow
-                    label="저신뢰 결과"
-                    value={`${summary.lowConfidenceResultCount}건`}
-                  />
-                  <SnapshotRow
-                    label="실패"
-                    value={`${summary.failedJobCount}건`}
-                    tone="danger"
-                  />
-                </div>
-              </article>
-            </div>
+              </div>
+              <DistributionPanel items={severityItems} tone="danger" compact />
+            </article>
           </section>
 
           <section className="dashboard-bottom-grid">
-            {/* 발전소별 이상 현황 */}
             <article className="panel dashboard-card dashboard-card-compact">
               <div className="section-header">
                 <div>
@@ -470,10 +617,14 @@ export function DashboardOverviewPage() {
                     <div key={row.name} className="plant-anomaly-row">
                       <span className="plant-anomaly-name">{row.name}</span>
                       <span className="plant-anomaly-num">{row.total}</span>
-                      <span className={`plant-anomaly-num ${row.anomaly > 0 ? 'plant-anomaly-danger' : ''}`}>
+                      <span
+                        className={`plant-anomaly-num ${row.anomaly > 0 ? "plant-anomaly-danger" : ""}`}
+                      >
                         {row.anomaly}
                       </span>
-                      <span className={`plant-anomaly-num ${row.criticalOrHigh > 0 ? 'plant-anomaly-critical' : ''}`}>
+                      <span
+                        className={`plant-anomaly-num ${row.criticalOrHigh > 0 ? "plant-anomaly-critical" : ""}`}
+                      >
                         {row.criticalOrHigh}
                       </span>
                     </div>
@@ -487,121 +638,17 @@ export function DashboardOverviewPage() {
               )}
             </article>
 
-            {/* 조치 분포 + 심각도 분포 + 결함 분포 */}
-            <div className="dashboard-dist-stack">
-              <article className="panel dashboard-card dashboard-card-compact">
-                <div className="section-header">
-                  <div>
-                    <h2 className="panel-title">조치 후보 분포</h2>
-                  </div>
-                </div>
-                <DistributionPanel items={actionItems} tone="sky" />
-              </article>
-              <article className="panel dashboard-card dashboard-card-compact">
-                <div className="section-header">
-                  <div>
-                    <h2 className="panel-title">심각도 분포</h2>
-                  </div>
-                </div>
-                <DistributionPanel items={severityItems} tone="danger" />
-              </article>
-              <article className="panel dashboard-card dashboard-card-compact">
-                <div className="section-header">
-                  <div>
-                    <h2 className="panel-title">결함 유형 분포</h2>
-                    <p className="panel-description text-xs">RGB / 열화상</p>
-                  </div>
-                </div>
-                <SingleEmptyMessage
-                  title="분포 집계 불가"
-                  description="결함 유형 분포는 결과 데이터가 누적되면 표시됩니다."
-                />
-              </article>
+            <div className="dashboard-recent-grid">
+              <RecentResultsPanel
+                params={params}
+                recentResults={recentResults}
+              />
+              <RecentInspectionsPanel
+                params={params}
+                recentInspections={recentInspections}
+                plantMap={plantMap}
+              />
             </div>
-
-            {/* 우선 확인 대상 + 최근 결과 */}
-            <article className="panel dashboard-card dashboard-summary-panel">
-              <div className="section-header">
-                <div>
-                  <h2 className="panel-title">최근 요약</h2>
-                  <p className="panel-description">
-                    우선 확인 대상과 최근 분석 결과를 정리합니다.
-                  </p>
-                </div>
-              </div>
-              <div className="dashboard-summary-columns">
-                <div className="stack-sm">
-                  <span className="dashboard-section-label">우선 확인</span>
-                  {priorityTargets.slice(0, 5).map((target, index) => (
-                    <article
-                      key={`${target.resultId}-${index}`}
-                      className="dashboard-summary-item"
-                    >
-                      <div className="dashboard-summary-item-main">
-                        <div className="dashboard-summary-item-top">
-                          <strong>{`#${target.resultId ?? "-"}`}</strong>
-                          <span className="dashboard-summary-tag">
-                            {getPriorityLevelLabel(target.priorityLevel)}
-                          </span>
-                        </div>
-                        <p>{`${getSeverityLevelLabel(target.severityLevel)} · ${getPriorityReasonText(target.priorityReason)}`}</p>
-                      </div>
-                      {target.resultId ? (
-                        <Link
-                          className="text-button dashboard-summary-link"
-                          to={`/results/${target.resultId}`}
-                        >
-                          보기
-                        </Link>
-                      ) : null}
-                    </article>
-                  ))}
-                  {priorityTargets.length === 0 ? (
-                    <SingleEmptyMessage
-                      title="우선 확인 대상 없음"
-                      description="현재 조건에서 즉시 확인할 결과가 없습니다."
-                    />
-                  ) : null}
-                </div>
-                <div className="stack-sm">
-                  <span className="dashboard-section-label">최근 결과</span>
-                  {recentResults.slice(0, 5).map((result) => (
-                    <article
-                      key={result.resultId ?? result.inspectionId ?? "recent"}
-                      className="dashboard-summary-item"
-                    >
-                      <div className="dashboard-summary-item-main">
-                        <div className="dashboard-summary-item-top">
-                          <strong>
-                            {result.inspectionName ??
-                              `결과 #${result.resultId ?? "-"}`}
-                          </strong>
-                          <span className="dashboard-summary-tag">
-                            {getPriorityLevelLabel(result.priorityLevel)}
-                          </span>
-                        </div>
-                        <p>{`${result.plantName ?? "-"} · ${getSeverityLevelLabel(result.severityLevel)}`}</p>
-                        <p>{`${getActionCandidateLabel(result.actionCandidate)} · ${formatDateTime(result.analyzedAt)}`}</p>
-                      </div>
-                      {result.resultId ? (
-                        <Link
-                          className="text-button dashboard-summary-link"
-                          to={`/results/${result.resultId}`}
-                        >
-                          보기
-                        </Link>
-                      ) : null}
-                    </article>
-                  ))}
-                  {recentResults.length === 0 ? (
-                    <SingleEmptyMessage
-                      title="최근 결과 없음"
-                      description="분석이 완료되면 최근 결과가 표시됩니다."
-                    />
-                  ) : null}
-                </div>
-              </div>
-            </article>
           </section>
         </>
       ) : null}
@@ -609,50 +656,231 @@ export function DashboardOverviewPage() {
   );
 }
 
-function DashboardHighlightCard({
+function OpsPriorityCard({
+  count,
+  hint,
+  href,
   label,
-  tone = "default",
-  value,
+  tone,
 }: {
+  count: number;
+  hint: string;
+  href: string;
   label: string;
-  tone?: "default" | "warning" | "danger";
-  value: string;
+  tone: "danger" | "amber" | "rose" | "sky" | "cyan" | "orange";
+}) {
+  const card = (
+    <article
+      className={`dashboard-ops-card dashboard-ops-card-${tone} ${count === 0 ? "dashboard-ops-card-empty" : ""}`}
+    >
+      <span className="dashboard-ops-card-label">{label}</span>
+      <strong className="dashboard-ops-card-value">{count}건</strong>
+      <p className="dashboard-ops-card-hint">{hint}</p>
+    </article>
+  );
+
+  if (count > 0) {
+    return (
+      <Link className="dashboard-ops-card-link" to={href}>
+        {card}
+      </Link>
+    );
+  }
+
+  return card;
+}
+
+function PriorityQueueItem({
+  params,
+  target,
+}: {
+  params: DashboardQueryParams;
+  target: PriorityTarget;
+}) {
+  const href = getPriorityTargetLink(target, params);
+  const content = (
+    <article className="dashboard-ops-queue-item">
+      <div className="dashboard-ops-queue-item-main">
+        <div className="dashboard-ops-queue-item-top">
+          <strong>{`결과 #${target.resultId ?? "-"}`}</strong>
+          <StatusBadge
+            label={getPriorityLevelLabel(target.priorityLevel)}
+            tone="amber"
+          />
+        </div>
+        <p>{getPriorityReasonText(target.priorityReason)}</p>
+        <div className="dashboard-ops-queue-item-meta">
+          <StatusBadge
+            label={getSeverityLevelLabel(target.severityLevel)}
+            tone={getSeverityLevelTone(target.severityLevel)}
+          />
+          <span>{getActionCandidateLabel(target.actionCandidate)}</span>
+        </div>
+      </div>
+      {href ? (
+        <span className="text-button dashboard-summary-link">확인</span>
+      ) : null}
+    </article>
+  );
+
+  if (href) {
+    return (
+      <Link className="dashboard-ops-queue-item-link" to={href}>
+        {content}
+      </Link>
+    );
+  }
+
+  return content;
+}
+
+function RecentResultsPanel({
+  params,
+  recentResults,
+}: {
+  params: DashboardQueryParams;
+  recentResults: RecentInspectionResult[];
 }) {
   return (
-    <article className={`dashboard-highlight dashboard-highlight-${tone}`}>
-      <span className="dashboard-highlight-label">{label}</span>
-      <strong className="dashboard-highlight-value">{value}</strong>
+    <article className="panel dashboard-card dashboard-summary-panel">
+      <div className="section-header">
+        <div>
+          <h2 className="panel-title">최근 결과</h2>
+          <p className="panel-description">
+            심각도·조치 후보 기준으로 확인이 필요한 최근 분석 결과입니다.
+          </p>
+        </div>
+        <Link className="text-button" to={buildDashboardPath("/results", params)}>
+          전체 보기
+        </Link>
+      </div>
+      {recentResults.length > 0 ? (
+        <div className="dashboard-recent-table">
+          <div className="dashboard-recent-table-header dashboard-recent-table-row-results">
+            <span>결과</span>
+            <span>상태</span>
+            <span>심각도</span>
+            <span>조치 후보</span>
+            <span>분석 시각</span>
+            <span>액션</span>
+          </div>
+          {recentResults.slice(0, 5).map((result) => (
+            <div
+              key={result.resultId ?? result.inspectionId ?? "recent-result"}
+              className="dashboard-recent-table-row dashboard-recent-table-row-results"
+            >
+              <span className="dashboard-recent-primary">
+                {result.resultId ? `#${result.resultId}` : "-"}
+              </span>
+              <span>
+                <StatusBadge
+                  label={
+                    result.severityLevel != null ? "이상" : "정상"
+                  }
+                  tone={result.severityLevel != null ? "orange" : "emerald"}
+                />
+              </span>
+              <span>{getSeverityLevelLabel(result.severityLevel)}</span>
+              <span>{getActionCandidateLabel(result.actionCandidate)}</span>
+              <span>{formatTableDateTime(result.analyzedAt)}</span>
+              <span>
+                {result.resultId ? (
+                  <Link
+                    className="text-button"
+                    to={`/results/${result.resultId}`}
+                  >
+                    결과 보기
+                  </Link>
+                ) : (
+                  "-"
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <SingleEmptyMessage
+          title="최근 결과 없음"
+          description="분석이 완료되면 최근 결과가 표시됩니다."
+        />
+      )}
     </article>
   );
 }
 
-function MiniInsight({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="dashboard-mini-insight">
-      <span className="dashboard-mini-insight-label">{label}</span>
-      <strong className="dashboard-mini-insight-value">{value}</strong>
-    </div>
-  );
-}
-
-function SnapshotRow({
-  label,
-  tone = "default",
-  value,
+function RecentInspectionsPanel({
+  params,
+  plantMap,
+  recentInspections,
 }: {
-  label: string;
-  tone?: "default" | "danger";
-  value: string;
+  params: DashboardQueryParams;
+  plantMap: Map<number, string>;
+  recentInspections: InspectionSummary[];
 }) {
   return (
-    <div className="dashboard-snapshot-row">
-      <span
-        className={`dashboard-snapshot-label dashboard-snapshot-label-${tone}`}
-      >
-        {label}
-      </span>
-      <strong className="dashboard-snapshot-value">{value}</strong>
-    </div>
+    <article className="panel dashboard-card dashboard-summary-panel">
+      <div className="section-header">
+        <div>
+          <h2 className="panel-title">최근 점검</h2>
+          <p className="panel-description">
+            진행 중이거나 후속 확인이 필요한 최근 점검입니다.
+          </p>
+        </div>
+        <Link
+          className="text-button"
+          to={buildDashboardPath("/inspections", params)}
+        >
+          전체 보기
+        </Link>
+      </div>
+      {recentInspections.length > 0 ? (
+        <div className="dashboard-recent-table">
+          <div className="dashboard-recent-table-header dashboard-recent-table-row-inspections">
+            <span>점검명</span>
+            <span>발전소 / 구역</span>
+            <span>상태</span>
+            <span>촬영 시각</span>
+            <span>액션</span>
+          </div>
+          {recentInspections.map((inspection) => (
+            <div
+              key={inspection.inspectionId}
+              className="dashboard-recent-table-row dashboard-recent-table-row-inspections"
+            >
+              <span className="dashboard-recent-primary">{inspection.name}</span>
+              <span>
+                {inspection.plantId
+                  ? (plantMap.get(inspection.plantId) ??
+                    `발전소 #${inspection.plantId}`)
+                  : "-"}
+                {" · "}
+                {`구역 #${inspection.zoneId}`}
+              </span>
+              <span>
+                <StatusBadge
+                  label={getInspectionStatusLabel(inspection.inspectionStatus)}
+                  tone={getInspectionStatusTone(inspection.inspectionStatus)}
+                />
+              </span>
+              <span>{formatTableDateTime(inspection.capturedAt)}</span>
+              <span>
+                <Link
+                  className="text-button"
+                  to={`/inspections/${inspection.inspectionId}`}
+                >
+                  점검 보기
+                </Link>
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <SingleEmptyMessage
+          title="최근 점검 없음"
+          description="점검이 등록되면 최근 점검 목록이 표시됩니다."
+        />
+      )}
+    </article>
   );
 }
 
@@ -669,6 +897,43 @@ function SingleEmptyMessage({
       <p className="mt-2 text-sm text-slate-600">{description}</p>
     </div>
   );
+}
+
+function buildDashboardPath(
+  base: string,
+  params: DashboardQueryParams,
+  extra?: Record<string, string>,
+) {
+  const query = new URLSearchParams();
+  if (params.plantId) query.set("plantId", String(params.plantId));
+  if (params.zoneId) query.set("zoneId", String(params.zoneId));
+  if (params.from) query.set("from", params.from);
+  if (params.to) query.set("to", params.to);
+  if (extra) {
+    for (const [key, value] of Object.entries(extra)) {
+      if (value) query.set(key, value);
+    }
+  }
+  const qs = query.toString();
+  return qs ? `${base}?${qs}` : base;
+}
+
+function getPriorityTargetLink(
+  target: PriorityTarget,
+  params: DashboardQueryParams,
+) {
+  const reason = target.priorityReason ?? "";
+  if (
+    reason.includes("tracking") ||
+    reason.includes("worsened") ||
+    reason.includes("repeated")
+  ) {
+    return buildDashboardPath("/tracking", params);
+  }
+  if (target.resultId) {
+    return `/results/${target.resultId}`;
+  }
+  return null;
 }
 
 function toInterval(value: string | null): DashboardTrendInterval {

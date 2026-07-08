@@ -26,7 +26,7 @@ export function TopNavbar() {
   return (
     <header className="top-navbar">
       <div className="min-w-0">
-        <span className="eyebrow">PV Fusion</span>
+        <span className="eyebrow">PV INSIGHT</span>
         <h1 className="text-lg font-semibold text-slate-900">태양광 점검 운영 화면</h1>
       </div>
       <div className="top-navbar-actions flex flex-wrap items-center gap-3">

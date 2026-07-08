@@ -19,7 +19,7 @@ import { LoadingState } from '../shared/components/state/LoadingState'
 import { StatusBadge } from '../shared/components/state/StatusBadge'
 import { DataTable } from '../shared/components/table/DataTable'
 import { Pagination } from '../shared/components/table/Pagination'
-import { formatDateTime, getApiErrorMessage, parsePositiveNumber } from '../shared/utils'
+import { formatTableDateTime, getApiErrorMessage, parsePositiveNumber } from '../shared/utils'
 
 function toInspectionStatus(value: string | null): InspectionStatus | undefined {
   if (
@@ -91,11 +91,44 @@ export function InspectionListPage() {
     setSearchParams(next)
   }
 
+  const setParams = (updates: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams)
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) next.set(key, value)
+      else next.delete(key)
+    }
+    next.delete('page')
+    setSearchParams(next)
+  }
+
   const handleReset = () => {
     setSearchParams({})
   }
 
   const hasFilter = plantId || zoneId || inspectionStatus || from || to
+
+  const selectedPlantName = plantId
+    ? (plantsQuery.data?.data.content.find((p) => p.plantId === plantId)?.name ?? `발전소 #${plantId}`)
+    : null
+  const selectedZoneName = zoneId
+    ? (zonesQuery.data?.data.find((z) => z.zoneId === zoneId)?.name ?? `구역 #${zoneId}`)
+    : null
+
+  const activeChips: Array<{ key: string; label: string; removeKey: string | string[] }> = [
+    ...(selectedPlantName ? [{ key: 'plant', label: `발전소: ${selectedPlantName}`, removeKey: ['plantId', 'zoneId'] }] : []),
+    ...(selectedZoneName ? [{ key: 'zone', label: `구역: ${selectedZoneName}`, removeKey: 'zoneId' }] : []),
+    ...(inspectionStatus ? [{ key: 'status', label: `상태: ${getInspectionStatusLabel(inspectionStatus)}`, removeKey: 'status' }] : []),
+    ...(from ? [{ key: 'from', label: `시작: ${from}`, removeKey: 'from' }] : []),
+    ...(to ? [{ key: 'to', label: `종료: ${to}`, removeKey: 'to' }] : []),
+  ]
+
+  const removeChip = (removeKey: string | string[]) => {
+    const next = new URLSearchParams(searchParams)
+    const keys = Array.isArray(removeKey) ? removeKey : [removeKey]
+    for (const k of keys) next.delete(k)
+    next.delete('page')
+    setSearchParams(next)
+  }
 
   return (
     <section className="page-shell">
@@ -122,8 +155,7 @@ export function InspectionListPage() {
                 className="input-field"
                 value={plantId ? String(plantId) : ''}
                 onChange={(e) => {
-                  setParam('plantId', e.target.value || null)
-                  setParam('zoneId', null)
+                  setParams({ plantId: e.target.value || null, zoneId: null })
                 }}
               >
                 <option value="">전체</option>
@@ -188,14 +220,29 @@ export function InspectionListPage() {
               />
             </FormField>
           </div>
-          {hasFilter ? (
-            <div className="filter-actions">
-              <button className="btn btn-secondary" type="button" onClick={handleReset}>
-                초기화
-              </button>
-            </div>
-          ) : null}
         </div>
+        {activeChips.length > 0 ? (
+          <div className="filter-chip-row">
+            {activeChips.map((chip) => (
+              <span key={chip.key} className="filter-chip">
+                {chip.label}
+                <button
+                  type="button"
+                  className="filter-chip-remove"
+                  onClick={() => removeChip(chip.removeKey)}
+                  aria-label={`${chip.label} 필터 제거`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {hasFilter ? (
+              <button type="button" className="filter-chip-reset" onClick={handleReset}>
+                전체 초기화
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       {/* 테이블 */}
@@ -266,7 +313,7 @@ export function InspectionListPage() {
                 header: '촬영 시각',
                 render: (row) => (
                   <span className="text-slate-500 text-xs whitespace-nowrap">
-                    {row.capturedAt ? formatDateTime(row.capturedAt) : '-'}
+                    {row.capturedAt ? formatTableDateTime(row.capturedAt) : '-'}
                   </span>
                 ),
               },
@@ -275,21 +322,8 @@ export function InspectionListPage() {
                 header: '생성일',
                 render: (row) => (
                   <span className="text-slate-500 text-xs whitespace-nowrap">
-                    {formatDateTime(row.createdAt)}
+                    {formatTableDateTime(row.createdAt)}
                   </span>
-                ),
-              },
-              {
-                key: 'analysisNote',
-                header: '분석·결과',
-                render: (row) => (
-                  <Link
-                    to={`/inspections/${row.inspectionId}#image-upload-section`}
-                    className="text-xs text-slate-400 whitespace-nowrap hover:text-slate-600"
-                    title="분석 상태와 결과는 점검 상세에서 확인하세요."
-                  >
-                    상세에서 확인
-                  </Link>
                 ),
               },
               {
@@ -300,7 +334,7 @@ export function InspectionListPage() {
                     to={`/inspections/${row.inspectionId}`}
                     className="text-button text-sm whitespace-nowrap"
                   >
-                    상세 보기
+                    상세
                   </Link>
                 ),
               },

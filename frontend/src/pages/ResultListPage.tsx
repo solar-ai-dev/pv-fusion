@@ -30,7 +30,7 @@ import { LoadingState } from '../shared/components/state/LoadingState'
 import { StatusBadge } from '../shared/components/state/StatusBadge'
 import { DataTable } from '../shared/components/table/DataTable'
 import { Pagination } from '../shared/components/table/Pagination'
-import { formatDateTime, getApiErrorMessage, parsePositiveNumber } from '../shared/utils'
+import { formatTableDateTime, getApiErrorMessage, parsePositiveNumber } from '../shared/utils'
 
 function castOrUndefined<T>(
   value: string | null,
@@ -110,8 +110,45 @@ export function ResultListPage() {
     setSearchParams(next)
   }
 
+  const setParams = (updates: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams)
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) next.set(key, value)
+      else next.delete(key)
+    }
+    next.delete('page')
+    setSearchParams(next)
+  }
+
   const hasFilter =
     plantId || zoneId || inputType || resultStatus || reviewStatus || severityLevel || actionCandidate || from || to
+
+  const selectedPlantName = plantId
+    ? (plantsQuery.data?.data.content.find((p) => p.plantId === plantId)?.name ?? `발전소 #${plantId}`)
+    : null
+  const selectedZoneName = zoneId
+    ? (zonesQuery.data?.data.find((z) => z.zoneId === zoneId)?.name ?? `구역 #${zoneId}`)
+    : null
+
+  const activeChips: Array<{ key: string; label: string; removeKey: string | string[] }> = [
+    ...(selectedPlantName ? [{ key: 'plant', label: `발전소: ${selectedPlantName}`, removeKey: ['plantId', 'zoneId'] as string[] }] : []),
+    ...(selectedZoneName ? [{ key: 'zone', label: `구역: ${selectedZoneName}`, removeKey: 'zoneId' }] : []),
+    ...(resultStatus ? [{ key: 'resultStatus', label: `결과: ${getResultStatusLabel(resultStatus)}`, removeKey: 'resultStatus' }] : []),
+    ...(severityLevel ? [{ key: 'severity', label: `심각도: ${getSeverityLevelLabel(severityLevel)}`, removeKey: 'severityLevel' }] : []),
+    ...(actionCandidate ? [{ key: 'action', label: `조치: ${getActionCandidateLabel(actionCandidate)}`, removeKey: 'actionCandidate' }] : []),
+    ...(inputType ? [{ key: 'inputType', label: `유형: ${getAnalysisInputTypeLabel(inputType)}`, removeKey: 'inputType' }] : []),
+    ...(reviewStatus ? [{ key: 'review', label: `검토: ${getReviewStatusLabel(reviewStatus)}`, removeKey: 'reviewStatus' }] : []),
+    ...(from ? [{ key: 'from', label: `시작: ${from}`, removeKey: 'from' }] : []),
+    ...(to ? [{ key: 'to', label: `종료: ${to}`, removeKey: 'to' }] : []),
+  ]
+
+  const removeChip = (removeKey: string | string[]) => {
+    const next = new URLSearchParams(searchParams)
+    const keys = Array.isArray(removeKey) ? removeKey : [removeKey]
+    for (const k of keys) next.delete(k)
+    next.delete('page')
+    setSearchParams(next)
+  }
 
   return (
     <section className="page-shell">
@@ -129,8 +166,7 @@ export function ResultListPage() {
                 className="input-field"
                 value={plantId ? String(plantId) : ''}
                 onChange={(e) => {
-                  setParam('plantId', e.target.value || null)
-                  setParam('zoneId', null)
+                  setParams({ plantId: e.target.value || null, zoneId: null })
                 }}
               >
                 <option value="">전체</option>
@@ -259,18 +295,29 @@ export function ResultListPage() {
               />
             </FormField>
           </div>
-          {hasFilter ? (
-            <div className="filter-actions">
-              <button
-                className="btn btn-secondary"
-                type="button"
-                onClick={() => setSearchParams({})}
-              >
-                초기화
-              </button>
-            </div>
-          ) : null}
         </div>
+        {activeChips.length > 0 ? (
+          <div className="filter-chip-row">
+            {activeChips.map((chip) => (
+              <span key={chip.key} className="filter-chip">
+                {chip.label}
+                <button
+                  type="button"
+                  className="filter-chip-remove"
+                  onClick={() => removeChip(chip.removeKey)}
+                  aria-label={`${chip.label} 필터 제거`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {hasFilter ? (
+              <button type="button" className="filter-chip-reset" onClick={() => setSearchParams({})}>
+                전체 초기화
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       {/* 테이블 */}
@@ -374,7 +421,7 @@ export function ResultListPage() {
                 header: '분석 시각',
                 render: (row) => (
                   <span className="text-slate-400 text-xs whitespace-nowrap">
-                    {formatDateTime(row.analyzedAt)}
+                    {formatTableDateTime(row.analyzedAt)}
                   </span>
                 ),
               },

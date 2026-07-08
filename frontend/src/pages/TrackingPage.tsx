@@ -1,6 +1,5 @@
 ﻿import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useAuth } from '../features/auth/hooks/useAuth'
 import { usePlants } from '../features/plants/hooks/usePlants'
 import {
   getActionCandidateLabel,
@@ -18,18 +17,15 @@ import { ErrorState } from '../shared/components/state/ErrorState'
 import { LoadingState } from '../shared/components/state/LoadingState'
 import { StatusBadge } from '../shared/components/state/StatusBadge'
 import { DataTable } from '../shared/components/table/DataTable'
-import { formatDateTime, getApiErrorMessage, parsePositiveNumber } from '../shared/utils'
+import { formatTableDateTime, getApiErrorMessage, parsePositiveNumber } from '../shared/utils'
 
 export function TrackingPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const role = useAuth((state) => state.user?.role)
 
   const plantId = parsePositiveNumber(searchParams.get('plantId') ?? undefined)
   const zoneId = parsePositiveNumber(searchParams.get('zoneId') ?? undefined)
   const from = searchParams.get('from') ?? undefined
   const to = searchParams.get('to') ?? undefined
-
-  const canQuery = role === 'ADMIN' || Boolean(plantId || zoneId)
 
   const plantsQuery = usePlants({ page: 0, size: 100, status: 'ACTIVE' })
   const zonesQuery = useZonesByPlantId(plantId ?? 0)
@@ -44,7 +40,7 @@ export function TrackingPage() {
     [plantId, zoneId, from, to],
   )
 
-  const trackingQuery = useTracking(params, canQuery)
+  const trackingQuery = useTracking(params, true)
   const rows = trackingQuery.data?.data.items ?? []
 
   const repeated = rows.filter((r) => r.repeated).length
@@ -57,6 +53,38 @@ export function TrackingPage() {
     const next = new URLSearchParams(searchParams)
     if (value) next.set(key, value)
     else next.delete(key)
+    setSearchParams(next)
+  }
+
+  const setParams = (updates: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams)
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) next.set(key, value)
+      else next.delete(key)
+    }
+    setSearchParams(next)
+  }
+
+  const hasFilter = Boolean(plantId || zoneId || from || to)
+
+  const selectedPlantName = plantId
+    ? (plantsQuery.data?.data.content.find((p) => p.plantId === plantId)?.name ?? `발전소 #${plantId}`)
+    : null
+  const selectedZoneName = zoneId
+    ? (zonesQuery.data?.data.find((z) => z.zoneId === zoneId)?.name ?? `구역 #${zoneId}`)
+    : null
+
+  const activeChips: Array<{ key: string; label: string; removeKey: string | string[] }> = [
+    ...(selectedPlantName ? [{ key: 'plant', label: `발전소: ${selectedPlantName}`, removeKey: ['plantId', 'zoneId'] as string[] }] : []),
+    ...(selectedZoneName ? [{ key: 'zone', label: `구역: ${selectedZoneName}`, removeKey: 'zoneId' }] : []),
+    ...(from ? [{ key: 'from', label: `시작: ${from}`, removeKey: 'from' }] : []),
+    ...(to ? [{ key: 'to', label: `종료: ${to}`, removeKey: 'to' }] : []),
+  ]
+
+  const removeChip = (removeKey: string | string[]) => {
+    const next = new URLSearchParams(searchParams)
+    const keys = Array.isArray(removeKey) ? removeKey : [removeKey]
+    for (const k of keys) next.delete(k)
     setSearchParams(next)
   }
 
@@ -76,8 +104,7 @@ export function TrackingPage() {
                 className="input-field"
                 value={plantId ? String(plantId) : ''}
                 onChange={(e) => {
-                  setParam('plantId', e.target.value || null)
-                  setParam('zoneId', null)
+                  setParams({ plantId: e.target.value || null, zoneId: null })
                 }}
               >
                 <option value="">전체</option>
@@ -126,47 +153,43 @@ export function TrackingPage() {
               />
             </FormField>
           </div>
-          {(plantId || zoneId || from || to) ? (
-            <div className="filter-actions">
-              <button
-                className="btn btn-secondary"
-                type="button"
-                onClick={() => setSearchParams({})}
-              >
-                초기화
-              </button>
-            </div>
-          ) : null}
         </div>
+        {activeChips.length > 0 ? (
+          <div className="filter-chip-row">
+            {activeChips.map((chip) => (
+              <span key={chip.key} className="filter-chip">
+                {chip.label}
+                <button
+                  type="button"
+                  className="filter-chip-remove"
+                  onClick={() => removeChip(chip.removeKey)}
+                  aria-label={`${chip.label} 필터 제거`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {hasFilter ? (
+              <button type="button" className="filter-chip-reset" onClick={() => setSearchParams({})}>
+                전체 초기화
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
-      {/* 범위 가드 */}
-      {!canQuery ? (
-        <section className="panel">
-          <EmptyState
-            title="먼저 발전소 또는 구역을 선택하세요."
-            description="범위를 정하면 변화 추적 데이터를 확인할 수 있습니다."
-            action={
-              <Link className="btn btn-secondary" to="/plants">
-                발전소 보기
-              </Link>
-            }
-          />
-        </section>
-      ) : null}
-
-      {canQuery && trackingQuery.isLoading && !trackingQuery.data ? (
+      {trackingQuery.isLoading && !trackingQuery.data ? (
         <LoadingState message="변화 추적 데이터를 불러오는 중입니다." />
       ) : null}
 
-      {canQuery && trackingQuery.isError ? (
+      {trackingQuery.isError ? (
         <ErrorState
           title="변화 추적 데이터를 불러오지 못했습니다."
           description={getApiErrorMessage(trackingQuery.error)}
         />
       ) : null}
 
-      {canQuery && !trackingQuery.isLoading && rows.length > 0 ? (
+      {!trackingQuery.isLoading && rows.length > 0 ? (
         <>
           {/* KPI 요약 */}
           <div className="tracking-kpi-row">
@@ -259,7 +282,7 @@ export function TrackingPage() {
                   header: '분석 시각',
                   render: (row) => (
                     <span className="text-slate-400 text-xs whitespace-nowrap">
-                      {formatDateTime(row.analyzedAt)}
+                      {formatTableDateTime(row.analyzedAt)}
                     </span>
                   ),
                 },
@@ -282,7 +305,7 @@ export function TrackingPage() {
         </>
       ) : null}
 
-      {canQuery && !trackingQuery.isLoading && !trackingQuery.isError && rows.length === 0 ? (
+      {!trackingQuery.isLoading && !trackingQuery.isError && rows.length === 0 ? (
         <section className="panel">
           <EmptyState
             title="아직 변화 추적 데이터가 없습니다."

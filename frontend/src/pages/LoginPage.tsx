@@ -37,7 +37,7 @@ export function LoginPage() {
   return (
     <section className="mx-auto max-w-md space-y-6 rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-xl shadow-slate-200/60">
       <div className="space-y-2 text-center">
-        <span className="eyebrow">PV Fusion</span>
+        <span className="eyebrow">PV INSIGHT</span>
         <h1 className="text-3xl font-semibold text-slate-900">로그인</h1>
         <p className="text-sm text-slate-600">
           Google 계정으로 로그인한 뒤 서비스를 이용할 수 있습니다.

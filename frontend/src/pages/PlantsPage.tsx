@@ -19,7 +19,7 @@ import { ErrorState } from '../shared/components/state/ErrorState'
 import { LoadingState } from '../shared/components/state/LoadingState'
 import { StatusBadge } from '../shared/components/state/StatusBadge'
 import { useToast } from '../shared/hooks/useToast'
-import { formatDateTime, getApiErrorMessage } from '../shared/utils'
+import { formatTableDateTime, getApiErrorMessage } from '../shared/utils'
 
 const plantFormSchema = z.object({
   name: z.string().trim().min(1, '발전소 이름을 입력해 주세요.'),
@@ -41,6 +41,10 @@ export function PlantsPage() {
   })
 
   const plants = plantsQuery.data?.data.content ?? []
+
+  const activeCount = plants.filter((p) => p.status === 'ACTIVE').length
+  const inactiveCount = plants.filter((p) => p.status !== 'ACTIVE').length
+  const withInspectionCount = plants.filter((p) => p.latestInspectionAt).length
 
   const handleCreate = form.handleSubmit(async (values) => {
     const payload: CreatePlantRequest = {
@@ -69,6 +73,29 @@ export function PlantsPage() {
           </button>
         }
       />
+
+      {/* 요약 통계 카드 */}
+      {plants.length > 0 ? (
+        <div className="plants-summary-grid">
+          <article className="plants-summary-card">
+            <span className="plants-summary-label">전체 발전소</span>
+            <span className="plants-summary-value">{plants.length}개</span>
+          </article>
+          <article className="plants-summary-card">
+            <span className="plants-summary-label">운영 중</span>
+            <span className="plants-summary-value" style={{ color: '#0f766e' }}>{activeCount}개</span>
+          </article>
+          <article className="plants-summary-card">
+            <span className="plants-summary-label">비활성</span>
+            <span className="plants-summary-value" style={{ color: inactiveCount > 0 ? '#92400e' : '#94a3b8' }}>{inactiveCount}개</span>
+          </article>
+          <article className="plants-summary-card">
+            <span className="plants-summary-label">최근 점검 있음</span>
+            <span className="plants-summary-value">{withInspectionCount}개</span>
+            <span className="plants-summary-hint">{plants.length > 0 ? `전체 ${plants.length}개 중` : ''}</span>
+          </article>
+        </div>
+      ) : null}
 
       {plantsQuery.isLoading && plants.length === 0 ? (
         <LoadingState message="발전소 목록을 불러오는 중입니다." />
@@ -133,14 +160,14 @@ export function PlantsPage() {
                     </td>
                     <td className="text-slate-700">{plant.zoneCount}개</td>
                     <td className="text-slate-500 text-sm">
-                      {formatDateTime(plant.latestInspectionAt)}
+                      {formatTableDateTime(plant.latestInspectionAt)}
                     </td>
                     <td>
                       <Link
                         to={`/plants/${plant.plantId}`}
                         className="text-button text-sm"
                       >
-                        상세 보기
+                        상세
                       </Link>
                     </td>
                   </tr>

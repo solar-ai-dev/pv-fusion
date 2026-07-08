@@ -16,15 +16,12 @@ const primaryMenus = [
   {
     to: '/inspections',
     label: '점검',
-    match: (pathname: string) =>
-      pathname.startsWith('/inspections') && !pathname.startsWith('/inspections/'),
+    match: (pathname: string) => pathname.startsWith('/inspections'),
   },
   {
     to: '/results',
     label: '결과',
-    match: (pathname: string) =>
-      (pathname.startsWith('/results') && !pathname.startsWith('/results/')) ||
-      (pathname.startsWith('/inspections/') && !pathname.startsWith('/inspections?')),
+    match: (pathname: string) => pathname.startsWith('/results'),
   },
 ] as const
 
@@ -38,7 +35,7 @@ export function Sidebar() {
     <aside className="sidebar">
       <div className="sidebar-brand">
         <span className="sidebar-eyebrow">운영 콘솔</span>
-        <h2 className="sidebar-title">PV Fusion</h2>
+        <h2 className="sidebar-title">PV-Insight</h2>
         <p className="sidebar-description">태양광 점검·분석 운영 플랫폼</p>
       </div>
       <nav className="sidebar-nav">

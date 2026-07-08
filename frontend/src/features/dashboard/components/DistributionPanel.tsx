@@ -5,19 +5,34 @@ type DistributionItem = {
   label: string
   value: number
   hint?: string
+  color?: string
 }
 
 type DistributionPanelProps = {
   items: DistributionItem[]
   tone?: 'danger' | 'sky'
+  compact?: boolean
 }
 
 const PALETTE_DANGER = ['#f43f5e', '#fb7185', '#fda4af', '#fecdd3', '#ffe4e6']
 const PALETTE_SKY = ['#0ea5e9', '#38bdf8', '#7dd3fc', '#bae6fd', '#e0f2fe']
+const SEVERITY_COLORS: Record<string, string> = {
+  CRITICAL: '#dc2626',
+  HIGH: '#ea580c',
+  MEDIUM: '#d97706',
+  LOW: '#64748b',
+}
 
-export function DistributionPanel({ items, tone = 'sky' }: DistributionPanelProps) {
+export function DistributionPanel({
+  items,
+  tone = 'sky',
+  compact = false,
+}: DistributionPanelProps) {
   const total = items.reduce((sum, item) => sum + item.value, 0)
   const palette = tone === 'danger' ? PALETTE_DANGER : PALETTE_SKY
+  const chartHeight = compact ? 120 : 200
+  const innerRadius = compact ? 34 : 50
+  const outerRadius = compact ? 52 : 80
 
   if (total === 0 || items.every((item) => item.value === 0)) {
     return (
@@ -34,23 +49,37 @@ export function DistributionPanel({ items, tone = 'sky' }: DistributionPanelProp
     .filter((item) => item.value > 0)
     .map((item) => ({ name: item.label, value: item.value }))
 
+  const getItemColor = (item: DistributionItem, index: number) => {
+    if (item.color) {
+      return item.color
+    }
+    if (item.hint && SEVERITY_COLORS[item.hint]) {
+      return SEVERITY_COLORS[item.hint]
+    }
+    return palette[index % palette.length]
+  }
+
   return (
     <div>
-      <div style={{ height: 200 }}>
+      <div style={{ height: chartHeight }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={chartData}
               cx="50%"
               cy="50%"
-              innerRadius={50}
-              outerRadius={80}
+              innerRadius={innerRadius}
+              outerRadius={outerRadius}
               paddingAngle={2}
               dataKey="value"
             >
-              {chartData.map((_, index) => (
-                <Cell key={index} fill={palette[index % palette.length]} />
-              ))}
+              {chartData.map((entry, index) => {
+                const sourceItem = items.find((item) => item.label === entry.name)
+                const fill = sourceItem
+                  ? getItemColor(sourceItem, index)
+                  : palette[index % palette.length]
+                return <Cell key={index} fill={fill} />
+              })}
             </Pie>
             <Tooltip
               contentStyle={{
@@ -67,6 +96,7 @@ export function DistributionPanel({ items, tone = 'sky' }: DistributionPanelProp
       <div className="distribution-table">
         {items.map((item, index) => {
           const pct = total > 0 ? Math.round((item.value / total) * 100) : 0
+          const itemColor = getItemColor(item, index)
           return (
             <div key={item.label} className="distribution-table-row">
               <span className="distribution-table-label" style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
@@ -75,7 +105,7 @@ export function DistributionPanel({ items, tone = 'sky' }: DistributionPanelProp
                     width: 8,
                     height: 8,
                     borderRadius: '50%',
-                    background: palette[index % palette.length],
+                    background: itemColor,
                     display: 'inline-block',
                     flexShrink: 0,
                   }}

@@ -26,7 +26,7 @@ export function TrendChart({ points }: TrendChartProps) {
   }))
 
   return (
-    <div className="chart-container" style={{ height: 180 }}>
+    <div className="chart-container dashboard-trend-chart-compact" style={{ height: 150 }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
