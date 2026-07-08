@@ -65,6 +65,32 @@ def test_thermal_output_uses_allowed_manifest_class_name_as_defect_type():
     )
 
     assert result.defects[0].defectType == "HOTSPOT"
+    assert result.defects[0].actionCandidate.name == "FIELD_INSPECTION"
+    assert result.actionCandidate.name == "FIELD_INSPECTION"
+
+
+def test_structured_defect_without_action_candidate_uses_defect_type_default():
+    result = parse_inference_output(
+        {
+            "resultStatus": "ANOMALY",
+            "anomalyCount": 1,
+            "defects": [
+                {
+                    "defectType": "HOTSPOT",
+                    "defectSource": "THERMAL",
+                    "confidence": "0.91",
+                    "bboxX": 10,
+                    "bboxY": 20,
+                    "bboxWidth": 30,
+                    "bboxHeight": 40,
+                }
+            ],
+        },
+        build_model_info(ModelType.THERMAL_ONLY, class_names=["HotSpot"]),
+    )
+
+    assert result.defects[0].actionCandidate.name == "FIELD_INSPECTION"
+    assert result.actionCandidate.name == "FIELD_INSPECTION"
 
 
 def test_thermal_output_restores_bbox_from_letterboxed_coordinates():

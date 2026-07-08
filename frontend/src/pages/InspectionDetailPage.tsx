@@ -125,6 +125,11 @@ type UploadFeedback = {
   status: 'uploading' | 'success' | 'error'
   error?: string
 }
+type BulkAnalysisSummary = {
+  successCount: number
+  failCount: number
+  failedImageIds: number[]
+}
 type SelectedUploadFile = {
   id: string
   file: File
@@ -163,11 +168,15 @@ export function InspectionDetailPage() {
   const [uploadFeedbackList, setUploadFeedbackList] = useState<UploadFeedback[]>([])
   const [pendingAnalysisImageId, setPendingAnalysisImageId] = useState<number | null>(null)
   const [pendingRetryJobId, setPendingRetryJobId] = useState<number | null>(null)
+  const [selectedAnalysisImageIds, setSelectedAnalysisImageIds] = useState<number[]>([])
+  const [isBulkAnalysisRequesting, setIsBulkAnalysisRequesting] = useState(false)
+  const [bulkAnalysisSummary, setBulkAnalysisSummary] = useState<BulkAnalysisSummary | null>(null)
   const [selectedUploadFiles, setSelectedUploadFiles] = useState<SelectedUploadFile[]>([])
   const [selectedPreviewFileId, setSelectedPreviewFileId] = useState<string | null>(null)
   const [selectedFilesPage, setSelectedFilesPage] = useState(1)
   const [imageListPage, setImageListPage] = useState(1)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const selectAllAnalysisRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     if (!isMoreActionsOpen) {
@@ -315,6 +324,33 @@ export function InspectionDetailPage() {
     return map
   }, [resultRows])
   const imageJobStateMap = useMemo(() => computeImageJobStateMap(jobRows), [jobRows])
+  const requestableAnalysisImageIds = useMemo(
+    () =>
+      imageRows
+        .filter((image) =>
+          isAnalysisRequestableImage(
+            image,
+            imageJobStateMap.get(image.imageId) ?? createEmptyImageJobState(),
+          ),
+        )
+        .map((image) => image.imageId),
+    [imageJobStateMap, imageRows],
+  )
+  const requestableAnalysisImageIdSet = useMemo(
+    () => new Set(requestableAnalysisImageIds),
+    [requestableAnalysisImageIds],
+  )
+  const selectedAnalysisImageIdSet = useMemo(
+    () => new Set(selectedAnalysisImageIds),
+    [selectedAnalysisImageIds],
+  )
+  const hasRequestableAnalysisImages = requestableAnalysisImageIds.length > 0
+  const hasSelectedAnalysisImages = selectedAnalysisImageIds.length > 0
+  const areAllRequestableAnalysisImagesSelected =
+    hasRequestableAnalysisImages &&
+    requestableAnalysisImageIds.every((imageId) => selectedAnalysisImageIdSet.has(imageId))
+  const hasPartiallySelectedAnalysisImages =
+    hasSelectedAnalysisImages && !areAllRequestableAnalysisImagesSelected
   const latestResult = resultRows[0] ?? null
   const queuedJobs = useMemo(
     () => jobRows.filter((job) => job.jobStatus === 'QUEUED'),
@@ -400,6 +436,19 @@ export function InspectionDetailPage() {
       setImageListPage(imagePageCount)
     }
   }, [imageListPage, imageRows.length])
+
+  useEffect(() => {
+    setSelectedAnalysisImageIds((current) =>
+      current.filter((imageId) => requestableAnalysisImageIdSet.has(imageId)),
+    )
+  }, [requestableAnalysisImageIdSet])
+
+  useEffect(() => {
+    if (!selectAllAnalysisRef.current) {
+      return
+    }
+    selectAllAnalysisRef.current.indeterminate = hasPartiallySelectedAnalysisImages
+  }, [hasPartiallySelectedAnalysisImages])
 
   if (!inspectionId) {
     return (
@@ -607,11 +656,82 @@ export function InspectionDetailPage() {
     await handleRefreshWorkspace()
   })
 
+  const requestAnalysisJob = async (imageId: number) => {
+    return createAnalysisJobMutation.mutateAsync({ imageId })
+  }
+
+  const handleToggleAnalysisImage = (imageId: number) => {
+    if (isBulkAnalysisRequesting) {
+      return
+    }
+
+    setSelectedAnalysisImageIds((current) =>
+      current.includes(imageId)
+        ? current.filter((selectedImageId) => selectedImageId !== imageId)
+        : [...current, imageId],
+    )
+  }
+
+  const handleToggleAllAnalysisImages = () => {
+    if (!hasRequestableAnalysisImages || isBulkAnalysisRequesting) {
+      return
+    }
+
+    setSelectedAnalysisImageIds(
+      areAllRequestableAnalysisImagesSelected ? [] : requestableAnalysisImageIds,
+    )
+  }
+
+  const handleRequestAnalysisForImages = async (imageIds: number[]) => {
+    if (imageIds.length === 0 || isBulkAnalysisRequesting) {
+      return
+    }
+
+    setIsBulkAnalysisRequesting(true)
+    setBulkAnalysisSummary(null)
+
+    const failedImageIds: number[] = []
+    let successCount = 0
+
+    try {
+      for (const imageId of imageIds) {
+        try {
+          await requestAnalysisJob(imageId)
+          successCount += 1
+        } catch {
+          failedImageIds.push(imageId)
+        }
+      }
+
+      setBulkAnalysisSummary({
+        successCount,
+        failCount: failedImageIds.length,
+        failedImageIds,
+      })
+
+      setSelectedAnalysisImageIds(failedImageIds)
+
+      if (successCount === imageIds.length) {
+        toast.push(`AI 분석 요청 ${successCount}건을 등록했습니다.`)
+      } else if (successCount > 0) {
+        toast.push(
+          `AI 분석 요청 ${imageIds.length}건 중 ${successCount}건 성공, ${failedImageIds.length}건 실패했습니다.`,
+        )
+      } else {
+        toast.push('AI 분석 요청에 실패했습니다. 선택한 이미지를 확인한 뒤 다시 시도해 주세요.')
+      }
+
+      await handleRefreshWorkspace()
+    } finally {
+      setIsBulkAnalysisRequesting(false)
+    }
+  }
+
   const handleRequestAnalysis = async (image: ImageSummary) => {
     setPendingAnalysisImageId(image.imageId)
 
     try {
-      const response = await createAnalysisJobMutation.mutateAsync({ imageId: image.imageId })
+      const response = await requestAnalysisJob(image.imageId)
       toast.push(response.message || 'AI 분석 요청을 등록했습니다.')
       setExpandedFailureJobId(response.data.jobId)
       await handleRefreshWorkspace()
@@ -1221,6 +1341,67 @@ export function InspectionDetailPage() {
 
               {imageRows.length > 0 ? (
                 <div className="inspection-image-card-list">
+                  <div className="bulk-analysis-toolbar">
+                    <div className="bulk-analysis-selection">
+                      <label className="bulk-analysis-checkbox">
+                        <input
+                          ref={selectAllAnalysisRef}
+                          type="checkbox"
+                          checked={areAllRequestableAnalysisImagesSelected}
+                          disabled={!hasRequestableAnalysisImages || isBulkAnalysisRequesting}
+                          onChange={handleToggleAllAnalysisImages}
+                        />
+                        <span>전체 선택</span>
+                      </label>
+                      <span className="bulk-analysis-selection-count">
+                        선택 {selectedAnalysisImageIds.length}건 / 요청 가능 {requestableAnalysisImageIds.length}건
+                      </span>
+                    </div>
+                    <div className="bulk-analysis-toolbar-actions">
+                      <button
+                        className="btn btn-primary"
+                        type="button"
+                        disabled={!hasSelectedAnalysisImages || isBulkAnalysisRequesting}
+                        onClick={() => void handleRequestAnalysisForImages(selectedAnalysisImageIds)}
+                      >
+                        {isBulkAnalysisRequesting ? '요청 중..' : '선택 이미지 AI 분석 요청'}
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        type="button"
+                        disabled={!hasRequestableAnalysisImages || isBulkAnalysisRequesting}
+                        onClick={() => void handleRequestAnalysisForImages(requestableAnalysisImageIds)}
+                      >
+                        {isBulkAnalysisRequesting ? '요청 중..' : '분석 없음 전체 요청'}
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        type="button"
+                        disabled={isBulkAnalysisRequesting}
+                        onClick={() => void handleRefreshWorkspace()}
+                      >
+                        상태 새로고침
+                      </button>
+                    </div>
+                  </div>
+                  {bulkAnalysisSummary ? (
+                    <div
+                      className={`bulk-analysis-summary ${
+                        bulkAnalysisSummary.failCount > 0
+                          ? 'bulk-analysis-summary-warning'
+                          : 'bulk-analysis-summary-success'
+                      }`}
+                    >
+                      <strong>
+                        성공 {bulkAnalysisSummary.successCount}건 / 실패 {bulkAnalysisSummary.failCount}건
+                      </strong>
+                      {bulkAnalysisSummary.failedImageIds.length > 0 ? (
+                        <span>실패 이미지 ID: #{bulkAnalysisSummary.failedImageIds.join(', #')}</span>
+                      ) : (
+                        <span>선택한 이미지 분석 요청이 모두 등록되었습니다.</span>
+                      )}
+                    </div>
+                  ) : null}
                   {paginatedImageRows.items.map((image) => {
                     const imageState = imageJobStateMap.get(image.imageId) ?? createEmptyImageJobState()
                     const latestJob = imageState.latestJob
@@ -1229,11 +1410,7 @@ export function InspectionDetailPage() {
                     const latestResultForImage = latestSucceededJob
                       ? jobResultMap.get(latestSucceededJob.jobId) ?? null
                       : null
-                    const canRequestAnalysisNow =
-                      isActiveResource(image.status) &&
-                      !imageState.hasActiveJob &&
-                      !imageState.canRetry &&
-                      latestSucceededJob == null
+                    const canRequestAnalysisNow = isAnalysisRequestableImage(image, imageState)
                     const isFailureExpanded =
                       latestFailedJob != null && expandedFailureJobId === latestFailedJob.jobId
                     const failureDetail =
@@ -1244,6 +1421,15 @@ export function InspectionDetailPage() {
                     return (
                       <article key={image.imageId} className="inspection-image-card">
                         <div className="inspection-image-card-main">
+                          <div className="inspection-image-select">
+                            <input
+                              type="checkbox"
+                              checked={selectedAnalysisImageIdSet.has(image.imageId)}
+                              disabled={!canRequestAnalysisNow || isBulkAnalysisRequesting}
+                              onChange={() => handleToggleAnalysisImage(image.imageId)}
+                              aria-label={`이미지 ${image.imageId} 선택`}
+                            />
+                          </div>
                           <button
                             className="inspection-image-thumb"
                             type="button"
@@ -1384,7 +1570,10 @@ export function InspectionDetailPage() {
                                 <button
                                   className="btn btn-primary"
                                   type="button"
-                                  disabled={pendingRetryJobId === latestFailedJob.jobId}
+                                  disabled={
+                                    pendingRetryJobId === latestFailedJob.jobId ||
+                                    isBulkAnalysisRequesting
+                                  }
                                   onClick={() => void handleRetryJob(latestFailedJob)}
                                 >
                                   {pendingRetryJobId === latestFailedJob.jobId
@@ -1403,7 +1592,11 @@ export function InspectionDetailPage() {
                                 <button
                                   className="btn btn-primary"
                                   type="button"
-                                  disabled={!canRequestAnalysisNow || pendingAnalysisImageId === image.imageId}
+                                  disabled={
+                                    !canRequestAnalysisNow ||
+                                    pendingAnalysisImageId === image.imageId ||
+                                    isBulkAnalysisRequesting
+                                  }
                                   onClick={() => void handleRequestAnalysis(image)}
                                 >
                                   {pendingAnalysisImageId === image.imageId
@@ -1421,6 +1614,7 @@ export function InspectionDetailPage() {
                               <button
                                 className="text-button text-button-danger muted-action"
                                 type="button"
+                                disabled={isBulkAnalysisRequesting}
                                 onClick={() => setImageToDelete(image)}
                               >
                                 삭제
@@ -1952,6 +2146,16 @@ function computeImageJobStateMap(jobs: AnalysisJobSummary[]) {
   }
 
   return map
+}
+
+function isAnalysisRequestableImage(image: ImageSummary, imageState: ImageJobState) {
+  return (
+    image.uploadStatus === 'UPLOADED' &&
+    isActiveResource(image.status) &&
+    !imageState.hasActiveJob &&
+    !imageState.canRetry &&
+    imageState.latestSucceededJob == null
+  )
 }
 
 function getImageBadgeTone(imageType: ImageType): StatusBadgeTone {

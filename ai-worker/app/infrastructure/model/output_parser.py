@@ -33,6 +33,13 @@ DEFECT_TYPE_ALIASES = {
     "String_Fault": "UNKNOWN",
 }
 
+FIELD_INSPECTION_DEFECT_TYPES = {
+    "HOTSPOT",
+    "OVERHEATING",
+    "ABNORMAL_HEAT",
+    "APPEARANCE_DAMAGE",
+}
+
 
 @dataclass(frozen=True)
 class ParsedDetection:
@@ -54,10 +61,10 @@ def parse_inference_output(raw_output: Any, model_info: ModelInfo, image_context
         max_confidence = _to_decimal(raw_output.get("maxConfidence"))
         area_ratio = _to_decimal(raw_output.get("areaRatio"))
         severity_score = _to_decimal(raw_output.get("severityScore"))
-        action_candidate = ActionCandidate(
-            raw_output.get("actionCandidate", ActionCandidate.CLEANING.value)
-        )
         defects = _normalize_structured_defects(raw_output.get("defects", []))
+        action_candidate = ActionCandidate(
+            raw_output.get("actionCandidate", _resolve_result_action_candidate(defects).value)
+        )
         visualization_paths = VisualizationPaths(
             bboxObjectKey=raw_output.get("bboxObjectKey"),
             heatmapObjectKey=raw_output.get("heatmapObjectKey"),
@@ -71,7 +78,7 @@ def parse_inference_output(raw_output: Any, model_info: ModelInfo, image_context
         result_status = ResultStatus.ANOMALY if defects else ResultStatus.NORMAL
         area_ratio = None
         severity_score = None
-        action_candidate = ActionCandidate.CLEANING
+        action_candidate = _resolve_result_action_candidate(defects)
         visualization_paths = VisualizationPaths()
 
     return InferenceResult(
@@ -145,7 +152,7 @@ def detections_to_defects(detections: list[ParsedDetection]) -> list[DetectedDef
                 bboxWidth=int(round(detection.bbox_width)),
                 bboxHeight=int(round(detection.bbox_height)),
                 severityScore=None,
-                actionCandidate=ActionCandidate.CLEANING,
+                actionCandidate=_resolve_defect_action_candidate(defect_type),
             )
         )
     return defects
@@ -467,11 +474,28 @@ def _normalize_structured_defects(raw_defects: Any) -> list[DetectedDefectDraft]
                 maskFileUrl=raw_defect.get("maskFileUrl"),
                 severityScore=_to_decimal(raw_defect.get("severityScore")),
                 actionCandidate=ActionCandidate(
-                    raw_defect.get("actionCandidate", ActionCandidate.CLEANING.value)
+                    raw_defect.get(
+                        "actionCandidate",
+                        _resolve_defect_action_candidate(
+                            _resolve_defect_type(raw_defect.get("defectType"))
+                        ).value,
+                    )
                 ),
             )
         )
     return normalized
+
+
+def _resolve_defect_action_candidate(defect_type: str) -> ActionCandidate:
+    if defect_type in FIELD_INSPECTION_DEFECT_TYPES:
+        return ActionCandidate.FIELD_INSPECTION
+    return ActionCandidate.CLEANING
+
+
+def _resolve_result_action_candidate(defects: list[DetectedDefectDraft]) -> ActionCandidate:
+    if any(defect.actionCandidate == ActionCandidate.FIELD_INSPECTION for defect in defects):
+        return ActionCandidate.FIELD_INSPECTION
+    return ActionCandidate.CLEANING
 
 
 def _looks_normalized(x: float, y: float, width: float, height: float) -> bool:

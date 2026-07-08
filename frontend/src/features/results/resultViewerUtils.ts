@@ -1,7 +1,5 @@
-import type { AnalysisResult, DetectedDefect, ResultVisualizationType } from './types'
+﻿import type { AnalysisResult, DetectedDefect, ResultVisualizationType } from './types'
 import { VISUALIZATION_TYPE_OPTIONS } from './types'
-
-export type ImageViewMode = 'original' | 'result' | 'split'
 
 export function hasVisualizationAsset(
   result: AnalysisResult,
@@ -29,18 +27,16 @@ export function hasVisualizationAsset(
   }
 }
 
-export function getVisualizationDisabledReason(
-  result: AnalysisResult,
+export function getVisualizationEmptyMessage(
   type: ResultVisualizationType,
-): string | null {
-  if (hasVisualizationAsset(result, type)) return null
+): string {
   switch (type) {
     case 'bbox':
-      return '경계 상자 결과 없음'
+      return '경계 상자 결과가 없습니다.'
     case 'heatmap':
-      return '히트맵 데이터 없음'
+      return '히트맵 데이터가 없습니다.'
     case 'mask':
-      return '마스크 데이터 없음'
+      return '마스크 데이터가 없습니다.'
   }
 }
 
@@ -60,15 +56,4 @@ export function defectHasBbox(defect: DetectedDefect): boolean {
     defect.bboxWidth != null &&
     defect.bboxHeight != null
   )
-}
-
-export function canShowOriginalImage(result: AnalysisResult): boolean {
-  return typeof result.imageId === 'number' && result.imageId > 0
-}
-
-export function canShowResultImage(
-  result: AnalysisResult,
-  visualizationType: ResultVisualizationType,
-): boolean {
-  return hasVisualizationAsset(result, visualizationType)
 }
