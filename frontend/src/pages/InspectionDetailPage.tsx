@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ChangeEvent, ReactNode } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -28,7 +28,6 @@ import {
 } from '../features/images/types'
 import {
   useDeleteImage,
-  useDeactivateImage,
   useImageDeleteImpact,
   useImagePreview,
   useImages,
@@ -137,6 +136,11 @@ type UploadFeedback = {
   status: 'uploading' | 'success' | 'error'
   error?: string
 }
+type SelectedUploadFile = {
+  id: string
+  file: File
+  previewUrl: string
+}
 type ImageJobState = {
   hasActiveJob: boolean
   latestJob: AnalysisJobSummary | null
@@ -150,6 +154,8 @@ const WORKFLOW_TABS: Array<{ id: WorkflowTab; label: string }> = [
   { id: 'images-analysis', label: '이미지·분석' },
   { id: 'results', label: '결과' },
 ]
+const UPLOAD_FILES_PAGE_SIZE = 5
+const IMAGE_LIST_PAGE_SIZE = 5
 
 export function InspectionDetailPage() {
   const params = useParams()
@@ -162,14 +168,16 @@ export function InspectionDetailPage() {
   const [isDeleteInspectionModalOpen, setIsDeleteInspectionModalOpen] = useState(false)
   const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false)
   const [previewImageId, setPreviewImageId] = useState<number | null>(null)
-  const [selectedImage, setSelectedImage] = useState<ImageSummary | null>(null)
   const [imageToDelete, setImageToDelete] = useState<ImageSummary | null>(null)
   const [expandedFailureJobId, setExpandedFailureJobId] = useState<number | null>(null)
   const [uploadFormVersion, setUploadFormVersion] = useState(0)
   const [uploadFeedbackList, setUploadFeedbackList] = useState<UploadFeedback[]>([])
   const [pendingAnalysisImageId, setPendingAnalysisImageId] = useState<number | null>(null)
   const [pendingRetryJobId, setPendingRetryJobId] = useState<number | null>(null)
-  const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null)
+  const [selectedUploadFiles, setSelectedUploadFiles] = useState<SelectedUploadFile[]>([])
+  const [selectedPreviewFileId, setSelectedPreviewFileId] = useState<string | null>(null)
+  const [selectedFilesPage, setSelectedFilesPage] = useState(1)
+  const [imageListPage, setImageListPage] = useState(1)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
@@ -210,7 +218,6 @@ export function InspectionDetailPage() {
   const updateInspectionMutation = useUpdateInspection(inspectionId ?? 0)
   const deleteInspectionMutation = useDeleteInspection(inspectionId ?? 0)
   const uploadImageMutation = useUploadImage(inspectionId ?? 0)
-  const deactivateImageMutation = useDeactivateImage(inspectionId ?? 0)
   const deleteImageMutation = useDeleteImage(inspectionId ?? 0)
   const createAnalysisJobMutation = useCreateAnalysisJob()
   const retryAnalysisJobMutation = useRetryAnalysisJob()
@@ -249,27 +256,26 @@ export function InspectionDetailPage() {
   const selectedTargetType = uploadForm.watch('targetType')
   const selectedImageType = uploadForm.watch('imageType')
   const selectedEquipmentId = uploadForm.watch('equipmentId')
-  const selectedFileList = uploadForm.watch('file')
-  const selectedFile = selectedFileList?.item(0) ?? null
-  const selectedFileCount = selectedFileList?.length ?? 0
-  const selectedFiles = useMemo(
-    () => (selectedFileList ? Array.from(selectedFileList) : []),
-    [selectedFileList],
+  const selectedFileCount = selectedUploadFiles.length
+  const selectedPreviewFile = useMemo(
+    () =>
+      selectedUploadFiles.find((file) => file.id === selectedPreviewFileId) ??
+      selectedUploadFiles[0] ??
+      null,
+    [selectedPreviewFileId, selectedUploadFiles],
   )
 
+  const selectedUploadFilesRef = useRef<SelectedUploadFile[]>([])
+
   useEffect(() => {
-    if (!selectedFile) {
-      setUploadPreviewUrl(null)
-      return
-    }
+    selectedUploadFilesRef.current = selectedUploadFiles
+  }, [selectedUploadFiles])
 
-    const objectUrl = URL.createObjectURL(selectedFile)
-    setUploadPreviewUrl(objectUrl)
-
+  useEffect(() => {
     return () => {
-      URL.revokeObjectURL(objectUrl)
+      selectedUploadFilesRef.current.forEach((file) => URL.revokeObjectURL(file.previewUrl))
     }
-  }, [selectedFile])
+  }, [])
 
   const flattenedEquipments = useMemo(
     () => flattenEquipmentTree(equipmentsQuery.data?.data ?? []),
@@ -297,6 +303,11 @@ export function InspectionDetailPage() {
   const imageRows = useMemo(
     () => sortImagesDescending(imagesQuery.data?.data ?? []),
     [imagesQuery.data],
+  )
+  const paginatedImageRows = useMemo(
+    () =>
+      paginateItems(imageRows, imageListPage, IMAGE_LIST_PAGE_SIZE),
+    [imageRows, imageListPage],
   )
   const jobRows = useMemo(
     () => sortJobsDescending(analysisJobsQuery.data?.data.content ?? []),
@@ -338,6 +349,11 @@ export function InspectionDetailPage() {
   const thermalImages = useMemo(
     () => imageRows.filter((image) => image.imageType === 'THERMAL'),
     [imageRows],
+  )
+  const paginatedSelectedUploadFiles = useMemo(
+    () =>
+      paginateItems(selectedUploadFiles, selectedFilesPage, UPLOAD_FILES_PAGE_SIZE),
+    [selectedUploadFiles, selectedFilesPage],
   )
   const firstRetryableFailureJob = useMemo(
     () =>
@@ -381,6 +397,20 @@ export function InspectionDetailPage() {
     }
   }, [selectedTargetType, uploadEquipmentOptions, uploadForm])
 
+  useEffect(() => {
+    const uploadPageCount = Math.max(1, Math.ceil(selectedUploadFiles.length / UPLOAD_FILES_PAGE_SIZE))
+    if (selectedFilesPage > uploadPageCount) {
+      setSelectedFilesPage(uploadPageCount)
+    }
+  }, [selectedFilesPage, selectedUploadFiles.length])
+
+  useEffect(() => {
+    const imagePageCount = Math.max(1, Math.ceil(imageRows.length / IMAGE_LIST_PAGE_SIZE))
+    if (imageListPage > imagePageCount) {
+      setImageListPage(imagePageCount)
+    }
+  }, [imageListPage, imageRows.length])
+
   if (!inspectionId) {
     return (
       <ErrorState
@@ -406,12 +436,9 @@ export function InspectionDetailPage() {
   const inspection = inspectionQuery.data.data
   const fileField = uploadForm.register('file')
 
-  const syncSelectedFiles = (files: File[]) => {
+  const syncUploadFormFiles = (files: File[]) => {
     const dataTransfer = new DataTransfer()
     files.forEach((file) => dataTransfer.items.add(file))
-    if (fileInputRef.current) {
-      fileInputRef.current.files = dataTransfer.files
-    }
     uploadForm.setValue('file', dataTransfer.files, {
       shouldDirty: true,
       shouldTouch: true,
@@ -419,13 +446,67 @@ export function InspectionDetailPage() {
     })
   }
 
-  const handleRemoveSelectedFile = (fileIndex: number) => {
-    syncSelectedFiles(selectedFiles.filter((_, index) => index !== fileIndex))
+  const resetFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleSelectUploadFiles = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? [])
+
+    selectedUploadFiles.forEach((file) => URL.revokeObjectURL(file.previewUrl))
+
+    const nextFiles = files.map((file, index) => ({
+      id:
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${file.name}-${file.size}-${file.lastModified}-${index}`,
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }))
+
+    setSelectedUploadFiles(nextFiles)
+    setSelectedPreviewFileId(nextFiles[0]?.id ?? null)
+    setSelectedFilesPage(1)
+    setUploadFeedbackList([])
+    syncUploadFormFiles(files)
+    uploadForm.clearErrors('file')
+    event.currentTarget.value = ''
+  }
+
+  const handleRemoveSelectedFile = (targetId: string) => {
+    setSelectedUploadFiles((current) => {
+      const target = current.find((file) => file.id === targetId)
+      if (target) {
+        URL.revokeObjectURL(target.previewUrl)
+      }
+      const nextFiles = current.filter((file) => file.id !== targetId)
+      setSelectedPreviewFileId((currentPreviewId) => {
+        if (currentPreviewId !== targetId) {
+          return currentPreviewId
+        }
+        return nextFiles[0]?.id ?? null
+      })
+      syncUploadFormFiles(nextFiles.map((file) => file.file))
+      return nextFiles
+    })
+    uploadForm.clearErrors('file')
   }
 
   const handleClearSelectedFiles = () => {
-    syncSelectedFiles([])
+    selectedUploadFiles.forEach((file) => URL.revokeObjectURL(file.previewUrl))
+    setSelectedUploadFiles([])
+    setSelectedPreviewFileId(null)
+    setSelectedFilesPage(1)
     setUploadFeedbackList([])
+    uploadForm.setValue('file', undefined, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    })
+    resetFileInput()
+    uploadForm.clearErrors('file')
   }
 
   const handleRefreshWorkspace = async () => {
@@ -456,12 +537,15 @@ export function InspectionDetailPage() {
   })
 
   const handleUploadImage = uploadForm.handleSubmit(async (values) => {
-    const fileList = values.file
-    if (!fileList || fileList.length === 0) {
+    if (selectedUploadFiles.length === 0) {
+      uploadForm.setError('file', {
+        type: 'manual',
+        message: '업로드할 이미지를 선택해 주세요.',
+      })
       return
     }
 
-    const files = Array.from(fileList)
+    const files = selectedUploadFiles.map((item) => item.file)
     setUploadFeedbackList(
       files.map((file) => ({
         filename: file.name,
@@ -519,11 +603,16 @@ export function InspectionDetailPage() {
       memo: '',
       file: undefined,
     })
-      setUploadFormVersion((current) => current + 1)
-      setUploadFeedbackList([])
-      setActiveTab('images-analysis')
-      await handleRefreshWorkspace()
-    })
+    selectedUploadFiles.forEach((file) => URL.revokeObjectURL(file.previewUrl))
+    setSelectedUploadFiles([])
+    setSelectedPreviewFileId(null)
+    setSelectedFilesPage(1)
+    setUploadFormVersion((current) => current + 1)
+    uploadForm.setValue('file', undefined)
+    resetFileInput()
+    setActiveTab('images-analysis')
+    await handleRefreshWorkspace()
+  })
 
   const handleRequestAnalysis = async (image: ImageSummary) => {
     setPendingAnalysisImageId(image.imageId)
@@ -563,21 +652,6 @@ export function InspectionDetailPage() {
       }
     } finally {
       setPendingRetryJobId(null)
-    }
-  }
-
-  const handleDeactivateImage = async () => {
-    if (!selectedImage) {
-      return
-    }
-
-    try {
-      const response = await deactivateImageMutation.mutateAsync(selectedImage.imageId)
-      toast.push(response.message || '이미지를 비활성화했습니다.')
-      setSelectedImage(null)
-      await handleRefreshWorkspace()
-    } catch (error) {
-      toast.push(getApiErrorMessage(error, '이미지 비활성화에 실패했습니다.'))
     }
   }
 
@@ -896,10 +970,7 @@ export function InspectionDetailPage() {
                         fileField.ref(element)
                         fileInputRef.current = element
                       }}
-                      onChange={(event) => {
-                        fileField.onChange(event)
-                        setUploadFeedbackList([])
-                      }}
+                      onChange={handleSelectUploadFiles}
                     />
                   </FormField>
                   <FormField
@@ -978,21 +1049,38 @@ export function InspectionDetailPage() {
                         </button>
                       ) : null}
                     </div>
-                    {selectedFiles.length > 0 ? (
+                    {selectedUploadFiles.length > 0 ? (
                       <div className="inspection-selected-file-list">
-                        {selectedFiles.map((file, index) => (
-                          <div key={`${file.name}-${file.size}-${index}`} className="inspection-selected-file-item">
-                            <span className="inspection-selected-file-order">{index + 1}</span>
-                            <span className="inspection-selected-file-name" title={file.name}>
-                              {file.name}
+                        {paginatedSelectedUploadFiles.items.map((selectedFile, index) => (
+                          <div
+                            key={selectedFile.id}
+                            className={`inspection-selected-file-item ${selectedPreviewFile?.id === selectedFile.id ? 'inspection-selected-file-item-selected' : ''}`}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setSelectedPreviewFileId(selectedFile.id)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault()
+                                setSelectedPreviewFileId(selectedFile.id)
+                              }
+                            }}
+                          >
+                            <span className="inspection-selected-file-order">
+                              {(paginatedSelectedUploadFiles.page - 1) * UPLOAD_FILES_PAGE_SIZE + index + 1}
+                            </span>
+                            <span className="inspection-selected-file-name" title={selectedFile.file.name}>
+                              {selectedFile.file.name}
                             </span>
                             <span className="inspection-selected-file-size">
-                              {formatFileSize(file.size)}
+                              {formatFileSize(selectedFile.file.size)}
                             </span>
                             <button
                               className="text-button inspection-selected-file-remove"
                               type="button"
-                              onClick={() => handleRemoveSelectedFile(index)}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                handleRemoveSelectedFile(selectedFile.id)
+                              }}
                             >
                               제거
                             </button>
@@ -1005,20 +1093,40 @@ export function InspectionDetailPage() {
                       </div>
                     )}
                   </div>
+                  {paginatedSelectedUploadFiles.totalPages > 1 ? (
+                    <PaginationControls
+                      page={paginatedSelectedUploadFiles.page}
+                      totalPages={paginatedSelectedUploadFiles.totalPages}
+                      onPrevious={() => setSelectedFilesPage((current) => Math.max(1, current - 1))}
+                      onNext={() =>
+                        setSelectedFilesPage((current) =>
+                          Math.min(paginatedSelectedUploadFiles.totalPages, current + 1),
+                        )
+                      }
+                    />
+                  ) : null}
                   <div className="inspection-upload-preview-card">
-                    <div className="inspection-card-label">첫 번째 파일 미리보기</div>
+                    <div className="inspection-card-label">선택한 파일 미리보기</div>
                     <div className="inspection-upload-preview-caption">
-                      선택한 여러 파일 중 첫 번째 이미지만 미리 표시됩니다.
+                      목록에서 선택한 이미지가 표시됩니다.
                     </div>
-                    {uploadPreviewUrl ? (
-                      <img
-                        className="inspection-upload-preview-image"
-                        src={uploadPreviewUrl}
-                        alt={selectedFile?.name || '업로드 이미지 미리보기'}
-                      />
+                    {selectedPreviewFile ? (
+                      <>
+                        <div
+                          className="inspection-upload-preview-filename"
+                          title={selectedPreviewFile.file.name}
+                        >
+                          {selectedPreviewFile.file.name}
+                        </div>
+                        <img
+                          className="inspection-upload-preview-image"
+                          src={selectedPreviewFile.previewUrl}
+                          alt={selectedPreviewFile.file.name || '업로드 이미지 미리보기'}
+                        />
+                      </>
                     ) : (
                       <div className="image-placeholder inspection-upload-placeholder">
-                        첫 번째 파일 미리보기가 여기에 표시됩니다.
+                        선택한 파일 미리보기가 여기에 표시됩니다.
                       </div>
                     )}
                   </div>
@@ -1120,7 +1228,7 @@ export function InspectionDetailPage() {
 
               {imageRows.length > 0 ? (
                 <div className="inspection-image-card-list">
-                  {imageRows.map((image) => {
+                  {paginatedImageRows.items.map((image) => {
                     const imageState = imageJobStateMap.get(image.imageId) ?? createEmptyImageJobState()
                     const latestJob = imageState.latestJob
                     const latestFailedJob = imageState.latestFailedJob
@@ -1128,9 +1236,8 @@ export function InspectionDetailPage() {
                     const latestResultForImage = latestSucceededJob
                       ? jobResultMap.get(latestSucceededJob.jobId) ?? null
                       : null
-                    const isInactive = !isActiveResource(image.status)
                     const canRequestAnalysisNow =
-                      !isInactive &&
+                      isActiveResource(image.status) &&
                       !imageState.hasActiveJob &&
                       !imageState.canRetry &&
                       latestSucceededJob == null
@@ -1169,10 +1276,6 @@ export function InspectionDetailPage() {
                                 <StatusBadge
                                   label={getUploadStatusLabel(image.uploadStatus)}
                                   tone={getUploadStatusTone(image.uploadStatus)}
-                                />
-                                <StatusBadge
-                                  label={isInactive ? '비활성' : '활성'}
-                                  tone={isInactive ? 'slate' : 'success'}
                                 />
                               </div>
                             </div>
@@ -1323,13 +1426,6 @@ export function InspectionDetailPage() {
                                 상태 확인
                               </button>
                               <button
-                                className="text-button muted-action"
-                                type="button"
-                                onClick={() => setSelectedImage(image)}
-                              >
-                                비활성화
-                              </button>
-                              <button
                                 className="text-button text-button-danger muted-action"
                                 type="button"
                                 onClick={() => setImageToDelete(image)}
@@ -1343,6 +1439,18 @@ export function InspectionDetailPage() {
                     )
                   })}
                 </div>
+              ) : null}
+              {paginatedImageRows.totalPages > 1 ? (
+                <PaginationControls
+                  page={paginatedImageRows.page}
+                  totalPages={paginatedImageRows.totalPages}
+                  onPrevious={() => setImageListPage((current) => Math.max(1, current - 1))}
+                  onNext={() =>
+                    setImageListPage((current) =>
+                      Math.min(paginatedImageRows.totalPages, current + 1),
+                    )
+                  }
+                />
               ) : null}
             </section>
           </div>
@@ -1498,21 +1606,6 @@ export function InspectionDetailPage() {
       />
 
       <ConfirmModal
-        isOpen={Boolean(selectedImage)}
-        title="이미지 비활성화"
-        description={
-          selectedImage
-            ? `${selectedImage.originalFilename} 이미지를 비활성화할까요?`
-            : '선택한 이미지를 비활성화할까요?'
-        }
-        confirmText="비활성화"
-        cancelText="취소"
-        isConfirming={deactivateImageMutation.isPending}
-        onConfirm={handleDeactivateImage}
-        onCancel={() => setSelectedImage(null)}
-      />
-
-      <ConfirmModal
         isOpen={Boolean(imageToDelete)}
         title="이미지 삭제"
         description={
@@ -1621,6 +1714,42 @@ function MetaField({
     <div className="inspection-meta-field">
       <span className="inspection-meta-label">{label}</span>
       <div className="inspection-meta-value">{valueNode ?? value ?? '-'}</div>
+    </div>
+  )
+}
+
+function PaginationControls({
+  page,
+  totalPages,
+  onPrevious,
+  onNext,
+}: {
+  page: number
+  totalPages: number
+  onPrevious: () => void
+  onNext: () => void
+}) {
+  return (
+    <div className="inspection-pagination">
+      <button
+        className="btn btn-secondary inspection-pagination-btn"
+        type="button"
+        disabled={page <= 1}
+        onClick={onPrevious}
+      >
+        이전
+      </button>
+      <span className="inspection-pagination-status">
+        {page} / {totalPages}
+      </span>
+      <button
+        className="btn btn-secondary inspection-pagination-btn"
+        type="button"
+        disabled={page >= totalPages}
+        onClick={onNext}
+      >
+        다음
+      </button>
     </div>
   )
 }
@@ -1772,6 +1901,18 @@ function sortResultsDescending(results: AnalysisResultSummary[]) {
     }
     return b.resultId - a.resultId
   })
+}
+
+function paginateItems<T>(items: T[], page: number, pageSize: number) {
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const startIndex = (safePage - 1) * pageSize
+
+  return {
+    items: items.slice(startIndex, startIndex + pageSize),
+    page: safePage,
+    totalPages,
+  }
 }
 
 function createEmptyImageJobState(): ImageJobState {

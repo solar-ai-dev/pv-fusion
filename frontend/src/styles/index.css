@@ -4396,6 +4396,13 @@ textarea {
   border-radius: 0.78rem;
   background: rgba(248, 250, 252, 0.82);
   padding: 0.55rem 0.7rem;
+  cursor: pointer;
+}
+
+.inspection-selected-file-item-selected {
+  border-color: rgba(14, 165, 233, 0.45);
+  background: rgba(240, 249, 255, 0.94);
+  box-shadow: 0 0 0 1px rgba(14, 165, 233, 0.12);
 }
 
 .inspection-selected-file-order {
@@ -4435,6 +4442,16 @@ textarea {
 .inspection-upload-placeholder {
   min-height: 160px;
   margin-top: 0.45rem;
+}
+
+.inspection-upload-preview-filename {
+  margin-top: 0.35rem;
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .inspection-inline-note {
@@ -4651,6 +4668,27 @@ textarea {
   flex: 1 1 260px;
 }
 
+.inspection-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.inspection-pagination-btn {
+  min-width: 72px;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+.inspection-pagination-status {
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 600;
+  min-width: 52px;
+  text-align: center;
+}
+
 .inspection-image-actions .text-button,
 .inspection-result-actions .text-button {
   align-self: center;
@@ -4692,5 +4730,9 @@ textarea {
   .inspection-selected-file-size,
   .inspection-selected-file-remove {
     grid-column: 2;
+  }
+
+  .inspection-pagination {
+    justify-content: stretch;
   }
 }
