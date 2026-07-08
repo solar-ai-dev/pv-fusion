@@ -52,7 +52,9 @@ RGB 이미지와 열화상 이미지를 각각 독립적으로 분석하는 **�
 
 🎬 아래 썸네일을 클릭하면 시연 영상을 시청할 수 있습니다.
 
-[![시연 영상](https://img.youtube.com/vi/VIDEO_ID/maxresdefault.jpg)](https://www.youtube.com/watch?v=VIDEO_ID)
+<a href="https://drive.google.com/file/d/1OWBfMANCIbXIZ1L6tYj9vuD1K-aaZ6Qb/view?usp=drive_link">
+  <img src="https://github.com/user-attachments/assets/7a00f136-6051-4e85-93bb-dbbc4720349c" width="400" alt="시연 영상">
+</a>
 
 ---
 
