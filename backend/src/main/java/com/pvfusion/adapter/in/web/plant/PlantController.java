@@ -1,6 +1,8 @@
 package com.pvfusion.adapter.in.web.plant;
 
 import com.pvfusion.application.dto.plant.CreatePlantCommand;
+import com.pvfusion.application.dto.deletion.DeleteImpactResponse;
+import com.pvfusion.application.dto.deletion.DeleteResourceResponse;
 import com.pvfusion.application.dto.plant.DeactivatePlantCommand;
 import com.pvfusion.application.dto.plant.GetPlantQuery;
 import com.pvfusion.application.dto.plant.PlantListQuery;
@@ -10,6 +12,7 @@ import com.pvfusion.application.dto.plant.UpdatePlantCommand;
 import com.pvfusion.application.port.in.plant.CreatePlantUseCase;
 import com.pvfusion.application.port.in.plant.DeactivatePlantUseCase;
 import com.pvfusion.application.port.in.plant.GetPlantUseCase;
+import com.pvfusion.application.port.in.plant.ManagePlantDeletionUseCase;
 import com.pvfusion.application.port.in.plant.QueryPlantUseCase;
 import com.pvfusion.application.port.in.plant.UpdatePlantUseCase;
 import com.pvfusion.domain.common.ResourceStatus;
@@ -19,6 +22,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,6 +42,7 @@ public class PlantController {
     private final GetPlantUseCase getPlantUseCase;
     private final UpdatePlantUseCase updatePlantUseCase;
     private final DeactivatePlantUseCase deactivatePlantUseCase;
+    private final ManagePlantDeletionUseCase managePlantDeletionUseCase;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<PlantSummaryResponse>>> getPlants(
@@ -88,5 +93,21 @@ public class PlantController {
     ) {
         PlantResponse response = deactivatePlantUseCase.execute(new DeactivatePlantCommand(plantId));
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{plantId}/delete-impact")
+    public ResponseEntity<ApiResponse<DeleteImpactResponse>> getPlantDeleteImpact(
+            @PathVariable Long plantId
+    ) {
+        DeleteImpactResponse response = managePlantDeletionUseCase.getPlantDeleteImpact(plantId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @DeleteMapping("/{plantId}")
+    public ResponseEntity<ApiResponse<DeleteResourceResponse>> deletePlant(
+            @PathVariable Long plantId
+    ) {
+        DeleteResourceResponse response = managePlantDeletionUseCase.deletePlant(plantId);
+        return ResponseEntity.ok(ApiResponse.success(response, "발전소가 삭제되었습니다."));
     }
 }

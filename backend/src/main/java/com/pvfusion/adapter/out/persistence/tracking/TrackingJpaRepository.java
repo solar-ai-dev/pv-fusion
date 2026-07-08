@@ -2,7 +2,7 @@ package com.pvfusion.adapter.out.persistence.tracking;
 
 import com.pvfusion.adapter.out.persistence.result.AnalysisResultJpaEntity;
 import java.time.Instant;
-import java.time.LocalDate;
+
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.Query;
@@ -39,24 +39,32 @@ public interface TrackingJpaRepository extends Repository<AnalysisResultJpaEntit
                       AND (:zoneId IS NULL OR i.zone_id = :zoneId)
                       AND (:equipmentId IS NULL OR ii.equipment_id = :equipmentId)
                       AND (:targetType IS NULL OR ii.target_type = :targetType)
-                      AND (:fromDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= :fromDate)
-                      AND (:toDate IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= :toDate)
+                      AND (CAST(:fromDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) >= CAST(:fromDate AS date))
+                      AND (CAST(:toDate AS date) IS NULL OR CAST(COALESCE(ar.analyzed_at, ar.created_at) AS date) <= CAST(:toDate AS date))
                       AND (:inputType IS NULL OR aj.input_type = :inputType)
                       AND (:modelType IS NULL OR ar.model_type = :modelType)
                       AND (:actionCandidate IS NULL OR ar.action_candidate = :actionCandidate)
                       AND (:priorityLevel IS NULL OR ar.priority_level = :priorityLevel)
                       AND (:severityLevel IS NULL OR ar.severity_level = :severityLevel)
+                      AND (:actorUserId IS NULL
+                           OR EXISTS (
+                               SELECT 1 FROM plant_members pm
+                               WHERE pm.plant_id = z.plant_id
+                                 AND pm.user_id = :actorUserId
+                                 AND pm.status = 'ACTIVE'
+                           ))
                     ORDER BY COALESCE(ar.analyzed_at, ar.created_at) DESC, ar.id DESC
                     """,
             nativeQuery = true
     )
     List<TrackingResultProjection> searchTracking(
+            @Param("actorUserId") Long actorUserId,
             @Param("plantId") Long plantId,
             @Param("zoneId") Long zoneId,
             @Param("equipmentId") Long equipmentId,
             @Param("targetType") String targetType,
-            @Param("fromDate") LocalDate fromDate,
-            @Param("toDate") LocalDate toDate,
+            @Param("fromDate") String fromDate,
+            @Param("toDate") String toDate,
             @Param("inputType") String inputType,
             @Param("modelType") String modelType,
             @Param("actionCandidate") String actionCandidate,

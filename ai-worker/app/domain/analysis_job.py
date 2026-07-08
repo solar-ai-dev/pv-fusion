@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict
 
 from app.domain.enums import InputType, JobStatus, ModelType, RequestedModelType
@@ -16,3 +18,5 @@ class AnalysisJob(BaseModel):
     traceId: str | None = None
     failureCode: str | None = None
     failureMessage: str | None = None
+    startedAt: datetime | None = None
+    updatedAt: datetime | None = None

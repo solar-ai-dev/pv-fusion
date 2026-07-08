@@ -71,14 +71,16 @@ class TrackingServiceTest {
     }
 
     @Test
-    void queryTrackingRequiresScopedFilterForNonAdmin() {
+    void queryTrackingAutoScopesForNonAdmin() {
         when(accessChecker.isAdmin(1L)).thenReturn(false);
+        when(loadTrackingPort.loadTracking(any())).thenReturn(List.of());
 
-        assertThatThrownBy(() -> trackingService.execute(new TrackingQuery(
+        var response = trackingService.execute(new TrackingQuery(
                 null, null, null, null, null, null, null, null, null, null, null
-        ))).isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.FORBIDDEN);
+        ));
+
+        assertThat(response.items()).isEmpty();
+        verify(loadTrackingPort).loadTracking(any());
     }
 
     @Test
@@ -124,6 +126,31 @@ class TrackingServiceTest {
 
         assertThat(response.worsened()).isTrue();
         assertThat(response.defectChange().newDefectTypes()).contains(DefectType.HOTSPOT);
+    }
+
+    @Test
+    void compareTrackingReturnsCurrentOnlyResponseWhenPreviousResultDoesNotExist() {
+        when(loadAnalysisResultPort.loadAnalysisResult(100L)).thenReturn(Optional.of(result(100L)));
+        when(accessChecker.checkResultAccess(1L, 100L)).thenReturn(true);
+        when(loadInspectionComparisonPort.loadInspectionComparison(any())).thenReturn(Optional.of(new InspectionCompareResponse(
+                100L,
+                null,
+                summary(100L, null, false),
+                null,
+                new AreaChangeResponse(BigDecimal.valueOf(0.20), null, null),
+                new com.pvfusion.application.dto.tracking.SeverityChangeResponse(
+                        BigDecimal.valueOf(0.90), null, null, false
+                ),
+                new DefectChangeResponse(2, 0, 2, List.of(DefectType.HOTSPOT), List.of(), List.of()),
+                false,
+                false,
+                "no priority escalation"
+        )));
+
+        var response = trackingService.execute(new InspectionCompareQuery(100L, null));
+
+        assertThat(response.currentResultId()).isEqualTo(100L);
+        assertThat(response.previousResultId()).isNull();
     }
 
     @Test

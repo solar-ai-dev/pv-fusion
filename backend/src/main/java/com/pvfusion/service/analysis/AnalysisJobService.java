@@ -40,6 +40,7 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,13 +74,17 @@ public class AnalysisJobService implements
     public AnalysisJobResponse execute(RequestAnalysisCommand command) {
         Long currentUserId = requireCurrentUserId();
         AnalysisTarget target = validateTarget(currentUserId, command.imageId());
-        validateDuplicateJobs(target);
 
         RequestedModelType requestedModelType = resolveRequestedModelType(target.imageType());
         AnalysisInputType inputType = resolveInputType(target.imageType());
         AnalysisModelType modelType = resolveModelType(target.imageType());
 
-        AnalysisJob queued = saveAnalysisJobPort.saveAnalysisJob(new AnalysisJob(
+        log.info("analysis_job.create.request imageId={} requestedModelType={} inputType={}",
+                target.imageId(), requestedModelType, inputType);
+
+        validateDuplicateJobs(target, "analysis_job.create");
+
+        AnalysisJob queued = saveAnalysisJobGuarded(new AnalysisJob(
                 null,
                 target.imageId(),
                 inputType,
@@ -96,18 +101,12 @@ public class AnalysisJobService implements
                 null,
                 null,
                 null
-        ));
+        ), target.imageId());
 
         try {
             publishAnalysisJobPort.publish(toMessage(queued));
-            log.info(
-                    "Analysis job queued and published. jobId={}, traceId={}, inputType={}, imageId={}, requestedModelType={}",
-                    queued.getId(),
-                    queued.getTraceId(),
-                    queued.getInputType(),
-                    queued.getImageId(),
-                    queued.getRequestedModelType()
-            );
+            log.info("analysis_job.create.enqueued jobId={} imageId={} inputType={} requestedModelType={}",
+                    queued.getId(), queued.getImageId(), queued.getInputType(), queued.getRequestedModelType());
             return toResponse(queued);
         } catch (BusinessException exception) {
             log.warn(
@@ -185,43 +184,49 @@ public class AnalysisJobService implements
 
         AnalysisJob existing = loadAnalysisJob(command.jobId());
         validateJobAccess(currentUserId, existing);
+
+        log.info("analysis_job.retry.request originalJobId={} imageId={}",
+                existing.getId(), existing.getImageId());
+
         if (existing.getJobStatus() != AnalysisJobStatus.FAILED) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "Only failed jobs can be retried.");
+            throw new BusinessException(ErrorCode.ANALYSIS_JOB_RETRY_NOT_ALLOWED, "Only failed jobs can be retried.");
         }
 
-        AnalysisJob retried = updateAnalysisJobPort.updateAnalysisJob(new AnalysisJob(
-                existing.getId(),
-                existing.getImageId(),
-                existing.getInputType(),
-                existing.getRequestedModelType(),
-                existing.getModelType(),
+        AnalysisTarget target = validateTarget(currentUserId, existing.getImageId());
+        validateDuplicateJobs(target, "analysis_job.retry");
+
+        RequestedModelType requestedModelType = resolveRequestedModelType(target.imageType());
+        AnalysisInputType inputType = resolveInputType(target.imageType());
+        AnalysisModelType modelType = resolveModelType(target.imageType());
+
+        AnalysisJob retried = saveAnalysisJobGuarded(new AnalysisJob(
+                null,
+                target.imageId(),
+                inputType,
+                requestedModelType,
+                modelType,
                 AnalysisJobStatus.QUEUED,
-                existing.getRequestedByUserId(),
-                existing.getRequestedAt(),
+                currentUserId,
+                OffsetDateTime.now(),
                 null,
                 null,
                 existing.getRetryCount() + 1,
                 resolveTraceId(command.traceId()),
                 null,
                 null,
-                existing.getCreatedAt(),
-                existing.getUpdatedAt()
-        ));
+                null,
+                null
+        ), target.imageId());
 
         try {
             publishAnalysisJobPort.publish(toMessage(retried));
-            log.info(
-                    "Analysis job retried and published. jobId={}, traceId={}, inputType={}, imageId={}, retryCount={}",
-                    retried.getId(),
-                    retried.getTraceId(),
-                    retried.getInputType(),
-                    retried.getImageId(),
-                    retried.getRetryCount()
-            );
+            log.info("analysis_job.retry.enqueued originalJobId={} newJobId={} imageId={} retryCount={}",
+                    existing.getId(), retried.getId(), retried.getImageId(), retried.getRetryCount());
             return toResponse(retried);
         } catch (BusinessException exception) {
             log.warn(
-                    "Analysis job retry publish failed. jobId={}, traceId={}, inputType={}, imageId={}, retryCount={}, errorCode={}",
+                    "Analysis job retry publish failed. originalJobId={}, retriedJobId={}, traceId={}, inputType={}, imageId={}, retryCount={}, errorCode={}",
+                    existing.getId(),
                     retried.getId(),
                     retried.getTraceId(),
                     retried.getInputType(),
@@ -287,14 +292,49 @@ public class AnalysisJobService implements
         };
     }
 
-    private void validateDuplicateJobs(AnalysisTarget target) {
-        boolean duplicated = !loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(
+    private void validateDuplicateJobs(AnalysisTarget target, String logOperation) {
+        List<AnalysisJob> activeJobs = loadAnalysisJobPort.loadAnalysisJobsByImageIdAndStatuses(
                 target.imageId(),
                 ACTIVE_JOB_STATUSES
-        ).isEmpty();
-        if (duplicated) {
-            throw new BusinessException(ErrorCode.ANALYSIS_JOB_ALREADY_RUNNING);
+        );
+        if (!activeJobs.isEmpty()) {
+            AnalysisJob activeJob = activeJobs.get(0);
+            log.warn("{}.duplicate_blocked imageId={} activeJobId={} activeJobStatus={}",
+                    logOperation, target.imageId(), activeJob.getId(), activeJob.getJobStatus());
+            throw new BusinessException(
+                    ErrorCode.ANALYSIS_JOB_ALREADY_RUNNING,
+                    String.format("activeJobId=%d imageId=%d status=%s",
+                            activeJob.getId(), target.imageId(), activeJob.getJobStatus())
+            );
         }
+    }
+
+    private AnalysisJob saveAnalysisJobGuarded(AnalysisJob job, Long imageId) {
+        try {
+            return saveAnalysisJobPort.saveAnalysisJob(job);
+        } catch (DataIntegrityViolationException ex) {
+            if (isActiveJobUniqueViolation(ex)) {
+                log.warn("analysis_job.save.unique_violation imageId={} — concurrent duplicate rejected",
+                        imageId);
+                throw new BusinessException(
+                        ErrorCode.ANALYSIS_JOB_ALREADY_RUNNING,
+                        "Concurrent duplicate active job detected for imageId=" + imageId
+                );
+            }
+            throw ex;
+        }
+    }
+
+    private static boolean isActiveJobUniqueViolation(DataIntegrityViolationException ex) {
+        Throwable t = ex;
+        while (t != null) {
+            if (t.getMessage() != null
+                    && t.getMessage().contains("ux_analysis_jobs_one_active_per_image")) {
+                return true;
+            }
+            t = t.getCause();
+        }
+        return false;
     }
 
     private AnalysisJobMessage toMessage(AnalysisJob analysisJob) {
@@ -305,8 +345,21 @@ public class AnalysisJobService implements
                 analysisJob.getRequestedModelType(),
                 analysisJob.getRequestedByUserId(),
                 analysisJob.getTraceId(),
-                analysisJob.getCreatedAt()
+                resolveMessageCreatedAt(analysisJob)
         );
+    }
+
+    private OffsetDateTime resolveMessageCreatedAt(AnalysisJob analysisJob) {
+        if (analysisJob.getCreatedAt() != null) {
+            return analysisJob.getCreatedAt();
+        }
+
+        log.warn(
+                "Analysis job createdAt was null when building queue message. jobId={}, traceId={}",
+                analysisJob.getId(),
+                analysisJob.getTraceId()
+        );
+        return OffsetDateTime.now();
     }
 
     private AnalysisJobResponse toResponse(AnalysisJob analysisJob) {
@@ -357,20 +410,31 @@ public class AnalysisJobService implements
     }
 
     private Context resolveContext(AnalysisJob analysisJob) {
-        InspectionImage image = loadImagePort.loadImage(analysisJob.getImageId()).orElse(null);
-        Long inspectionId = image != null ? image.getInspectionId() : null;
-        if (inspectionId == null) {
+        try {
+            InspectionImage image = loadImagePort.loadImage(analysisJob.getImageId()).orElse(null);
+            Long inspectionId = image != null ? image.getInspectionId() : null;
+            if (inspectionId == null) {
+                return new Context(null, null, null);
+            }
+            Inspection inspection = loadInspectionPort.loadInspection(inspectionId).orElse(null);
+            if (inspection == null) {
+                return new Context(inspectionId, null, null);
+            }
+            if (loadZonePort.isEmpty()) {
+                return new Context(inspectionId, inspection.getZoneId(), null);
+            }
+            Zone zone = loadZonePort.get().loadZone(inspection.getZoneId()).orElse(null);
+            return new Context(inspectionId, inspection.getZoneId(), zone != null ? zone.getPlantId() : null);
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Failed to resolve analysis job response context. jobId={}, imageId={}, traceId={}",
+                    analysisJob.getId(),
+                    analysisJob.getImageId(),
+                    analysisJob.getTraceId(),
+                    exception
+            );
             return new Context(null, null, null);
         }
-        Inspection inspection = loadInspectionPort.loadInspection(inspectionId).orElse(null);
-        if (inspection == null) {
-            return new Context(inspectionId, null, null);
-        }
-        if (loadZonePort.isEmpty()) {
-            return new Context(inspectionId, inspection.getZoneId(), null);
-        }
-        Zone zone = loadZonePort.get().loadZone(inspection.getZoneId()).orElse(null);
-        return new Context(inspectionId, inspection.getZoneId(), zone != null ? zone.getPlantId() : null);
     }
 
     private AnalysisJob loadAnalysisJob(Long jobId) {

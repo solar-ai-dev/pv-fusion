@@ -21,7 +21,16 @@ ALLOWED_DEFECT_TYPES = {
     "HOTSPOT",
     "OVERHEATING",
     "ABNORMAL_HEAT",
+    "HotSpot",
+    "Diode_ByPassed",
+    "String_Fault",
     "UNKNOWN",
+}
+
+DEFECT_TYPE_ALIASES = {
+    "HotSpot": "HOTSPOT",
+    "Diode_ByPassed": "UNKNOWN",
+    "String_Fault": "UNKNOWN",
 }
 
 
@@ -37,7 +46,7 @@ class ParsedDetection:
     source: str
 
 
-def parse_inference_output(raw_output: Any, model_info: ModelInfo) -> InferenceResult:
+def parse_inference_output(raw_output: Any, model_info: ModelInfo, image_context: Any | None = None) -> InferenceResult:
     restored_masks: list[RestoredMask] = []
     if isinstance(raw_output, dict):
         result_status = ResultStatus(raw_output.get("resultStatus", ResultStatus.NORMAL.value))
@@ -55,7 +64,7 @@ def parse_inference_output(raw_output: Any, model_info: ModelInfo) -> InferenceR
             maskObjectKey=raw_output.get("maskObjectKey"),
         )
     else:
-        detections, restored_masks = _extract_detections_and_masks(raw_output, model_info)
+        detections, restored_masks = _extract_detections_and_masks(raw_output, model_info, image_context=image_context)
         defects = detections_to_defects(detections)
         anomaly_count = len(defects)
         max_confidence = _max_confidence(detections)
@@ -79,19 +88,20 @@ def parse_inference_output(raw_output: Any, model_info: ModelInfo) -> InferenceR
     )
 
 
-def extract_detections(raw_output: Any, model_info: ModelInfo) -> list[ParsedDetection]:
-    detections, _ = _extract_detections_and_masks(raw_output, model_info)
+def extract_detections(raw_output: Any, model_info: ModelInfo, image_context: Any | None = None) -> list[ParsedDetection]:
+    detections, _ = _extract_detections_and_masks(raw_output, model_info, image_context=image_context)
     return detections
 
 
 def restore_rgb_instance_masks(raw_output: Any, model_info: ModelInfo) -> list[RestoredMask]:
-    _, restored_masks = _extract_detections_and_masks(raw_output, model_info)
+    _, restored_masks = _extract_detections_and_masks(raw_output, model_info, image_context=None)
     return restored_masks
 
 
 def _extract_detections_and_masks(
     raw_output: Any,
     model_info: ModelInfo,
+    image_context: Any | None,
 ) -> tuple[list[ParsedDetection], list[RestoredMask]]:
     if _looks_like_rgb_outputs(raw_output):
         return _parse_rgb_outputs(
@@ -107,6 +117,7 @@ def _extract_detections_and_masks(
             threshold=model_info.threshold,
             source="THERMAL",
             class_names=model_info.classNames,
+            image_context=image_context,
         ),
         [],
     )
@@ -164,6 +175,7 @@ def _parse_detection_rows(
     threshold: Decimal,
     source: str,
     class_names: list[str],
+    image_context: Any | None,
 ) -> list[ParsedDetection]:
     detections: list[ParsedDetection] = []
     for row in rows:
@@ -179,6 +191,8 @@ def _parse_detection_rows(
         y1 = float(values[1])
         x2 = float(values[2])
         y2 = float(values[3])
+        if image_context is not None:
+            x1, y1, x2, y2 = _restore_bbox_to_original(x1, y1, x2, y2, image_context)
         x1, x2 = sorted((x1, x2))
         y1, y2 = sorted((y1, y2))
         width = x2 - x1
@@ -419,6 +433,8 @@ def _resolve_raw_class_name(class_id: int, class_names: list[str]) -> str | None
 
 
 def _resolve_defect_type(raw_value: str | None) -> str:
+    if raw_value in DEFECT_TYPE_ALIASES:
+        return DEFECT_TYPE_ALIASES[raw_value]
     if raw_value in ALLOWED_DEFECT_TYPES:
         return raw_value
     return "UNKNOWN"
@@ -460,3 +476,29 @@ def _normalize_structured_defects(raw_defects: Any) -> list[DetectedDefectDraft]
 
 def _looks_normalized(x: float, y: float, width: float, height: float) -> bool:
     return 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0 and 0.0 <= width <= 1.0 and 0.0 <= height <= 1.0
+
+
+def _restore_bbox_to_original(x1: float, y1: float, x2: float, y2: float, image_context: Any) -> tuple[float, float, float, float]:
+    scale_x = getattr(image_context, "scaleX", None)
+    scale_y = getattr(image_context, "scaleY", None)
+    pad_x = float(getattr(image_context, "padX", 0))
+    pad_y = float(getattr(image_context, "padY", 0))
+    original_width = float(getattr(image_context, "originalWidth", 0))
+    original_height = float(getattr(image_context, "originalHeight", 0))
+    resized_width = float(getattr(image_context, "resizedWidth", 0))
+    resized_height = float(getattr(image_context, "resizedHeight", 0))
+    if not scale_x or not scale_y:
+        return x1, y1, x2, y2
+
+    restored_x1 = (x1 - pad_x) / float(scale_x)
+    restored_y1 = (y1 - pad_y) / float(scale_y)
+    restored_x2 = (x2 - pad_x) / float(scale_x)
+    restored_y2 = (y2 - pad_y) / float(scale_y)
+
+    if resized_width > 0:
+        restored_x1 = max(0.0, min(original_width, restored_x1))
+        restored_x2 = max(0.0, min(original_width, restored_x2))
+    if resized_height > 0:
+        restored_y1 = max(0.0, min(original_height, restored_y1))
+        restored_y2 = max(0.0, min(original_height, restored_y2))
+    return restored_x1, restored_y1, restored_x2, restored_y2

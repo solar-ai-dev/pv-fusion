@@ -85,15 +85,21 @@ public class InspectionService implements
         validatePage(query.page(), query.size());
 
         boolean admin = accessChecker.isAdmin(currentUserId);
+        InspectionListQuery execQuery = query;
         if (!admin) {
-            if (query.zoneId() == null) {
-                throw new BusinessException(ErrorCode.FORBIDDEN, "Non-admin inspection queries require zoneId.");
+            if (query.zoneId() != null) {
+                ensureAllowed(accessChecker.checkZoneAccess(currentUserId, query.zoneId()));
+            } else if (query.plantId() != null) {
+                ensureAllowed(accessChecker.checkPlantAccess(currentUserId, query.plantId()));
+            } else {
+                // no explicit scope: auto-filter by the user's active plant memberships
+                execQuery = new InspectionListQuery(currentUserId, null, null,
+                        query.inspectionStatus(), query.from(), query.to(), query.page(), query.size());
             }
-            ensureAllowed(accessChecker.checkZoneAccess(currentUserId, query.zoneId()));
         }
 
-        List<Inspection> inspections = loadInspectionPort.loadInspections(query);
-        long totalElements = loadInspectionPort.countInspections(query);
+        List<Inspection> inspections = loadInspectionPort.loadInspections(execQuery);
+        long totalElements = loadInspectionPort.countInspections(execQuery);
         Map<Long, Zone> zoneMap = loadZones(inspections);
 
         List<InspectionSummaryResponse> content = inspections.stream()

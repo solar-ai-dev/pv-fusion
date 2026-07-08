@@ -230,7 +230,7 @@ class AnalysisResultControllerTest {
 
     private AnalysisResultResponse sampleResponse() {
         return new AnalysisResultResponse(
-                1L, 10L, 100L, 20L, 30L, TargetType.ZONE, null, AnalysisInputType.RGB_SINGLE,
+                1L, 10L, 100L, 20L, 30L, 40L, TargetType.ZONE, null, AnalysisInputType.RGB_SINGLE,
                 AnalysisModelType.RGB_ONLY, AnalysisResultStatus.ANOMALY, 2, BigDecimal.valueOf(0.9),
                 BigDecimal.valueOf(0.1), BigDecimal.valueOf(0.8), SeverityLevel.HIGH, ActionCandidate.CLEANING,
                 PriorityLevel.HIGH, ReviewStatus.UNCHECKED, null, null, null, null, null, null, null, null, null,

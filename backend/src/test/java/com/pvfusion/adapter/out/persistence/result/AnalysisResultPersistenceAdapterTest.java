@@ -55,31 +55,31 @@ class AnalysisResultPersistenceAdapterTest {
 
     @Test
     void loadAnalysisResultsUsesRepositorySearch() {
-        when(analysisResultJpaRepository.search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(PageRequest.class)))
+        when(analysisResultJpaRepository.search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of(entity())));
 
         List<AnalysisResult> result = adapter.loadAnalysisResults(new AnalysisResultListQuery(
                 1L, null, null, 30L, null, null, AnalysisInputType.RGB_SINGLE, AnalysisModelType.RGB_ONLY,
                 AnalysisJobStatus.SUCCEEDED, AnalysisResultStatus.ANOMALY, ActionCandidate.CLEANING,
-                SeverityLevel.HIGH, ReviewStatus.UNCHECKED, 0, 20
+                SeverityLevel.HIGH, ReviewStatus.UNCHECKED, null, null, 0, 20
         ));
 
-        verify(analysisResultJpaRepository).search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(PageRequest.class));
+        verify(analysisResultJpaRepository).search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(PageRequest.class));
         assertThat(result).hasSize(1);
     }
 
     @Test
     void loadAnalysisResultsUsesUnsortedPageRequestForNativeQuery() {
-        when(analysisResultJpaRepository.search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(PageRequest.class)))
+        when(analysisResultJpaRepository.search(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         adapter.loadAnalysisResults(new AnalysisResultListQuery(
-                1L, null, null, null, null, null, null, null, null, null, null, null, 0, 20
+                1L, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 0, 20
         ));
 
         ArgumentCaptor<PageRequest> pageableCaptor = ArgumentCaptor.forClass(PageRequest.class);
         verify(analysisResultJpaRepository).search(
-                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), pageableCaptor.capture()
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), pageableCaptor.capture()
         );
         Assertions.assertTrue(pageableCaptor.getValue().getSort().isUnsorted());
     }

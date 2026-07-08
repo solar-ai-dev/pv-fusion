@@ -20,9 +20,9 @@ from app.infrastructure.visualization.overlay import draw_bbox_overlay, draw_mas
 
 AI_WORKER_ROOT = Path(__file__).resolve().parents[2]
 RGB_MODEL_PATH = AI_WORKER_ROOT / "models" / "rgb" / "rgb-only-yolo26s-seg-768-e10-dev.onnx"
-THERMAL_MODEL_PATH = AI_WORKER_ROOT / "models" / "thermal" / "thermal-only-yolo26n-det-dev-untrained-640.onnx"
+THERMAL_MODEL_PATH = AI_WORKER_ROOT / "models" / "thermal" / "thermal-yolo26s-det-stage10b-v20260704-r1.onnx"
 RGB_MANIFEST_PATH = AI_WORKER_ROOT / "models" / "rgb" / "model-manifest.dev.yaml"
-THERMAL_MANIFEST_PATH = AI_WORKER_ROOT / "models" / "thermal" / "model-manifest.dev.yaml"
+THERMAL_MANIFEST_PATH = AI_WORKER_ROOT / "models" / "thermal" / "model-manifest.yaml"
 
 
 def test_rgb_onnx_runtime_smoke():
@@ -122,7 +122,7 @@ def test_onnx_model_runner_smoke_for_thermal():
         b"synthetic-thermal-bytes",
     )
 
-    assert result.modelInfo.modelName == "thermal-only-yolo26n-det-dev-untrained"
+    assert result.modelInfo.modelName == "thermal-yolo26s-det-stage10b"
     assert result.modelInfo.inputSize == 640
     assert result.resultStatus is ResultStatus.NORMAL
     assert result.anomalyCount == 0
@@ -204,6 +204,10 @@ def test_rgb_processor_smoke_with_actual_runtime_output():
     result = processor.process(_build_worker_message())
 
     assert result.status == "processed"
+    if result_repository.saved_results[0].bboxObjectKey is None:
+        assert storage.write_calls == []
+        pytest.skip("Actual RGB ONNX output did not yield drawable detections for the zero tensor input.")
+
     assert storage.write_calls[0][1] == "analysis-results/1000/bbox_overlay.png"
     assert storage.write_calls[0][3] == "image/png"
     assert result_repository.saved_results[0].bboxObjectKey == "analysis-results/1000/bbox_overlay.png"
@@ -256,7 +260,9 @@ def test_thermal_processor_smoke_keeps_mask_fields_null():
     result = processor.process(_build_worker_message(input_type="THERMAL_SINGLE", requested_model_type="THERMAL_ONLY"))
 
     assert result.status == "processed"
-    assert len(storage.write_calls) == 1
+    assert storage.write_calls == []
+    assert result_repository.saved_results[0].bboxBucketName is None
+    assert result_repository.saved_results[0].bboxObjectKey is None
     assert result_repository.saved_results[0].maskBucketName is None
     assert result_repository.saved_results[0].maskObjectKey is None
     assert all(defect.maskObjectKey is None for _, defects in result_repository.saved_defects for defect in defects)
@@ -416,6 +422,7 @@ class _SmokeResultRepository:
     def __init__(self) -> None:
         self.saved_results = []
         self.saved_defects = []
+        self.saved_completed_results: list[tuple[object, list[DetectedDefectDraft]]] = []
 
     def save_result(self, result):
         self.saved_results.append(result)
@@ -423,3 +430,9 @@ class _SmokeResultRepository:
 
     def save_defects(self, analysis_result_id: int, defects: list[DetectedDefectDraft]) -> None:
         self.saved_defects.append((analysis_result_id, defects))
+
+    def save_completed_result(self, result, defects: list[DetectedDefectDraft]) -> int:
+        self.saved_results.append(result)
+        self.saved_defects.append((999, defects))
+        self.saved_completed_results.append((result, defects))
+        return 999

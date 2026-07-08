@@ -1,4 +1,4 @@
-import type { ImageSummary } from '../images/types'
+﻿import type { ImageSummary } from '../images/types'
 
 export type InspectionStatus =
   | 'READY'

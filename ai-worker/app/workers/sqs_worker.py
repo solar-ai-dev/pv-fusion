@@ -11,6 +11,8 @@ from app.domain.worker_message import WorkerMessage
 
 logger = logging.getLogger(__name__)
 
+_MAX_BODY_PREVIEW_CHARS = 300
+
 
 class SqsWorkerRunner:
     def __init__(self, queue_port: QueuePort, processor: AnalysisJobProcessor) -> None:
@@ -20,9 +22,21 @@ class SqsWorkerRunner:
         self._is_running = False
 
     def run_once(self, max_number: int = 1) -> int:
+        """
+        메시지를 수신하고 각각 처리한다.
+        handle_message 내 예외는 폴링 루프를 죽이지 않도록 여기서 잡아 로그를 남긴다.
+        receive_messages 자체가 실패(SQS 연결 불가 등)하면 caller 로 전파한다.
+        """
         handled = 0
-        for queue_message in self._queue_port.receive_messages(max_number=max_number):
-            self.handle_message(queue_message)
+        messages = self._queue_port.receive_messages(max_number=max_number)
+        for queue_message in messages:
+            try:
+                self.handle_message(queue_message)
+            except Exception:
+                logger.exception(
+                    "worker.unexpected_exception phase=handle_message messageId=%s",
+                    queue_message.messageId,
+                )
             handled += 1
         return handled
 
@@ -44,10 +58,34 @@ class SqsWorkerRunner:
         self._stop_requested.set()
 
     def handle_message(self, queue_message: QueueMessage) -> ProcessingResult:
+        logger.info(
+            "sqs.message.received messageId=%s hasReceiptHandle=%s bodyLength=%s",
+            queue_message.messageId,
+            bool(queue_message.receiptHandle),
+            len(queue_message.body),
+        )
+
+        logger.debug(
+            "worker_message.parse.start messageId=%s",
+            queue_message.messageId,
+        )
         message = self._parse_message(queue_message.body)
+
         if message is None:
             logger.warning(
-                "Received invalid analysis job message. messageId=%s",
+                "worker_message.parse.failed failure_code=INVALID_WORKER_MESSAGE "
+                "messageId=%s bodyLength=%s bodyPreview=%s",
+                queue_message.messageId,
+                len(queue_message.body),
+                queue_message.body[:_MAX_BODY_PREVIEW_CHARS] if queue_message.body else "",
+            )
+            logger.info(
+                "sqs.message.delete.before messageId=%s reason=invalid_message",
+                queue_message.messageId,
+            )
+            self._queue_port.delete_message(queue_message.receiptHandle)
+            logger.info(
+                "sqs.message.delete.after messageId=%s reason=invalid_message",
                 queue_message.messageId,
             )
             return ProcessingResult(
@@ -56,32 +94,48 @@ class SqsWorkerRunner:
                 message="Invalid worker message.",
                 failureCode="INVALID_WORKER_MESSAGE",
                 failureMessage="Invalid worker message.",
+                terminal=True,
             )
 
         logger.info(
-            "Received analysis job message. messageId=%s jobId=%s traceId=%s inputType=%s",
+            "worker_message.parse.success messageId=%s jobId=%s imageId=%s "
+            "inputType=%s requestedModelType=%s traceId=%s",
             queue_message.messageId,
             message.jobId,
-            message.traceId,
+            message.imageId,
             message.inputType.value,
+            message.requestedModelType.value,
+            message.traceId,
         )
+
         result = self._processor.process(message)
-        if result.status in {"processed", "skipped"}:
+
+        should_delete = result.status in {"processed", "skipped"} or result.terminal
+        if should_delete:
+            logger.info(
+                "sqs.message.delete.before messageId=%s jobId=%s status=%s terminal=%s",
+                queue_message.messageId,
+                result.jobId,
+                result.status,
+                result.terminal,
+            )
             self._queue_port.delete_message(queue_message.receiptHandle)
             logger.info(
-                "Deleted analysis job message. messageId=%s jobId=%s status=%s",
+                "sqs.message.delete.after messageId=%s jobId=%s status=%s",
                 queue_message.messageId,
                 result.jobId,
                 result.status,
             )
         elif result.failureCode is not None:
             logger.warning(
-                "Analysis job message processing failed. messageId=%s jobId=%s traceId=%s errorCode=%s",
+                "Analysis job message processing failed — message will be retried after visibility timeout. "
+                "messageId=%s jobId=%s traceId=%s errorCode=%s",
                 queue_message.messageId,
                 message.jobId,
                 message.traceId,
                 result.failureCode,
             )
+
         return result
 
     def _parse_message(self, body: str) -> WorkerMessage | None:

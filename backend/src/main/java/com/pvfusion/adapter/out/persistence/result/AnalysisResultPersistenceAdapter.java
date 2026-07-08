@@ -59,6 +59,7 @@ public class AnalysisResultPersistenceAdapter implements LoadAnalysisResultPort,
 
     private Page<AnalysisResultJpaEntity> search(AnalysisResultListQuery query) {
         return analysisResultJpaRepository.search(
+                query.actorUserId(),
                 query.plantId(),
                 query.zoneId(),
                 query.inspectionId(),
@@ -72,6 +73,8 @@ public class AnalysisResultPersistenceAdapter implements LoadAnalysisResultPort,
                 query.severityLevel() != null ? query.severityLevel().name() : null,
                 query.reviewStatus() != null ? query.reviewStatus().name() : null,
                 null,
+                query.from() != null ? query.from().toString() : null,
+                query.to() != null ? query.to().toString() : null,
                 PageRequest.of(query.page(), query.size(), Sort.unsorted())
         );
     }

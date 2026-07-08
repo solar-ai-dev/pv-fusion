@@ -26,11 +26,12 @@ public class InspectionPersistenceAdapter implements LoadInspectionPort, SaveIns
     @Override
     public List<Inspection> loadInspections(InspectionListQuery query) {
         return inspectionJpaRepository.search(
+                        query.actorUserId(),
                         query.plantId(),
                         query.zoneId(),
                         query.inspectionStatus() != null ? query.inspectionStatus().name() : null,
-                        query.from(),
-                        query.to(),
+                        query.from() != null ? query.from().toString() : null,
+                        query.to() != null ? query.to().toString() : null,
                         PageRequest.of(query.page(), query.size())
                 )
                 .stream()
@@ -41,11 +42,12 @@ public class InspectionPersistenceAdapter implements LoadInspectionPort, SaveIns
     @Override
     public long countInspections(InspectionListQuery query) {
         return inspectionJpaRepository.search(
+                        query.actorUserId(),
                         query.plantId(),
                         query.zoneId(),
                         query.inspectionStatus() != null ? query.inspectionStatus().name() : null,
-                        query.from(),
-                        query.to(),
+                        query.from() != null ? query.from().toString() : null,
+                        query.to() != null ? query.to().toString() : null,
                         PageRequest.of(0, Math.max(query.size(), 1))
                 )
                 .getTotalElements();

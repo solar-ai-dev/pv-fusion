@@ -52,16 +52,19 @@ export function useCreateAnalysisJob() {
   })
 }
 
-export function useRetryAnalysisJob(jobId: number) {
+export function useRetryAnalysisJob() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (payload?: RetryAnalysisJobRequest) =>
+    mutationFn: ({ jobId, payload }: { jobId: number; payload?: RetryAnalysisJobRequest }) =>
       analysisJobApi.retryAnalysisJob(jobId, payload),
-    onSuccess: () => {
+    onSuccess: (response, variables) => {
       void queryClient.invalidateQueries({ queryKey: analysisJobQueryKeys.lists() })
       void queryClient.invalidateQueries({
-        queryKey: analysisJobQueryKeys.detail(jobId),
+        queryKey: analysisJobQueryKeys.detail(response.data.jobId),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: analysisJobQueryKeys.detail(variables.jobId),
       })
     },
   })

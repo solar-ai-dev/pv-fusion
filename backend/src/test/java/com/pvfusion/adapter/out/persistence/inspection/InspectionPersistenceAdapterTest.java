@@ -56,12 +56,12 @@ class InspectionPersistenceAdapterTest {
         );
         InspectionListQuery query = new InspectionListQuery(1L, null, 10L, InspectionStatus.READY, null, null, 0, 20);
 
-        when(inspectionJpaRepository.search(any(), any(), any(), any(), any(), any(PageRequest.class)))
+        when(inspectionJpaRepository.search(any(), any(), any(), any(), any(), any(), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of(entity)));
 
         List<Inspection> result = adapter.loadInspections(query);
 
-        verify(inspectionJpaRepository).search(any(), any(), any(), any(), any(), any(PageRequest.class));
+        verify(inspectionJpaRepository).search(any(), any(), any(), any(), any(), any(), any(PageRequest.class));
         assertThat(result).hasSize(1);
     }
 }

@@ -163,6 +163,58 @@ def test_runner_routes_thermal_single_to_thermal_model(tmp_path: Path):
     assert result.anomalyCount == 1
 
 
+def test_runner_passes_manifest_preprocess_id_to_preprocess(tmp_path: Path):
+    thermal_path = tmp_path / "thermal.onnx"
+    thermal_path.write_bytes(b"fake")
+    registry = ModelRegistry(
+        build_settings(
+            rgbModelManifestPath=_write_manifest(
+                tmp_path / "rgb-manifest.yaml",
+                model_name="pv-rgb",
+                model_version="v1.0.0",
+                input_type="RGB_SINGLE",
+                model_type="RGB_ONLY",
+                input_size=640,
+                confidence_threshold="0.50",
+                model_path=str(tmp_path / "rgb.onnx"),
+            ),
+            thermalModelManifestPath=_write_manifest(
+                tmp_path / "thermal-manifest.yaml",
+                model_name="pv-thermal",
+                model_version="v1.0.0",
+                input_type="THERMAL_SINGLE",
+                model_type="THERMAL_ONLY",
+                input_size=512,
+                confidence_threshold="0.60",
+                model_path=str(thermal_path),
+                preprocess_id="RAW_UINT8_NORMALIZED",
+            ),
+        )
+    )
+    session = FakeSession([[[10, 20, 30, 50, 0.8, 0]]])
+    preprocess_calls = []
+    provider = OnnxSessionProvider(session_factory=lambda _: session)
+    runner = OnnxModelRunner(
+        registry,
+        provider,
+        preprocess=lambda image_bytes, input_size, **kwargs: preprocess_calls.append((image_bytes, input_size, kwargs)) or "tensor",
+    )
+
+    runner.run(
+        build_single_image("THERMAL"),
+        build_placeholder_model(RequestedModelType.THERMAL_ONLY, ModelType.THERMAL_ONLY),
+        b"thermal",
+    )
+
+    assert preprocess_calls == [
+        (
+            b"thermal",
+            512,
+            {"input_type": "THERMAL", "preprocess_id": "RAW_UINT8_NORMALIZED"},
+        )
+    ]
+
+
 def test_runner_handles_rgb_outputs_with_bbox_and_mask_tensors(tmp_path: Path):
     model_path = tmp_path / "rgb.onnx"
     model_path.write_bytes(b"fake")
@@ -225,7 +277,7 @@ def build_settings(**overrides):
 
     payload = {
         "rgbModelManifestPath": "models/rgb/model-manifest.dev.yaml",
-        "thermalModelManifestPath": "models/thermal/model-manifest.dev.yaml",
+        "thermalModelManifestPath": "models/thermal/model-manifest.yaml",
     }
     payload.update(overrides)
     return Settings(**payload)
@@ -241,6 +293,7 @@ def _write_manifest(
     input_size: int,
     confidence_threshold: str,
     model_path: str,
+    preprocess_id: str | None = None,
 ) -> str:
     path.write_text(
         "\n".join(
@@ -258,6 +311,7 @@ def _write_manifest(
                 f"    input_size: {input_size}",
                 f"    confidence_threshold: {confidence_threshold}",
                 "    nms_iou_threshold: 0.70",
+                *(["    preprocess_id: " + preprocess_id] if preprocess_id else []),
                 f"    model_path: {model_path}",
                 "    class_names:",
                 "      - HOTSPOT",

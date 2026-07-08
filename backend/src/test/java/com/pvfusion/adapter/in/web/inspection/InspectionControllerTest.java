@@ -13,6 +13,7 @@ import com.pvfusion.application.dto.inspection.InspectionResponse;
 import com.pvfusion.application.dto.inspection.InspectionSummaryResponse;
 import com.pvfusion.application.port.in.inspection.CreateInspectionUseCase;
 import com.pvfusion.application.port.in.inspection.GetInspectionUseCase;
+import com.pvfusion.application.port.in.inspection.ManageInspectionDeletionUseCase;
 import com.pvfusion.application.port.in.inspection.QueryInspectionUseCase;
 import com.pvfusion.application.port.in.inspection.UpdateInspectionUseCase;
 import com.pvfusion.domain.inspection.CaptureMethod;
@@ -46,6 +47,8 @@ class InspectionControllerTest {
     private GetInspectionUseCase getInspectionUseCase;
     @Mock
     private UpdateInspectionUseCase updateInspectionUseCase;
+    @Mock
+    private ManageInspectionDeletionUseCase manageInspectionDeletionUseCase;
 
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
@@ -61,7 +64,8 @@ class InspectionControllerTest {
                 createInspectionUseCase,
                 queryInspectionUseCase,
                 getInspectionUseCase,
-                updateInspectionUseCase
+                updateInspectionUseCase,
+                manageInspectionDeletionUseCase
         ))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)

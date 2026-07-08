@@ -43,12 +43,13 @@ public class TrackingPersistenceAdapter implements LoadTrackingPort, LoadInspect
     @Override
     public List<TrackingSummaryResponse> loadTracking(TrackingQuery query) {
         return trackingJpaRepository.searchTracking(
+                        query.actorUserId(),
                         query.plantId(),
                         query.zoneId(),
                         query.equipmentId(),
                         enumName(query.targetType()),
-                        query.from(),
-                        query.to(),
+                        query.from() != null ? query.from().toString() : null,
+                        query.to() != null ? query.to().toString() : null,
                         enumName(query.inputType()),
                         enumName(query.modelType()),
                         enumName(query.actionCandidate()),
@@ -62,12 +63,13 @@ public class TrackingPersistenceAdapter implements LoadTrackingPort, LoadInspect
     @Override
     public List<RepeatedAnomalyResponse> loadRepeatedAnomalies(RepeatedAnomalyQuery query) {
         return trackingJpaRepository.searchTracking(
+                        query.actorUserId(),
                         query.plantId(),
                         query.zoneId(),
                         query.equipmentId(),
                         enumName(query.targetType()),
-                        query.from(),
-                        query.to(),
+                        query.from() != null ? query.from().toString() : null,
+                        query.to() != null ? query.to().toString() : null,
                         null,
                         null,
                         null,

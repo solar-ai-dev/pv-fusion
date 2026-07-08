@@ -20,6 +20,7 @@ def build_model_info(
         runtime="onnxruntime",
         inputSize=640,
         threshold=threshold,
+        nmsIouThreshold="0.45",
         classNames=class_names or [],
     )
 
@@ -60,10 +61,38 @@ def test_thermal_output_uses_unknown_for_unmapped_class_name():
 def test_thermal_output_uses_allowed_manifest_class_name_as_defect_type():
     result = parse_inference_output(
         [[[10, 20, 30, 50, 0.9, 0]]],
-        build_model_info(ModelType.THERMAL_ONLY, class_names=["DUST"]),
+        build_model_info(ModelType.THERMAL_ONLY, class_names=["HotSpot"]),
     )
 
-    assert result.defects[0].defectType == "DUST"
+    assert result.defects[0].defectType == "HOTSPOT"
+
+
+def test_thermal_output_restores_bbox_from_letterboxed_coordinates():
+    image_context = type(
+        "ImageContext",
+        (),
+        {
+            "originalWidth": 320,
+            "originalHeight": 160,
+            "resizedWidth": 640,
+            "resizedHeight": 320,
+            "scaleX": 2.0,
+            "scaleY": 2.0,
+            "padX": 0,
+            "padY": 160,
+        },
+    )()
+
+    detections = extract_detections(
+        [[[100, 200, 300, 320, 0.9, 0]]],
+        build_model_info(ModelType.THERMAL_ONLY, class_names=["HotSpot"]),
+        image_context=image_context,
+    )
+
+    assert detections[0].bbox_x == 50
+    assert detections[0].bbox_y == 20
+    assert detections[0].bbox_width == 100
+    assert detections[0].bbox_height == 60
 
 
 def test_rgb_output_uses_unknown_for_non_enum_manifest_class_name():

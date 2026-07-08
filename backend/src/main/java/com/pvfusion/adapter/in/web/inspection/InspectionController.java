@@ -1,6 +1,8 @@
 package com.pvfusion.adapter.in.web.inspection;
 
 import com.pvfusion.application.dto.inspection.CreateInspectionCommand;
+import com.pvfusion.application.dto.deletion.DeleteImpactResponse;
+import com.pvfusion.application.dto.deletion.DeleteResourceResponse;
 import com.pvfusion.application.dto.inspection.GetInspectionQuery;
 import com.pvfusion.application.dto.inspection.InspectionListQuery;
 import com.pvfusion.application.dto.inspection.InspectionResponse;
@@ -8,6 +10,7 @@ import com.pvfusion.application.dto.inspection.InspectionSummaryResponse;
 import com.pvfusion.application.dto.inspection.UpdateInspectionCommand;
 import com.pvfusion.application.port.in.inspection.CreateInspectionUseCase;
 import com.pvfusion.application.port.in.inspection.GetInspectionUseCase;
+import com.pvfusion.application.port.in.inspection.ManageInspectionDeletionUseCase;
 import com.pvfusion.application.port.in.inspection.QueryInspectionUseCase;
 import com.pvfusion.application.port.in.inspection.UpdateInspectionUseCase;
 import com.pvfusion.domain.inspection.InspectionStatus;
@@ -19,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,6 +41,7 @@ public class InspectionController {
     private final QueryInspectionUseCase queryInspectionUseCase;
     private final GetInspectionUseCase getInspectionUseCase;
     private final UpdateInspectionUseCase updateInspectionUseCase;
+    private final ManageInspectionDeletionUseCase manageInspectionDeletionUseCase;
 
     @PostMapping
     public ResponseEntity<ApiResponse<InspectionResponse>> createInspection(
@@ -101,5 +106,21 @@ public class InspectionController {
         ));
 
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{inspectionId}/delete-impact")
+    public ResponseEntity<ApiResponse<DeleteImpactResponse>> getInspectionDeleteImpact(
+            @PathVariable Long inspectionId
+    ) {
+        DeleteImpactResponse response = manageInspectionDeletionUseCase.getInspectionDeleteImpact(inspectionId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @DeleteMapping("/{inspectionId}")
+    public ResponseEntity<ApiResponse<DeleteResourceResponse>> deleteInspection(
+            @PathVariable Long inspectionId
+    ) {
+        DeleteResourceResponse response = manageInspectionDeletionUseCase.deleteInspection(inspectionId);
+        return ResponseEntity.ok(ApiResponse.success(response, "점검이 삭제되었습니다."));
     }
 }

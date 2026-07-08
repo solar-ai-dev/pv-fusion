@@ -162,12 +162,12 @@ public class AnalysisResultService implements
 
     @Override
     public PageResponse<AnalysisResultSummaryResponse> execute(AnalysisResultListQuery query) {
-        requireCurrentUserId();
+        Long currentUserId = requireCurrentUserId();
         validatePage(query.page(), query.size());
-        validateListScope(query);
+        AnalysisResultListQuery execQuery = scopeListQuery(currentUserId, query);
 
-        List<AnalysisResult> results = loadAnalysisResultPort.loadAnalysisResults(query);
-        long totalElements = loadAnalysisResultPort.countAnalysisResults(query);
+        List<AnalysisResult> results = loadAnalysisResultPort.loadAnalysisResults(execQuery);
+        long totalElements = loadAnalysisResultPort.countAnalysisResults(execQuery);
         List<AnalysisResultSummaryResponse> content = results.stream()
                 .map(this::toSummaryResponse)
                 .toList();
@@ -279,7 +279,7 @@ public class AnalysisResultService implements
         if (!isBlank(target.fileUrl())) {
             return new ResultVisualizationResponse(target.type(), target.fileUrl(), null);
         }
-        throw new BusinessException(ErrorCode.NOT_FOUND, "Visualization not found for type: " + query.type());
+        throw new BusinessException(ErrorCode.VISUALIZATION_NOT_FOUND, "Visualization not found for type: " + query.type());
     }
 
     @Override
@@ -357,6 +357,7 @@ public class AnalysisResultService implements
                 context.plantId(),
                 context.zoneId(),
                 context.inspectionId(),
+                context.imageId(),
                 context.targetType(),
                 context.equipmentId(),
                 context.inputType(),
@@ -370,15 +371,15 @@ public class AnalysisResultService implements
                 result.getActionCandidate(),
                 result.getPriorityLevel(),
                 result.getReviewStatus(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
+                result.getBboxBucketName(),
+                result.getBboxObjectKey(),
+                result.getBboxFileUrl(),
+                result.getHeatmapBucketName(),
+                result.getHeatmapObjectKey(),
+                result.getHeatmapFileUrl(),
+                result.getMaskBucketName(),
+                result.getMaskObjectKey(),
+                result.getMaskFileUrl(),
                 result.getAnalyzedAt(),
                 result.getCreatedAt(),
                 result.getUpdatedAt(),
@@ -527,7 +528,7 @@ public class AnalysisResultService implements
     private ResultContext resolveContext(AnalysisResult result) {
         AnalysisJob job = loadAnalysisJobPort.loadAnalysisJob(result.getAnalysisJobId()).orElse(null);
         if (job == null) {
-            return new ResultContext(null, null, null, null, null, null, null);
+            return new ResultContext(null, null, null, null, null, null, null, null);
         }
 
         Long inspectionId;
@@ -535,7 +536,7 @@ public class AnalysisResultService implements
         TargetType targetType;
         InspectionImage image = loadImagePort.loadImage(job.getImageId()).orElse(null);
         if (image == null) {
-            return new ResultContext(null, null, null, null, null, job.getInputType(), job.getJobStatus());
+            return new ResultContext(null, null, null, job.getImageId(), null, null, job.getInputType(), job.getJobStatus());
         }
         inspectionId = image.getInspectionId();
         equipmentId = image.getEquipmentId();
@@ -543,16 +544,17 @@ public class AnalysisResultService implements
 
         Inspection inspection = inspectionId != null ? loadInspectionPort.loadInspection(inspectionId).orElse(null) : null;
         if (inspection == null) {
-            return new ResultContext(inspectionId, null, null, equipmentId, targetType, job.getInputType(), job.getJobStatus());
+            return new ResultContext(inspectionId, null, null, image.getId(), equipmentId, targetType, job.getInputType(), job.getJobStatus());
         }
         if (loadZonePort.isEmpty()) {
-            return new ResultContext(inspectionId, inspection.getZoneId(), null, equipmentId, targetType, job.getInputType(), job.getJobStatus());
+            return new ResultContext(inspectionId, inspection.getZoneId(), null, image.getId(), equipmentId, targetType, job.getInputType(), job.getJobStatus());
         }
         Zone zone = loadZonePort.get().loadZone(inspection.getZoneId()).orElse(null);
         return new ResultContext(
                 inspectionId,
                 inspection.getZoneId(),
                 zone != null ? zone.getPlantId() : null,
+                image.getId(),
                 equipmentId,
                 targetType,
                 job.getInputType(),
@@ -585,16 +587,8 @@ public class AnalysisResultService implements
         };
     }
 
-    private void validateListScope(AnalysisResultListQuery query) {
-        Long currentUserId = requireCurrentUserId();
+    private AnalysisResultListQuery scopeListQuery(Long currentUserId, AnalysisResultListQuery query) {
         boolean admin = accessChecker.isAdmin(currentUserId);
-        if (!admin
-                && query.plantId() == null
-                && query.zoneId() == null
-                && query.inspectionId() == null
-                && query.equipmentId() == null) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "Non-admin analysis result queries require scoped filters.");
-        }
 
         if (query.plantId() != null) {
             ensureAllowed(accessChecker.checkPlantAccess(currentUserId, query.plantId()));
@@ -608,6 +602,20 @@ public class AnalysisResultService implements
         if (query.equipmentId() != null) {
             ensureAllowed(accessChecker.checkEquipmentAccess(currentUserId, query.equipmentId()));
         }
+
+        boolean noScope = query.plantId() == null && query.zoneId() == null
+                && query.inspectionId() == null && query.equipmentId() == null;
+        if (!admin && noScope) {
+            // non-admin, no explicit scope: auto-filter by plant membership
+            return new AnalysisResultListQuery(
+                    currentUserId,
+                    query.plantId(), query.zoneId(), query.inspectionId(),
+                    query.targetType(), query.equipmentId(), query.inputType(), query.modelType(),
+                    query.jobStatus(), query.resultStatus(), query.actionCandidate(), query.severityLevel(),
+                    query.reviewStatus(), query.from(), query.to(), query.page(), query.size()
+            );
+        }
+        return query;
     }
 
     private AnalysisResult loadAnalysisResult(Long resultId) {
@@ -664,6 +672,7 @@ public class AnalysisResultService implements
             Long inspectionId,
             Long zoneId,
             Long plantId,
+            Long imageId,
             Long equipmentId,
             TargetType targetType,
             com.pvfusion.domain.analysis.AnalysisInputType inputType,

@@ -1,4 +1,4 @@
-import axios from 'axios'
+﻿import axios from 'axios'
 import { create } from 'zustand'
 import { ApiErrorResponse } from '../../../shared/api/types'
 import { authApi } from '../api/authApi'
@@ -24,9 +24,21 @@ function resolveAuthFailure(
     const status = error.response?.status
     const responseBody = error.response?.data?.error ?? null
 
+    if (!error.response) {
+      return {
+        error: {
+          status: 503,
+          code: 'AUTH_SERVER_UNREACHABLE',
+          message: '인증 서버에 연결할 수 없습니다.',
+          detail: '잠시 후 다시 시도하거나 Backend 서버가 실행 중인지 확인하세요.',
+        },
+        resolution: 'error',
+      }
+    }
+
     if (status === 401) {
       return {
-        error: responseBody,
+        error: null,
         resolution: 'unauthenticated',
       }
     }
@@ -44,7 +56,7 @@ function resolveAuthFailure(
         ({
           status: status ?? 500,
           code: 'AUTH_REQUEST_FAILED',
-          message: '인증 상태를 확인하지 못했습니다.',
+          message: '인증 상태를 확인할 수 없습니다.',
         } satisfies ApiErrorResponse['error']),
       resolution: 'error',
     }
@@ -54,7 +66,7 @@ function resolveAuthFailure(
     error: {
       status: 500,
       code: 'AUTH_UNKNOWN_ERROR',
-      message: '인증 서버에 연결하지 못했습니다.',
+      message: '인증 서버에 연결할 수 없습니다.',
       detail: error instanceof Error ? error.message : undefined,
     },
     resolution: 'error',
@@ -162,7 +174,7 @@ export const useAuth = create<AuthState>((set, get) => ({
         message:
           failure.error?.detail ??
           failure.error?.message ??
-          '로그아웃 처리 중 오류가 발생했습니다.',
+          '로그아웃 처리 중 문제가 발생했습니다.',
       }
     } finally {
       set({ isLoggingOut: false })

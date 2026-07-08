@@ -8,6 +8,7 @@ import com.pvfusion.domain.result.ActionCandidate;
 import com.pvfusion.domain.result.AnalysisResultStatus;
 import com.pvfusion.domain.result.SeverityLevel;
 import com.pvfusion.domain.review.ReviewStatus;
+import java.time.LocalDate;
 
 public record AnalysisResultListQuery(
         Long actorUserId,
@@ -23,6 +24,8 @@ public record AnalysisResultListQuery(
         ActionCandidate actionCandidate,
         SeverityLevel severityLevel,
         ReviewStatus reviewStatus,
+        LocalDate from,
+        LocalDate to,
         int page,
         int size
 ) {
@@ -39,6 +42,8 @@ public record AnalysisResultListQuery(
             ActionCandidate actionCandidate,
             SeverityLevel severityLevel,
             ReviewStatus reviewStatus,
+            LocalDate from,
+            LocalDate to,
             int page,
             int size
     ) {
@@ -56,6 +61,8 @@ public record AnalysisResultListQuery(
                 actionCandidate,
                 severityLevel,
                 reviewStatus,
+                from,
+                to,
                 page,
                 size
         );

@@ -1,40 +1,23 @@
-import type { ReactNode } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMemo, useState } from 'react'
-import { useForm, type UseFormReturn } from 'react-hook-form'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { z } from 'zod'
-import { EquipmentTree } from '../features/equipments/components/EquipmentTree'
-import {
-  useCreateEquipment,
-  useDeactivateEquipment,
-  useEquipments,
-  useUpdateEquipment,
-} from '../features/equipments/hooks/useEquipments'
-import {
-  EQUIPMENT_TYPE_OPTIONS,
-  flattenEquipmentTree,
-  getEquipmentTypeLabel,
-  type CreateEquipmentRequest,
-  type EquipmentListParams,
-  type EquipmentTreeNode,
-  type EquipmentType,
-  type UpdateEquipmentRequest,
-} from '../features/equipments/types'
-import {
-  getResourceStatusLabel,
-  getResourceStatusTone,
-  RESOURCE_STATUS_OPTIONS,
-  type ResourceStatus,
-} from '../features/plants/types'
-import { useTracking } from '../features/tracking/hooks/useTracking'
+import { InspectionCreateWizard } from '../features/inspections/components/InspectionCreateWizard'
+import { useInspections } from '../features/inspections/hooks/useInspections'
+import { getInspectionStatusLabel, getInspectionStatusTone } from '../features/inspections/types'
+import { usePlant } from '../features/plants/hooks/usePlants'
+import { getResourceStatusLabel, getResourceStatusTone } from '../features/plants/types'
 import {
   useDeactivateZone,
+  useDeleteZone,
   useUpdateZone,
   useZone,
+  useZoneDeleteImpact,
 } from '../features/zones/hooks/useZones'
-import type { UpdateZoneRequest } from '../features/zones/types'
+import { getPriorityLabel, type UpdateZoneRequest } from '../features/zones/types'
 import { ConfirmModal } from '../shared/components/feedback/ConfirmModal'
+import { DeleteImpactSummary } from '../shared/components/feedback/DeleteImpactSummary'
 import { FormField } from '../shared/components/form/FormField'
 import { PageHeader } from '../shared/components/layout/PageHeader'
 import { EmptyState } from '../shared/components/state/EmptyState'
@@ -42,639 +25,345 @@ import { ErrorState } from '../shared/components/state/ErrorState'
 import { LoadingState } from '../shared/components/state/LoadingState'
 import { StatusBadge } from '../shared/components/state/StatusBadge'
 import { useToast } from '../shared/hooks/useToast'
-import {
-  formatCount,
-  formatDateTime,
-  formatRatioPercent,
-  getApiErrorMessage,
-  parsePositiveNumber,
-} from '../shared/utils'
+import { formatDateTime, getApiErrorMessage, parsePositiveNumber } from '../shared/utils'
 
 const zoneFormSchema = z.object({
-  name: z.string().trim().min(1, '구역 이름은 필수입니다.'),
+  name: z.string().trim().min(1, '구역 이름을 입력해 주세요.'),
   location: z.string().trim().optional(),
   description: z.string().trim().optional(),
 })
-
-const equipmentFormSchema = z.object({
-  parentEquipmentId: z.string().optional(),
-  equipmentType: z.enum(EQUIPMENT_TYPE_OPTIONS),
-  name: z.string().trim().min(1, '장비 이름은 필수입니다.'),
-  positionCode: z.string().trim().optional(),
-})
-
 type ZoneFormValues = z.infer<typeof zoneFormSchema>
-type EquipmentFormValues = z.infer<typeof equipmentFormSchema>
 
 export function ZoneDetailPage() {
-  const params = useParams()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const { zoneId: zoneIdParam } = useParams()
+  const navigate = useNavigate()
   const toast = useToast()
-  const zoneId = parsePositiveNumber(params.zoneId)
+  const zoneId = parsePositiveNumber(zoneIdParam) ?? 0
 
-  const [isEditZoneModalOpen, setIsEditZoneModalOpen] = useState(false)
-  const [isCreateEquipmentModalOpen, setIsCreateEquipmentModalOpen] = useState(false)
-  const [selectedEquipment, setSelectedEquipment] = useState<EquipmentTreeNode | null>(
-    null,
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isDeactivateOpen, setIsDeactivateOpen] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [isInspectionWizardOpen, setIsInspectionWizardOpen] = useState(false)
+
+  const zoneQuery = useZone(zoneId)
+  const zone = zoneQuery.data?.data ?? null
+  const plantQuery = usePlant(zone?.plantId ?? 0)
+  const plant = plantQuery.data?.data ?? null
+  const inspectionsQuery = useInspections(
+    { zoneId: zoneId || undefined, page: 0, size: 10 },
+    zoneId > 0,
   )
-  const [isDeactivateZoneModalOpen, setIsDeactivateZoneModalOpen] = useState(false)
-  const [equipmentToDeactivate, setEquipmentToDeactivate] =
-    useState<EquipmentTreeNode | null>(null)
+  const inspections = inspectionsQuery.data?.data.content ?? []
 
-  const statusParam = searchParams.get('status')
-  const typeParam = searchParams.get('equipmentType')
+  const updateZoneMutation = useUpdateZone(zoneId)
+  const deactivateZoneMutation = useDeactivateZone(zoneId)
+  const deleteZoneMutation = useDeleteZone(zoneId)
+  const zoneDeleteImpactQuery = useZoneDeleteImpact(zoneId, isDeleteOpen)
 
-  const equipmentFilters: EquipmentListParams = {
-    status: RESOURCE_STATUS_OPTIONS.includes(statusParam as ResourceStatus)
-      ? (statusParam as ResourceStatus)
-      : undefined,
-    equipmentType: EQUIPMENT_TYPE_OPTIONS.includes(typeParam as EquipmentType)
-      ? (typeParam as EquipmentType)
-      : undefined,
-  }
-
-  const zoneQuery = useZone(zoneId ?? 0)
-  const equipmentsQuery = useEquipments(zoneId ?? 0, equipmentFilters)
-  const trackingQuery = useTracking({ zoneId: zoneId ?? undefined }, Boolean(zoneId))
-  const updateZoneMutation = useUpdateZone(zoneId ?? 0)
-  const deactivateZoneMutation = useDeactivateZone(zoneId ?? 0)
-  const createEquipmentMutation = useCreateEquipment(zoneId ?? 0, equipmentFilters)
-  const updateEquipmentMutation = useUpdateEquipment(zoneId ?? 0, equipmentFilters)
-  const deactivateEquipmentMutation = useDeactivateEquipment(zoneId ?? 0, equipmentFilters)
-
-  const zoneForm = useForm<ZoneFormValues>({
+  const form = useForm<ZoneFormValues>({
     resolver: zodResolver(zoneFormSchema),
-    values: {
-      name: zoneQuery.data?.data.name ?? '',
-      location: zoneQuery.data?.data.location ?? '',
-      description: zoneQuery.data?.data.description ?? '',
-    },
+    defaultValues: { name: '', location: '', description: '' },
   })
 
-  const createEquipmentForm = useForm<EquipmentFormValues>({
-    resolver: zodResolver(equipmentFormSchema),
-    defaultValues: {
-      parentEquipmentId: '',
-      equipmentType: 'ARRAY',
-      name: '',
-      positionCode: '',
-    },
-  })
-
-  const editEquipmentForm = useForm<EquipmentFormValues>({
-    resolver: zodResolver(equipmentFormSchema),
-    values: {
-      parentEquipmentId: selectedEquipment?.parentEquipmentId
-        ? String(selectedEquipment.parentEquipmentId)
-        : '',
-      equipmentType: selectedEquipment?.equipmentType ?? 'ARRAY',
-      name: selectedEquipment?.name ?? '',
-      positionCode: selectedEquipment?.positionCode ?? '',
-    },
-  })
-
-  const flattenedEquipments = useMemo(
-    () => flattenEquipmentTree(equipmentsQuery.data?.data ?? []),
-    [equipmentsQuery.data],
-  )
-  const trackingItems = trackingQuery.data?.data.items ?? []
-  const latestTracking = [...trackingItems]
-    .filter((item) => item.analyzedAt)
-    .sort((left, right) => String(right.analyzedAt).localeCompare(String(left.analyzedAt)))[0]
-  const repeatedCount = trackingItems.filter((item) => item.repeated).length
-  const worsenedCount = trackingItems.filter((item) => item.worsened).length
+  useEffect(() => {
+    if (isEditOpen && zone) {
+      form.reset({
+        name: zone.name,
+        location: zone.location ?? '',
+        description: zone.description ?? '',
+      })
+    }
+  }, [isEditOpen, zone, form])
 
   if (!zoneId) {
     return (
+      <ErrorState title="올바르지 않은 구역 정보입니다." description="주소를 다시 확인해 주세요." />
+    )
+  }
+
+  if (zoneQuery.isLoading) {
+    return <LoadingState message="구역 정보를 불러오는 중입니다." />
+  }
+
+  if (zoneQuery.isError || !zone) {
+    return (
       <ErrorState
-        title="잘못된 구역 ID입니다."
-        description="URL의 zoneId가 숫자인지 확인해 주세요."
+        title="구역 정보를 불러오지 못했습니다."
+        description={getApiErrorMessage(zoneQuery.error)}
       />
     )
   }
 
-  const handleUpdateZone = zoneForm.handleSubmit(async (values) => {
+  const handleUpdate = form.handleSubmit(async (values) => {
     const payload: UpdateZoneRequest = {
       name: values.name.trim(),
       location: values.location?.trim() || null,
       description: values.description?.trim() || null,
     }
-
     try {
-      const response = await updateZoneMutation.mutateAsync(payload)
-      toast.push(response.message || '구역 정보를 수정했습니다.')
-      setIsEditZoneModalOpen(false)
+      await updateZoneMutation.mutateAsync(payload)
+      toast.push('구역 정보가 저장되었습니다.')
+      setIsEditOpen(false)
     } catch (error) {
       toast.push(getApiErrorMessage(error, '구역 수정에 실패했습니다.'))
     }
   })
 
-  const handleCreateEquipment = createEquipmentForm.handleSubmit(async (values) => {
-    const payload: CreateEquipmentRequest = {
-      parentEquipmentId: values.parentEquipmentId
-        ? Number(values.parentEquipmentId)
-        : null,
-      equipmentType: values.equipmentType,
-      name: values.name.trim(),
-      positionCode: values.positionCode?.trim() || null,
-    }
-
+  const handleDeactivate = async () => {
     try {
-      const response = await createEquipmentMutation.mutateAsync(payload)
-      toast.push(response.message || '장비를 등록했습니다.')
-      createEquipmentForm.reset()
-      setIsCreateEquipmentModalOpen(false)
-    } catch (error) {
-      toast.push(getApiErrorMessage(error, '장비 등록에 실패했습니다.'))
-    }
-  })
-
-  const handleUpdateEquipment = editEquipmentForm.handleSubmit(async (values) => {
-    if (!selectedEquipment) {
-      return
-    }
-
-    const payload: UpdateEquipmentRequest = {
-      parentEquipmentId: values.parentEquipmentId
-        ? Number(values.parentEquipmentId)
-        : null,
-      equipmentType: values.equipmentType,
-      name: values.name.trim(),
-      positionCode: values.positionCode?.trim() || null,
-    }
-
-    try {
-      const response = await updateEquipmentMutation.mutateAsync({
-        equipmentId: selectedEquipment.equipmentId,
-        payload,
-      })
-      toast.push(response.message || '장비를 수정했습니다.')
-      setSelectedEquipment(null)
-    } catch (error) {
-      toast.push(getApiErrorMessage(error, '장비 수정에 실패했습니다.'))
-    }
-  })
-
-  const handleDeactivateZone = async () => {
-    try {
-      const response = await deactivateZoneMutation.mutateAsync()
-      toast.push(response.message || '구역을 비활성화했습니다.')
-      setIsDeactivateZoneModalOpen(false)
+      await deactivateZoneMutation.mutateAsync()
+      toast.push('구역이 비활성화되었습니다.')
+      setIsDeactivateOpen(false)
     } catch (error) {
       toast.push(getApiErrorMessage(error, '구역 비활성화에 실패했습니다.'))
     }
   }
 
-  const handleDeactivateEquipment = async () => {
-    if (!equipmentToDeactivate) {
+  const handleDelete = async () => {
+    if (!zoneDeleteImpactQuery.data?.data) {
+      toast.push('삭제 영향 범위를 불러오지 못했습니다.')
       return
     }
-
     try {
-      const response = await deactivateEquipmentMutation.mutateAsync(
-        equipmentToDeactivate.equipmentId,
-      )
-      toast.push(response.message || '장비를 비활성화했습니다.')
-      setEquipmentToDeactivate(null)
+      await deleteZoneMutation.mutateAsync()
+      toast.push('구역이 삭제되었습니다.')
+      navigate(plant ? `/plants/${plant.plantId}` : '/plants')
     } catch (error) {
-      toast.push(getApiErrorMessage(error, '장비 비활성화에 실패했습니다.'))
+      toast.push(getApiErrorMessage(error, '구역 삭제에 실패했습니다.'))
     }
   }
 
   return (
-    <section className="space-y-6">
+    <section className="page-shell">
       <PageHeader
-        title="구역 상세"
-        description="구역 기본 정보와 장비 트리를 backend 실제 응답 구조에 맞춰 제공합니다."
+        title={zone.name}
+        description={zone.location || '위치 정보가 없습니다.'}
         actions={
-          <>
-            <button
-              className="btn btn-secondary"
-              type="button"
-              onClick={() => setIsEditZoneModalOpen(true)}
-            >
-              구역 수정
-            </button>
+          <div className="page-actions">
             <button
               className="btn btn-primary"
               type="button"
-              onClick={() => {
-                createEquipmentForm.reset()
-                setIsCreateEquipmentModalOpen(true)
-              }}
+              onClick={() => setIsInspectionWizardOpen(true)}
             >
-              장비 등록
+              이 구역 점검 시작
             </button>
             <button
               className="btn btn-secondary"
               type="button"
-              onClick={() => setIsDeactivateZoneModalOpen(true)}
+              onClick={() => setIsEditOpen(true)}
             >
-              구역 비활성화
+              구역 수정
             </button>
-          </>
-        }
-      />
-
-      {zoneQuery.isLoading ? <LoadingState message="구역 정보를 불러오는 중입니다." /> : null}
-      {zoneQuery.isError ? (
-        <ErrorState
-          title="구역 상세 조회에 실패했습니다."
-          description={getApiErrorMessage(zoneQuery.error)}
-        />
-      ) : null}
-
-      {zoneQuery.data ? (
-        <section className="panel stack-md">
-          <div className="toolbar">
-            <div className="stack-sm">
-              <div className="inline-actions">
-                <StatusBadge
-                  label={getResourceStatusLabel(zoneQuery.data.data.status)}
-                  tone={getResourceStatusTone(zoneQuery.data.data.status)}
-                />
-                <StatusBadge label={`Array ${zoneQuery.data.data.arrayCount}개`} />
-                <StatusBadge label={`Panel ${zoneQuery.data.data.panelCount}개`} />
-              </div>
-              <div>
-                <h2 className="panel-title">{zoneQuery.data.data.name}</h2>
-                <p className="panel-description">
-                  {zoneQuery.data.data.location || '위치 정보 없음'}
-                </p>
-              </div>
-            </div>
-            <div className="inline-actions">
-              <Link className="btn btn-secondary" to={`/plants/${zoneQuery.data.data.plantId}`}>
-                상위 발전소
-              </Link>
-              <Link className="btn btn-secondary" to="/results">
-                결과 목록
-              </Link>
-            </div>
-          </div>
-          <div className="detail-grid">
-            <DetailItem label="설명" value={zoneQuery.data.data.description || '-'} />
-            <DetailItem label="우선순위" value={zoneQuery.data.data.priorityLevel || '-'} />
-            <DetailItem
-              label="조치 후보"
-              value={zoneQuery.data.data.topActionCandidate || '-'}
-            />
-            <DetailItem
-              label="후보 이상"
-              value={`${zoneQuery.data.data.anomalyCandidateCount}건`}
-            />
-            <DetailItem
-              label="최근 점검"
-              value={formatDateTime(zoneQuery.data.data.latestInspectionAt)}
-            />
-            <DetailItem label="생성자" value={String(zoneQuery.data.data.createdByUserId)} />
-          </div>
-        </section>
-      ) : null}
-
-      <section className="panel stack-md">
-        <div className="toolbar">
-          <div>
-            <h2 className="panel-title">구역 변화 추적 요약</h2>
-            <p className="panel-description">
-              `GET /tracking?zoneId=...` 응답을 기준으로 반복 이상과 악화 상태를 요약합니다.
-            </p>
-          </div>
-          <div className="inline-actions">
-            <Link className="btn btn-secondary" to={`/tracking?zoneId=${zoneId}`}>
-              추적 화면
-            </Link>
-            {latestTracking?.currentResultId ? (
-              <Link
-                className="btn btn-secondary"
-                to={`/results/${latestTracking.currentResultId}`}
-              >
-                최근 결과
+            {plant ? (
+              <Link className="btn btn-secondary" to={`/plants/${plant.plantId}`}>
+                발전소 상세
               </Link>
             ) : null}
           </div>
-        </div>
-
-        {trackingQuery.isLoading ? (
-          <LoadingState message="구역 추적 요약을 불러오는 중입니다." />
-        ) : null}
-        {trackingQuery.isError ? (
-          <ErrorState
-            title="구역 추적 요약을 불러오지 못했습니다."
-            description={getApiErrorMessage(trackingQuery.error)}
-          />
-        ) : null}
-        {trackingQuery.data ? (
-          trackingItems.length > 0 ? (
-            <div className="detail-grid">
-              <DetailItem label="추적 대상 수" value={`${formatCount(trackingItems.length)}건`} />
-              <DetailItem label="반복 이상" value={`${formatCount(repeatedCount)}건`} />
-              <DetailItem label="악화 대상" value={`${formatCount(worsenedCount)}건`} />
-              <DetailItem label="최근 분석 시각" value={formatDateTime(latestTracking?.analyzedAt)} />
-              <DetailItem
-                label="최근 면적 비율"
-                value={formatRatioPercent(latestTracking?.currentAreaRatio)}
-              />
-              <DetailItem
-                label="최근 심각도 점수"
-                value={latestTracking?.currentSeverityScore ?? '-'}
-              />
-            </div>
-          ) : (
-            <EmptyState
-              title="이 구역의 변화 추적 데이터가 없습니다."
-              description="점검 결과가 누적되면 반복 이상과 악화 요약이 이 영역에 표시됩니다."
-            />
-          )
-        ) : null}
-      </section>
-
-      <section className="panel stack-md">
-        <div className="toolbar">
-          <div>
-            <h2 className="panel-title">장비 트리</h2>
-            <p className="panel-description">
-              equipmentType / status 필터를 걸어 트리 응답을 직접 렌더합니다.
-            </p>
-          </div>
-          <div className="inline-actions text-sm text-slate-500">
-            <span>총 {flattenedEquipments.length}개 노드</span>
-          </div>
-        </div>
-        <div className="filter-grid">
-          <FormField label="장비 유형">
-            <select
-              className="input-field"
-              value={equipmentFilters.equipmentType ?? ''}
-              onChange={(event) => updateEquipmentFilter('equipmentType', event.target.value)}
-            >
-              <option value="">전체</option>
-              {EQUIPMENT_TYPE_OPTIONS.map((type) => (
-                <option key={type} value={type}>
-                  {getEquipmentTypeLabel(type)}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="상태">
-            <select
-              className="input-field"
-              value={equipmentFilters.status ?? ''}
-              onChange={(event) => updateEquipmentFilter('status', event.target.value)}
-            >
-              <option value="">전체</option>
-              {RESOURCE_STATUS_OPTIONS.map((status) => (
-                <option key={status} value={status}>
-                  {getResourceStatusLabel(status)}
-                </option>
-              ))}
-            </select>
-          </FormField>
-        </div>
-
-        {equipmentsQuery.isLoading ? <LoadingState message="장비 트리를 불러오는 중입니다." /> : null}
-        {equipmentsQuery.isError ? (
-          <ErrorState
-            title="장비 트리 조회에 실패했습니다."
-            description={getApiErrorMessage(equipmentsQuery.error)}
-          />
-        ) : null}
-
-        {equipmentsQuery.data ? (
-          equipmentsQuery.data.data.length > 0 ? (
-            <EquipmentTree
-              nodes={equipmentsQuery.data.data}
-              onEdit={(node) => setSelectedEquipment(node)}
-              onDeactivate={(node) => setEquipmentToDeactivate(node)}
-            />
-          ) : (
-            <EmptyState
-              title="등록된 장비가 없습니다."
-              description="Array, Panel, Module 장비를 순차적으로 추가할 수 있습니다."
-            />
-          )
-        ) : null}
-      </section>
-
-      <EntityModal
-        isOpen={isEditZoneModalOpen}
-        title="구역 정보 수정"
-        description="PATCH /api/v1/zones/{zoneId} 요청 형식입니다."
-        onClose={() => setIsEditZoneModalOpen(false)}
-      >
-        <form className="stack-md" onSubmit={handleUpdateZone}>
-          <FormField
-            label="이름"
-            error={zoneForm.formState.errors.name?.message}
-            {...zoneForm.register('name')}
-          />
-          <FormField
-            label="위치"
-            error={zoneForm.formState.errors.location?.message}
-            {...zoneForm.register('location')}
-          />
-          <FormField
-            label="설명"
-            error={zoneForm.formState.errors.description?.message}
-          >
-            <textarea
-              className="input-field textarea-field"
-              {...zoneForm.register('description')}
-            />
-          </FormField>
-          <ModalActions
-            isSubmitting={updateZoneMutation.isPending}
-            onCancel={() => setIsEditZoneModalOpen(false)}
-          />
-        </form>
-      </EntityModal>
-
-      <EntityModal
-        isOpen={isCreateEquipmentModalOpen}
-        title="장비 등록"
-        description="POST /api/v1/zones/{zoneId}/equipments 요청 형식입니다."
-        onClose={() => {
-          createEquipmentForm.reset()
-          setIsCreateEquipmentModalOpen(false)
-        }}
-      >
-        <form className="stack-md" onSubmit={handleCreateEquipment}>
-          <EquipmentFormFields
-            form={createEquipmentForm}
-            parentOptions={flattenedEquipments}
-          />
-          <ModalActions
-            isSubmitting={createEquipmentMutation.isPending}
-            onCancel={() => {
-              createEquipmentForm.reset()
-              setIsCreateEquipmentModalOpen(false)
-            }}
-            submitText="등록"
-          />
-        </form>
-      </EntityModal>
-
-      <EntityModal
-        isOpen={Boolean(selectedEquipment)}
-        title="장비 수정"
-        description="PATCH /api/v1/equipments/{equipmentId} 요청 형식입니다."
-        onClose={() => setSelectedEquipment(null)}
-      >
-        <form className="stack-md" onSubmit={handleUpdateEquipment}>
-          <EquipmentFormFields
-            form={editEquipmentForm}
-            parentOptions={flattenedEquipments.filter(
-              (equipment) => equipment.equipmentId !== selectedEquipment?.equipmentId,
-            )}
-          />
-          <ModalActions
-            isSubmitting={updateEquipmentMutation.isPending}
-            onCancel={() => setSelectedEquipment(null)}
-          />
-        </form>
-      </EntityModal>
-
-      <ConfirmModal
-        isOpen={isDeactivateZoneModalOpen}
-        title="구역 비활성화"
-        description="실제 backend는 200 본문을 반환하며, 구역 상세와 장비 트리를 다시 조회합니다."
-        confirmText="비활성화"
-        cancelText="취소"
-        isConfirming={deactivateZoneMutation.isPending}
-        onConfirm={handleDeactivateZone}
-        onCancel={() => setIsDeactivateZoneModalOpen(false)}
-      />
-
-      <ConfirmModal
-        isOpen={Boolean(equipmentToDeactivate)}
-        title="장비 비활성화"
-        description={
-          equipmentToDeactivate
-            ? `${equipmentToDeactivate.name} 장비를 비활성화합니다.`
-            : '선택한 장비를 비활성화합니다.'
         }
-        confirmText="비활성화"
-        cancelText="취소"
-        isConfirming={deactivateEquipmentMutation.isPending}
-        onConfirm={handleDeactivateEquipment}
-        onCancel={() => setEquipmentToDeactivate(null)}
       />
-    </section>
-  )
 
-  function updateEquipmentFilter(
-    key: 'equipmentType' | 'status',
-    value: string,
-  ) {
-    const nextParams = new URLSearchParams(searchParams)
-
-    if (value) {
-      nextParams.set(key, value)
-    } else {
-      nextParams.delete(key)
-    }
-
-    setSearchParams(nextParams)
-  }
-}
-
-function EquipmentFormFields({
-  form,
-  parentOptions,
-}: {
-  form: UseFormReturn<EquipmentFormValues>
-  parentOptions: Array<EquipmentTreeNode & { depth: number }>
-}) {
-  return (
-    <>
-      <FormField
-        label="장비 이름"
-        error={form.formState.errors.name?.message}
-        {...form.register('name')}
-      />
-      <FormField label="장비 유형" error={form.formState.errors.equipmentType?.message}>
-        <select className="input-field" {...form.register('equipmentType')}>
-          {EQUIPMENT_TYPE_OPTIONS.map((type) => (
-            <option key={type} value={type}>
-              {getEquipmentTypeLabel(type)}
-            </option>
-          ))}
-        </select>
-      </FormField>
-      <FormField label="상위 장비">
-        <select className="input-field" {...form.register('parentEquipmentId')}>
-          <option value="">최상위 장비</option>
-          {parentOptions.map((equipment) => (
-            <option key={equipment.equipmentId} value={equipment.equipmentId}>
-              {'-'.repeat(equipment.depth)} {equipment.name}
-            </option>
-          ))}
-        </select>
-      </FormField>
-      <FormField
-        label="위치 코드"
-        hint="예: A-01-P02"
-        error={form.formState.errors.positionCode?.message}
-        {...form.register('positionCode')}
-      />
-    </>
-  )
-}
-
-function DetailItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="detail-item">
-      <span className="detail-label">{label}</span>
-      <span className="detail-value">{value}</span>
-    </div>
-  )
-}
-
-function EntityModal({
-  isOpen,
-  title,
-  description,
-  children,
-  onClose,
-}: {
-  isOpen: boolean
-  title: string
-  description: string
-  children: ReactNode
-  onClose: () => void
-}) {
-  if (!isOpen) {
-    return null
-  }
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <section className="modal-card" onClick={(event) => event.stopPropagation()}>
-        <h2 className="panel-title">{title}</h2>
-        <p className="panel-description">{description}</p>
-        <div className="mt-6">{children}</div>
+      {/* 요약 */}
+      <section className="panel">
+        <div className="detail-summary-grid">
+          <div className="detail-summary-item">
+            <span className="detail-summary-label">발전소</span>
+            <span className="detail-summary-value">{plant?.name ?? '-'}</span>
+          </div>
+          <div className="detail-summary-item">
+            <span className="detail-summary-label">상태</span>
+            <span className="detail-summary-value">
+              <StatusBadge
+                label={getResourceStatusLabel(zone.status)}
+                tone={getResourceStatusTone(zone.status)}
+              />
+            </span>
+          </div>
+          <div className="detail-summary-item">
+            <span className="detail-summary-label">이상 후보</span>
+            <span className="detail-summary-value">
+              {zone.anomalyCandidateCount > 0 ? (
+                <StatusBadge label={`${zone.anomalyCandidateCount}건`} tone="warning" />
+              ) : (
+                '0건'
+              )}
+            </span>
+          </div>
+          <div className="detail-summary-item">
+            <span className="detail-summary-label">우선순위</span>
+            <span className="detail-summary-value">
+              {zone.priorityLevel ? (
+                <StatusBadge label={getPriorityLabel(zone.priorityLevel)} tone="warning" />
+              ) : (
+                '-'
+              )}
+            </span>
+          </div>
+          <div className="detail-summary-item">
+            <span className="detail-summary-label">최근 점검</span>
+            <span className="detail-summary-value">{formatDateTime(zone.latestInspectionAt)}</span>
+          </div>
+          <div className="detail-summary-item">
+            <span className="detail-summary-label">설비 구조</span>
+            <span className="detail-summary-value">
+              어레이 {zone.arrayCount} · 패널 {zone.panelCount}
+            </span>
+          </div>
+        </div>
+        {zone.description ? (
+          <p className="mt-3 text-sm text-slate-600">{zone.description}</p>
+        ) : null}
       </section>
-    </div>
-  )
-}
 
-function ModalActions({
-  isSubmitting,
-  onCancel,
-  submitText = '저장',
-}: {
-  isSubmitting: boolean
-  onCancel: () => void
-  submitText?: string
-}) {
-  return (
-    <div className="flex justify-end gap-3">
-      <button className="btn btn-secondary" type="button" onClick={onCancel}>
-        취소
-      </button>
-      <button className="btn btn-primary" type="submit" disabled={isSubmitting}>
-        {submitText}
-      </button>
-    </div>
+      {/* 점검 이력 */}
+      <section className="panel stack-md">
+        <div className="section-header">
+          <div>
+            <h2 className="section-title">점검 이력</h2>
+            <p className="section-description">이 구역의 점검 기록입니다.</p>
+          </div>
+          <Link className="text-button" to={`/inspections?zoneId=${zoneId}`}>
+            전체 보기
+          </Link>
+        </div>
+        {inspectionsQuery.isLoading ? (
+          <LoadingState message="점검 이력을 불러오는 중입니다." />
+        ) : inspections.length === 0 ? (
+          <EmptyState
+            title="점검 이력이 없습니다."
+            description="첫 점검을 시작하면 이 구역의 이력이 쌓입니다."
+            action={
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={() => setIsInspectionWizardOpen(true)}
+              >
+                이 구역 점검 시작
+              </button>
+            }
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="plants-compact-table">
+              <thead>
+                <tr>
+                  <th>점검명</th>
+                  <th>상태</th>
+                  <th>촬영 시각</th>
+                  <th>생성일</th>
+                  <th>바로가기</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inspections.map((inspection) => (
+                  <tr key={inspection.inspectionId}>
+                    <td className="font-medium text-slate-900">{inspection.name}</td>
+                    <td>
+                      <StatusBadge
+                        label={getInspectionStatusLabel(inspection.inspectionStatus)}
+                        tone={getInspectionStatusTone(inspection.inspectionStatus)}
+                      />
+                    </td>
+                    <td className="text-slate-500 text-sm">
+                      {formatDateTime(inspection.capturedAt)}
+                    </td>
+                    <td className="text-slate-500 text-sm">
+                      {formatDateTime(inspection.createdAt)}
+                    </td>
+                    <td>
+                      <Link
+                        to={`/inspections/${inspection.inspectionId}`}
+                        className="text-button text-sm"
+                      >
+                        상세 보기
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* 관리 영역 */}
+      <section className="danger-zone">
+        <h3 className="danger-zone-title">구역 관리</h3>
+        <p className="danger-zone-description">
+          비활성화하면 운영 흐름에서 제외됩니다. 삭제는 복구가 불가능합니다.
+        </p>
+        <div className="danger-zone-actions">
+          <button
+            className="btn btn-secondary"
+            type="button"
+            onClick={() => setIsDeactivateOpen(true)}
+          >
+            비활성화
+          </button>
+          <button
+            className="btn-danger btn"
+            type="button"
+            onClick={() => setIsDeleteOpen(true)}
+          >
+            구역 삭제
+          </button>
+        </div>
+      </section>
+
+      <InspectionCreateWizard
+        isOpen={isInspectionWizardOpen}
+        onClose={() => setIsInspectionWizardOpen(false)}
+        initialPlantId={zone.plantId}
+        initialZoneId={zoneId}
+      />
+
+      {isEditOpen ? (
+        <div className="modal-backdrop" onClick={() => setIsEditOpen(false)}>
+          <section className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h2 className="panel-title">구역 수정</h2>
+            <form className="stack-md mt-5" onSubmit={handleUpdate}>
+              <FormField label="구역 이름 *" error={form.formState.errors.name?.message}>
+                <input className="input-field" {...form.register('name')} />
+              </FormField>
+              <FormField label="위치">
+                <input className="input-field" {...form.register('location')} />
+              </FormField>
+              <FormField label="설명">
+                <textarea className="input-field min-h-28" {...form.register('description')} />
+              </FormField>
+              <div className="wizard-footer">
+                <button className="btn btn-secondary" type="button" onClick={() => setIsEditOpen(false)}>취소</button>
+                <button className="btn btn-primary" type="submit" disabled={updateZoneMutation.isPending}>저장</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
+
+      <ConfirmModal
+        isOpen={isDeactivateOpen}
+        title="구역을 비활성화할까요?"
+        description="비활성화하면 새 점검 시작 전에 다시 확인해야 합니다."
+        confirmText="비활성화"
+        tone="danger"
+        onClose={() => setIsDeactivateOpen(false)}
+        onConfirm={handleDeactivate}
+        isConfirming={deactivateZoneMutation.isPending}
+      />
+      <ConfirmModal
+        isOpen={isDeleteOpen}
+        title="구역을 삭제할까요?"
+        description="삭제 전 연결된 점검, 이미지, 결과 영향을 확인하세요."
+        confirmText="삭제"
+        tone="danger"
+        onClose={() => setIsDeleteOpen(false)}
+        onConfirm={handleDelete}
+        isConfirming={deleteZoneMutation.isPending}
+      >
+        {zoneDeleteImpactQuery.data?.data ? (
+          <DeleteImpactSummary impact={zoneDeleteImpactQuery.data.data} />
+        ) : null}
+      </ConfirmModal>
+    </section>
   )
 }

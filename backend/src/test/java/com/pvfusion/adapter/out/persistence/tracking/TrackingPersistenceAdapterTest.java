@@ -45,7 +45,7 @@ class TrackingPersistenceAdapterTest {
         TrackingResultProjection current = row(100L, 30L, BigDecimal.valueOf(0.9), SeverityLevel.HIGH);
         TrackingResultProjection previous = row(90L, 20L, BigDecimal.valueOf(0.7), SeverityLevel.MEDIUM);
 
-        when(trackingJpaRepository.searchTracking(null, 10L, null, "ZONE", LocalDate.now().minusDays(7), LocalDate.now(), null, null, null, null, null))
+        when(trackingJpaRepository.searchTracking(1L, null, 10L, null, "ZONE", LocalDate.now().minusDays(7).toString(), LocalDate.now().toString(), null, null, null, null, null))
                 .thenReturn(List.of(current));
         when(trackingJpaRepository.findPreviousTrackingResult(10L, "ZONE", null, "RGB_SINGLE", current.getAnalyzedAt(), 100L))
                 .thenReturn(Optional.of(previous));

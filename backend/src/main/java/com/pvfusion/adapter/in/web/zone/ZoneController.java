@@ -1,6 +1,8 @@
 package com.pvfusion.adapter.in.web.zone;
 
 import com.pvfusion.application.dto.zone.CreateZoneCommand;
+import com.pvfusion.application.dto.deletion.DeleteImpactResponse;
+import com.pvfusion.application.dto.deletion.DeleteResourceResponse;
 import com.pvfusion.application.dto.zone.DeactivateZoneCommand;
 import com.pvfusion.application.dto.zone.GetZoneQuery;
 import com.pvfusion.application.dto.zone.UpdateZoneCommand;
@@ -10,6 +12,7 @@ import com.pvfusion.application.dto.zone.ZoneSummaryResponse;
 import com.pvfusion.application.port.in.zone.CreateZoneUseCase;
 import com.pvfusion.application.port.in.zone.DeactivateZoneUseCase;
 import com.pvfusion.application.port.in.zone.GetZoneUseCase;
+import com.pvfusion.application.port.in.zone.ManageZoneDeletionUseCase;
 import com.pvfusion.application.port.in.zone.QueryZoneUseCase;
 import com.pvfusion.application.port.in.zone.UpdateZoneUseCase;
 import com.pvfusion.global.response.ApiResponse;
@@ -18,6 +21,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,6 +40,7 @@ public class ZoneController {
     private final GetZoneUseCase getZoneUseCase;
     private final UpdateZoneUseCase updateZoneUseCase;
     private final DeactivateZoneUseCase deactivateZoneUseCase;
+    private final ManageZoneDeletionUseCase manageZoneDeletionUseCase;
 
     @GetMapping("/plants/{plantId}/zones")
     public ResponseEntity<ApiResponse<List<ZoneSummaryResponse>>> getZones(
@@ -81,5 +86,21 @@ public class ZoneController {
     ) {
         ZoneResponse response = deactivateZoneUseCase.execute(new DeactivateZoneCommand(zoneId));
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/zones/{zoneId}/delete-impact")
+    public ResponseEntity<ApiResponse<DeleteImpactResponse>> getZoneDeleteImpact(
+            @PathVariable Long zoneId
+    ) {
+        DeleteImpactResponse response = manageZoneDeletionUseCase.getZoneDeleteImpact(zoneId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @DeleteMapping("/zones/{zoneId}")
+    public ResponseEntity<ApiResponse<DeleteResourceResponse>> deleteZone(
+            @PathVariable Long zoneId
+    ) {
+        DeleteResourceResponse response = manageZoneDeletionUseCase.deleteZone(zoneId);
+        return ResponseEntity.ok(ApiResponse.success(response, "구역이 삭제되었습니다."));
     }
 }

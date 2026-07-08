@@ -1,4 +1,4 @@
-import type { ResultVisualizationType } from '../../../features/results/types'
+﻿import type { ResultVisualizationType } from '../../../features/results/types'
 
 type VisualizationOverlayViewerProps = {
   activeType: ResultVisualizationType
@@ -32,26 +32,15 @@ export function VisualizationOverlayViewer({
         ))}
       </div>
 
-      {isLoading ? (
-        <div className="image-placeholder">시각화 이미지를 불러오는 중입니다.</div>
-      ) : null}
-
-      {!isLoading && error ? (
-        <div className="image-placeholder">{error}</div>
-      ) : null}
+      {isLoading ? <div className="image-placeholder">시각화 이미지를 불러오는 중입니다.</div> : null}
+      {!isLoading && error ? <div className="image-placeholder">{error}</div> : null}
 
       {!isLoading && !error && imageUrl ? (
-        <img
-          className="compare-image"
-          src={imageUrl}
-          alt={`${getVisualizationButtonLabel(activeType)} 시각화`}
-        />
+        <img className="compare-image" src={imageUrl} alt={`${getVisualizationButtonLabel(activeType)} 시각화`} />
       ) : null}
 
       {!isLoading && !error && !imageUrl ? (
-        <div className="image-placeholder">
-          현재 선택한 시각화 이미지를 표시할 수 없습니다.
-        </div>
+        <div className="image-placeholder">현재 선택한 시각화 이미지를 표시할 수 없습니다.</div>
       ) : null}
     </div>
   )
@@ -60,10 +49,10 @@ export function VisualizationOverlayViewer({
 function getVisualizationButtonLabel(type: ResultVisualizationType) {
   switch (type) {
     case 'bbox':
-      return 'BBox'
+      return '경계 상자'
     case 'heatmap':
-      return 'Heatmap'
+      return '히트맵'
     case 'mask':
-      return 'Mask'
+      return '마스크'
   }
 }

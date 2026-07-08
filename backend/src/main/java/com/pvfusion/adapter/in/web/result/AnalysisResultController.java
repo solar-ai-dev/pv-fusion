@@ -27,8 +27,10 @@ import com.pvfusion.domain.review.ReviewStatus;
 import com.pvfusion.global.response.ApiResponse;
 import com.pvfusion.global.response.PageResponse;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -102,6 +104,8 @@ public class AnalysisResultController {
             @RequestParam(required = false) ActionCandidate actionCandidate,
             @RequestParam(required = false) SeverityLevel severityLevel,
             @RequestParam(required = false) ReviewStatus reviewStatus,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
@@ -119,6 +123,8 @@ public class AnalysisResultController {
                 actionCandidate,
                 severityLevel,
                 reviewStatus,
+                from,
+                to,
                 page,
                 size
         ));

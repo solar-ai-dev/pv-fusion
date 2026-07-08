@@ -62,6 +62,9 @@ class ResultRepositoryPort(Protocol):
     def save_defects(self, analysis_result_id: int, defects: list[DetectedDefectDraft]) -> None:
         """Persist defect drafts for the saved analysis result."""
 
+    def save_completed_result(self, result: AnalysisResultDraft, defects: list[DetectedDefectDraft]) -> int:
+        """Persist a completed result bundle and finalize the owning job atomically."""
+
 
 class QueuePort(Protocol):
     def receive_messages(self, max_number: int = 1) -> list[QueueMessage]:

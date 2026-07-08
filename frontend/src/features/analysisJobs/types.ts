@@ -1,14 +1,10 @@
-import type { PageResponse } from '../../shared/api/types'
+﻿import type { PageResponse } from '../../shared/api/types'
 
-export type AnalysisInputType =
-  | 'RGB_SINGLE'
-  | 'THERMAL_SINGLE'
+export type AnalysisInputType = 'RGB_SINGLE' | 'THERMAL_SINGLE'
 
 export type AnalysisModelType = 'RGB_ONLY' | 'THERMAL_ONLY'
 
-export type RequestedModelType =
-  | 'RGB_ONLY'
-  | 'THERMAL_ONLY'
+export type RequestedModelType = 'RGB_ONLY' | 'THERMAL_ONLY'
 
 export type AnalysisJobStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED'
 
@@ -73,9 +69,9 @@ export const ANALYSIS_INPUT_TYPE_OPTIONS: AnalysisInputType[] = [
 export function getAnalysisInputTypeLabel(inputType: AnalysisInputType) {
   switch (inputType) {
     case 'RGB_SINGLE':
-      return 'RGB 단일'
+      return 'RGB 단건'
     case 'THERMAL_SINGLE':
-      return '열화상 단일'
+      return '열화상 단건'
   }
 }
 
@@ -104,9 +100,9 @@ export function getAnalysisJobStatusLabel(status: AnalysisJobStatus) {
     case 'QUEUED':
       return '대기 중'
     case 'RUNNING':
-      return '실행 중'
+      return '진행 중'
     case 'SUCCEEDED':
-      return '성공'
+      return '완료'
     case 'FAILED':
       return '실패'
   }

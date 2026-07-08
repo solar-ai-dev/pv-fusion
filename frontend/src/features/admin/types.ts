@@ -1,4 +1,4 @@
-import type { AccountStatus, UserRole } from '../auth/types'
+﻿import type { AccountStatus, UserRole } from '../auth/types'
 
 export type PlantMemberRole = 'OWNER' | 'MANAGER' | 'VIEWER'
 export type ResourceStatus = 'ACTIVE' | 'INACTIVE'
@@ -106,11 +106,7 @@ export type OperationLogListParams = {
 }
 
 export const USER_ROLE_OPTIONS: UserRole[] = ['USER', 'ADMIN']
-export const ACCOUNT_STATUS_OPTIONS: AccountStatus[] = [
-  'PENDING',
-  'APPROVED',
-  'INACTIVE',
-]
+export const ACCOUNT_STATUS_OPTIONS: AccountStatus[] = ['PENDING', 'APPROVED', 'INACTIVE']
 export const OPERATION_EVENT_CATEGORY_OPTIONS: OperationEventCategory[] = [
   'AUTH',
   'IMAGE',
@@ -190,7 +186,7 @@ export function getPlantMemberRoleLabel(role: PlantMemberRole) {
     case 'MANAGER':
       return '관리자'
     case 'VIEWER':
-      return '조회자'
+      return '조회 전용'
   }
 }
 
@@ -231,35 +227,35 @@ export function getOperationEventTypeLabel(type: OperationEventType) {
     case 'USER_DEACTIVATED':
       return '사용자 비활성화'
     case 'PLANT_CREATED':
-      return '발전소 생성'
+      return '발전소 등록'
     case 'PLANT_UPDATED':
       return '발전소 수정'
     case 'PLANT_DEACTIVATED':
       return '발전소 비활성화'
     case 'PLANT_ACCESS_GRANTED':
-      return '발전소 접근 부여'
+      return '발전소 접근 권한 부여'
     case 'PLANT_MEMBER_ROLE_CHANGED':
       return '발전소 멤버 권한 변경'
     case 'PLANT_MEMBER_DEACTIVATED':
       return '발전소 멤버 비활성화'
     case 'ZONE_CREATED':
-      return '구역 생성'
+      return '점검 영역 등록'
     case 'ZONE_UPDATED':
-      return '구역 수정'
+      return '점검 영역 수정'
     case 'ZONE_DEACTIVATED':
-      return '구역 비활성화'
+      return '점검 영역 비활성화'
     case 'EQUIPMENT_CREATED':
-      return '장비 생성'
+      return '설비 등록'
     case 'EQUIPMENT_UPDATED':
-      return '장비 수정'
+      return '설비 수정'
     case 'EQUIPMENT_DEACTIVATED':
-      return '장비 비활성화'
+      return '설비 비활성화'
     case 'IMAGE_UPLOADED':
       return '이미지 업로드'
     case 'ANALYSIS_REQUESTED':
       return '분석 요청'
     case 'RESULT_REVIEW_STATUS_CHANGED':
-      return '검토 상태 변경'
+      return '결과 검토 상태 변경'
     case 'RESULT_ACTION_CANDIDATE_CHANGED':
       return '조치 후보 변경'
     case 'SYSTEM_ERROR':

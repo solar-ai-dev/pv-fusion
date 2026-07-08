@@ -12,7 +12,7 @@ pipeline {
         booleanParam(
             name: 'ENABLE_ECR_PUSH',
             defaultValue: false,
-            description: '湲곕낯媛믪? false?낅땲?? main 釉뚮옖移섏뿉?쒕쭔 ECR push 寃쎈줈瑜??덉슜?⑸땲??'
+            description: 'Set to true to push Docker images to ECR. Effective only on main branch; default is false.'
         )
     }
 
