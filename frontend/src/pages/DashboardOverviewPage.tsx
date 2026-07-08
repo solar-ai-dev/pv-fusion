@@ -1,5 +1,6 @@
 ﻿import { useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useState } from "react";
 import { useAuth } from "../features/auth/hooks/useAuth";
 import { DashboardKpiCard } from "../features/dashboard/components/DashboardKpiCard";
 import { DistributionPanel } from "../features/dashboard/components/DistributionPanel";
@@ -48,6 +49,7 @@ import {
 export function DashboardOverviewPage() {
   const role = useAuth((state) => state.user?.role);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [isPriorityResultListOpen, setIsPriorityResultListOpen] = useState(false);
 
   const plantId = parsePositiveNumber(searchParams.get("plantId") ?? undefined);
   const zoneId = parsePositiveNumber(searchParams.get("zoneId") ?? undefined);
@@ -255,7 +257,6 @@ export function DashboardOverviewPage() {
     selectedZoneName,
     `${getDashboardIntervalText(interval)} 기준`,
   ];
-
   const isLoading =
     canQuery &&
     (summaryQuery.isLoading ||
@@ -427,55 +428,81 @@ export function DashboardOverviewPage() {
       {canQuery && summary ? (
         <>
           <section className="panel dashboard-card dashboard-ops-panel">
-            <div className="section-header">
+            <div className="section-header dashboard-priority-header">
               <div>
                 <h2 className="panel-title">운영 우선순위</h2>
                 <p className="panel-description">
                   오늘 먼저 확인하고 처리해야 할 항목입니다.
                 </p>
               </div>
-              <Link
-                className="text-button"
-                to={buildDashboardPath("/tracking", params)}
-              >
-                변화 추적 보기
-              </Link>
-            </div>
-            <div className="dashboard-ops-priority-grid">
-              {opsPriorityCards.map((card) => (
-                <OpsPriorityCard
-                  key={card.key}
-                  count={card.count}
-                  hint={card.hint}
-                  href={card.href}
-                  label={card.label}
-                  tone={card.tone}
-                />
-              ))}
-            </div>
-            <div className="dashboard-ops-queue">
-              <div className="dashboard-ops-queue-header">
-                <span className="dashboard-section-label">즉시 확인 필요</span>
-                <span className="dashboard-ops-queue-count">
-                  {priorityTargets.length}건
-                </span>
+              <div className="dashboard-priority-actions">
+                <Link
+                  className="text-button"
+                  to={buildDashboardPath("/tracking", params)}
+                >
+                  변화 추적 보기
+                </Link>
               </div>
-              {priorityTargets.length > 0 ? (
-                <div className="dashboard-ops-queue-list">
-                  {priorityTargets.slice(0, 6).map((target, index) => (
-                    <PriorityQueueItem
-                      key={`${target.resultId ?? "target"}-${index}`}
-                      target={target}
-                      params={params}
-                    />
-                  ))}
+            </div>
+            <div className="dashboard-priority-content">
+              <div className="dashboard-ops-priority-grid">
+                {opsPriorityCards.map((card) => (
+                  <OpsPriorityCard
+                    key={card.key}
+                    count={card.count}
+                    hint={card.hint}
+                    href={card.href}
+                    label={card.label}
+                    tone={card.tone}
+                  />
+                ))}
+              </div>
+              <div className="dashboard-ops-queue">
+                <div className="dashboard-ops-queue-header">
+                  <span className="dashboard-section-label">즉시 확인 필요</span>
+                  <div className="dashboard-ops-queue-header-actions">
+                    <span className="dashboard-ops-queue-count">
+                      {priorityTargets.length}건
+                    </span>
+                    {priorityTargets.length > 0 ? (
+                      <button
+                        className="btn btn-secondary dashboard-priority-toggle"
+                        type="button"
+                        aria-expanded={isPriorityResultListOpen}
+                        aria-controls="dashboard-priority-result-list"
+                        onClick={() =>
+                          setIsPriorityResultListOpen((current) => !current)
+                        }
+                      >
+                        {isPriorityResultListOpen
+                          ? "결과 목록 접기"
+                          : "결과 목록 펼치기"}
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-              ) : (
-                <SingleEmptyMessage
-                  title="즉시 확인 대상 없음"
-                  description="현재 조건에서 우선 확인할 결과가 없습니다."
-                />
-              )}
+                {priorityTargets.length > 0 ? (
+                  <div
+                    id="dashboard-priority-result-list"
+                    hidden={!isPriorityResultListOpen}
+                  >
+                    <div className="dashboard-ops-queue-list">
+                      {priorityTargets.slice(0, 6).map((target, index) => (
+                        <PriorityQueueItem
+                          key={`${target.resultId ?? "target"}-${index}`}
+                          target={target}
+                          params={params}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <SingleEmptyMessage
+                    title="즉시 확인 대상 없음"
+                    description="현재 조건에서 우선 확인할 결과가 없습니다."
+                  />
+                )}
+              </div>
             </div>
           </section>
 

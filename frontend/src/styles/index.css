@@ -3051,6 +3051,27 @@ textarea {
   gap: 0.85rem;
 }
 
+.dashboard-priority-header {
+  align-items: flex-start;
+}
+
+.dashboard-priority-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.dashboard-priority-toggle {
+  min-width: 84px;
+}
+
+.dashboard-priority-content {
+  display: grid;
+  gap: 0.85rem;
+}
+
 .dashboard-ops-priority-grid {
   display: grid;
   gap: 0.65rem;
@@ -3142,6 +3163,14 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+}
+
+.dashboard-ops-queue-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .dashboard-ops-queue-count {
