@@ -17,19 +17,17 @@ import com.pvfusion.domain.user.AccountStatus;
 import com.pvfusion.domain.user.User;
 import com.pvfusion.domain.user.UserRole;
 import com.pvfusion.domain.zone.Zone;
+import com.pvfusion.support.PostgresDataJpaTest;
+import com.pvfusion.support.PostgresTestContainerSupport;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 
-@DataJpaTest(properties = {
-        "spring.flyway.enabled=false",
-        "spring.jpa.hibernate.ddl-auto=create-drop"
-})
+@PostgresDataJpaTest
 @Import({
         UserPersistenceAdapter.class,
         UserPersistenceMapper.class,
@@ -40,7 +38,7 @@ import org.springframework.context.annotation.Import;
         EquipmentPersistenceAdapter.class,
         EquipmentPersistenceMapper.class
 })
-class EquipmentPersistenceAdapterTest {
+class EquipmentPersistenceAdapterTest extends PostgresTestContainerSupport {
 
     @Autowired
     private UserPersistenceAdapter userPersistenceAdapter;

@@ -2,47 +2,83 @@ package com.pvfusion.adapter.out.persistence.operation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.pvfusion.adapter.out.persistence.plant.PlantPersistenceAdapter;
+import com.pvfusion.adapter.out.persistence.plant.PlantPersistenceMapper;
 import com.pvfusion.adapter.out.persistence.user.UserPersistenceAdapter;
 import com.pvfusion.adapter.out.persistence.user.UserPersistenceMapper;
+import com.pvfusion.adapter.out.persistence.zone.ZonePersistenceAdapter;
+import com.pvfusion.adapter.out.persistence.zone.ZonePersistenceMapper;
 import com.pvfusion.application.dto.operation.OperationLogQuery;
+import com.pvfusion.domain.common.ResourceStatus;
 import com.pvfusion.domain.operation.OperationEventCategory;
 import com.pvfusion.domain.operation.OperationEventType;
 import com.pvfusion.domain.operation.OperationLog;
+import com.pvfusion.domain.plant.Plant;
 import com.pvfusion.domain.user.AccountStatus;
 import com.pvfusion.domain.user.User;
 import com.pvfusion.domain.user.UserRole;
+import com.pvfusion.domain.zone.Zone;
+import com.pvfusion.support.PostgresDataJpaTest;
+import com.pvfusion.support.PostgresTestContainerSupport;
 import com.pvfusion.global.response.PageResponse;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 
-@DataJpaTest(properties = {
-        "spring.flyway.enabled=false",
-        "spring.jpa.hibernate.ddl-auto=create-drop"
-})
+@PostgresDataJpaTest
 @Import({
         UserPersistenceAdapter.class,
         UserPersistenceMapper.class,
+        PlantPersistenceAdapter.class,
+        PlantPersistenceMapper.class,
+        ZonePersistenceAdapter.class,
+        ZonePersistenceMapper.class,
         OperationLogPersistenceAdapter.class,
         OperationLogPersistenceMapper.class
 })
-class OperationLogPersistenceAdapterTest {
+class OperationLogPersistenceAdapterTest extends PostgresTestContainerSupport {
 
     @Autowired
     private UserPersistenceAdapter userPersistenceAdapter;
+    @Autowired
+    private PlantPersistenceAdapter plantPersistenceAdapter;
+    @Autowired
+    private ZonePersistenceAdapter zonePersistenceAdapter;
     @Autowired
     private OperationLogPersistenceAdapter operationLogPersistenceAdapter;
 
     private User adminUser;
     private User normalUser;
+    private Plant plant;
+    private Zone zone;
 
     @BeforeEach
     void setUp() {
         adminUser = saveUser(1, UserRole.ADMIN);
         normalUser = saveUser(2, UserRole.USER);
+        plant = plantPersistenceAdapter.save(new Plant(
+                null,
+                "Operation Plant",
+                "Seoul",
+                "desc",
+                ResourceStatus.ACTIVE,
+                adminUser.getId(),
+                now().minusDays(1),
+                now().minusDays(1)
+        ));
+        zone = zonePersistenceAdapter.save(new Zone(
+                null,
+                plant.getId(),
+                "Operation Zone",
+                "North",
+                "desc",
+                ResourceStatus.ACTIVE,
+                adminUser.getId(),
+                now().minusHours(12),
+                now().minusHours(12)
+        ));
     }
 
     @Test
@@ -52,8 +88,8 @@ class OperationLogPersistenceAdapterTest {
                 adminUser.getId(),
                 OperationEventType.PLANT_CREATED,
                 "plants",
-                10L,
-                10L,
+                plant.getId(),
+                plant.getId(),
                 null,
                 "Plant created.",
                 "name=Plant-A",
@@ -72,8 +108,8 @@ class OperationLogPersistenceAdapterTest {
                 adminUser.getId(),
                 OperationEventType.PLANT_CREATED,
                 "plants",
-                10L,
-                10L,
+                plant.getId(),
+                plant.getId(),
                 null,
                 "Plant created.",
                 "name=Plant-A",
@@ -84,9 +120,9 @@ class OperationLogPersistenceAdapterTest {
                 normalUser.getId(),
                 OperationEventType.ZONE_CREATED,
                 "zones",
-                20L,
-                10L,
-                20L,
+                zone.getId(),
+                plant.getId(),
+                zone.getId(),
                 "Zone created.",
                 "name=Zone-A",
                 now().minusHours(1)
@@ -97,8 +133,8 @@ class OperationLogPersistenceAdapterTest {
                 adminUser.getId(),
                 OperationEventCategory.ADMIN,
                 OperationEventType.ZONE_CREATED,
-                10L,
-                20L,
+                plant.getId(),
+                zone.getId(),
                 null,
                 null,
                 null,
@@ -125,8 +161,8 @@ class OperationLogPersistenceAdapterTest {
                 adminUser.getId(),
                 OperationEventType.PLANT_CREATED,
                 "plants",
-                10L,
-                10L,
+                plant.getId(),
+                plant.getId(),
                 null,
                 "First",
                 "detail-1",
@@ -137,8 +173,8 @@ class OperationLogPersistenceAdapterTest {
                 adminUser.getId(),
                 OperationEventType.PLANT_UPDATED,
                 "plants",
-                10L,
-                10L,
+                plant.getId(),
+                plant.getId(),
                 null,
                 "Second",
                 "detail-2",
@@ -149,8 +185,8 @@ class OperationLogPersistenceAdapterTest {
                 adminUser.getId(),
                 OperationEventType.PLANT_DEACTIVATED,
                 "plants",
-                10L,
-                10L,
+                plant.getId(),
+                plant.getId(),
                 null,
                 "Third",
                 "detail-3",
@@ -189,8 +225,8 @@ class OperationLogPersistenceAdapterTest {
                 adminUser.getId(),
                 OperationEventType.PLANT_UPDATED,
                 "plants",
-                11L,
-                11L,
+                plant.getId(),
+                plant.getId(),
                 null,
                 "Plant updated.",
                 "target=Solar Farm",
@@ -221,7 +257,7 @@ class OperationLogPersistenceAdapterTest {
         assertThat(result.content().toString()).contains("Plant updated.");
         assertThat(result.content().toString()).contains("PLANT_UPDATED");
         assertThat(result.content().toString()).contains("plants");
-        assertThat(result.content().toString()).contains("11");
+        assertThat(result.content().toString()).contains(String.valueOf(plant.getId()));
     }
 
     @Test
@@ -231,8 +267,8 @@ class OperationLogPersistenceAdapterTest {
                 adminUser.getId(),
                 OperationEventType.PLANT_UPDATED,
                 "plants",
-                12L,
-                12L,
+                plant.getId(),
+                plant.getId(),
                 null,
                 "Blank keyword baseline.",
                 "target=Blank",
@@ -288,8 +324,8 @@ class OperationLogPersistenceAdapterTest {
                 adminUser.getId(),
                 OperationEventType.PLANT_UPDATED,
                 "plants",
-                13L,
-                13L,
+                plant.getId(),
+                plant.getId(),
                 null,
                 "Null keyword baseline.",
                 "target=Null",
