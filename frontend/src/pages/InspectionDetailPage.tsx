@@ -95,21 +95,9 @@ const uploadImageSchema = z
     imageType: z.enum(IMAGE_TYPE_OPTIONS),
     capturedAt: z.string().optional(),
     memo: z.string().optional(),
-    file: z.custom<FileList | undefined>(
-      (value) => value === undefined || value instanceof FileList,
-      '업로드할 이미지를 선택해 주세요.',
-    ),
+    file: z.custom<FileList | undefined>((value) => value === undefined || value instanceof FileList),
   })
   .superRefine((value, context) => {
-    const selectedFile = value.file?.item(0)
-
-    if (!selectedFile) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['file'],
-        message: '업로드할 이미지를 선택해 주세요.',
-      })
-    }
 
     if (value.targetType === 'ZONE' && value.equipmentId) {
       context.addIssue({
@@ -132,6 +120,7 @@ type UpdateInspectionFormValues = z.infer<typeof updateInspectionSchema>
 type UploadImageFormValues = z.infer<typeof uploadImageSchema>
 type WorkflowTab = 'overview' | 'images-analysis' | 'results'
 type UploadFeedback = {
+  id: string
   filename: string
   status: 'uploading' | 'success' | 'error'
   error?: string
@@ -257,6 +246,7 @@ export function InspectionDetailPage() {
   const selectedImageType = uploadForm.watch('imageType')
   const selectedEquipmentId = uploadForm.watch('equipmentId')
   const selectedFileCount = selectedUploadFiles.length
+  const hasSelectedUploadFiles = selectedFileCount > 0
   const selectedPreviewFile = useMemo(
     () =>
       selectedUploadFiles.find((file) => file.id === selectedPreviewFileId) ??
@@ -298,7 +288,7 @@ export function InspectionDetailPage() {
     uploadEquipmentOptions.length === 0
   const isUploadEquipmentMissing =
     !isZoneUploadTarget && (!selectedEquipmentId || isUploadEquipmentEmpty)
-  const isUploadReady = selectedFileCount > 0 && !isUploadEquipmentMissing
+  const isUploadReady = hasSelectedUploadFiles && !isUploadEquipmentMissing
 
   const imageRows = useMemo(
     () => sortImagesDescending(imagesQuery.data?.data ?? []),
@@ -537,18 +527,18 @@ export function InspectionDetailPage() {
   })
 
   const handleUploadImage = uploadForm.handleSubmit(async (values) => {
-    if (selectedUploadFiles.length === 0) {
+    if (!hasSelectedUploadFiles) {
       uploadForm.setError('file', {
         type: 'manual',
-        message: '업로드할 이미지를 선택해 주세요.',
+        message: '\uc5c5\ub85c\ub4dc\ud560 \uc774\ubbf8\uc9c0\ub97c \uc120\ud0dd\ud574 \uc8fc\uc138\uc694.',
       })
       return
     }
 
-    const files = selectedUploadFiles.map((item) => item.file)
     setUploadFeedbackList(
-      files.map((file) => ({
-        filename: file.name,
+      selectedUploadFiles.map((selectedFile) => ({
+        id: selectedFile.id,
+        filename: selectedFile.file.name,
         status: 'uploading',
       })),
     )
@@ -556,7 +546,7 @@ export function InspectionDetailPage() {
     let successCount = 0
     let failureCount = 0
 
-    for (const file of files) {
+    for (const selectedFile of selectedUploadFiles) {
       try {
         await uploadImageMutation.mutateAsync({
           inspectionId,
@@ -565,25 +555,24 @@ export function InspectionDetailPage() {
           imageType: values.imageType,
           capturedAt: toOffsetDateTime(values.capturedAt),
           memo: values.memo?.trim() || null,
-          file,
+          file: selectedFile.file,
         })
 
         successCount += 1
         setUploadFeedbackList((current) =>
           current.map((item) =>
-            item.filename === file.name && item.status === 'uploading'
-              ? { ...item, status: 'success' }
-              : item,
+            item.id === selectedFile.id ? { ...item, status: 'success' } : item,
           ),
         )
       } catch (error) {
-        const message = getApiErrorMessage(error, '이미지 업로드에 실패했습니다.')
+        const message = getApiErrorMessage(
+          error,
+          '\uc774\ubbf8\uc9c0 \uc5c5\ub85c\ub4dc\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.',
+        )
         failureCount += 1
         setUploadFeedbackList((current) =>
           current.map((item) =>
-            item.filename === file.name && item.status === 'uploading'
-              ? { ...item, status: 'error', error: message }
-              : item,
+            item.id === selectedFile.id ? { ...item, status: 'error', error: message } : item,
           ),
         )
       }
@@ -591,25 +580,29 @@ export function InspectionDetailPage() {
 
     toast.push(
       failureCount > 0
-        ? `${successCount}건 업로드 완료, ${failureCount}건 실패`
-        : `${successCount}건 업로드가 완료되었습니다.`,
+        ? `${successCount}\uac74 \uc5c5\ub85c\ub4dc \uc644\ub8cc, ${failureCount}\uac74 \uc2e4\ud328`
+        : `${successCount}\uac74 \uc5c5\ub85c\ub4dc\uac00 \uc644\ub8cc\ub418\uc5c8\uc2b5\ub2c8\ub2e4.`
     )
 
-    uploadForm.reset({
-      targetType: 'ZONE',
-      equipmentId: '',
-      imageType: values.imageType,
-      capturedAt: '',
-      memo: '',
-      file: undefined,
-    })
-    selectedUploadFiles.forEach((file) => URL.revokeObjectURL(file.previewUrl))
-    setSelectedUploadFiles([])
-    setSelectedPreviewFileId(null)
-    setSelectedFilesPage(1)
-    setUploadFormVersion((current) => current + 1)
-    uploadForm.setValue('file', undefined)
-    resetFileInput()
+    if (failureCount === 0) {
+      uploadForm.reset({
+        targetType: 'ZONE',
+        equipmentId: '',
+        imageType: values.imageType,
+        capturedAt: '',
+        memo: '',
+        file: undefined,
+      })
+      selectedUploadFiles.forEach((file) => URL.revokeObjectURL(file.previewUrl))
+      setSelectedUploadFiles([])
+      setSelectedPreviewFileId(null)
+      setSelectedFilesPage(1)
+      setUploadFeedbackList([])
+      setUploadFormVersion((current) => current + 1)
+      uploadForm.setValue('file', undefined)
+      resetFileInput()
+    }
+
     setActiveTab('images-analysis')
     await handleRefreshWorkspace()
   })
