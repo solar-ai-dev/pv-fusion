@@ -112,6 +112,37 @@ def test_draw_bbox_overlay_returns_valid_image_for_empty_detections():
     assert result.startswith(b"\x89PNG")
 
 
+def test_draw_bbox_overlay_does_not_draw_label_text(monkeypatch):
+    image_module = _require_pillow()
+    image_draw_module = pytest.importorskip("PIL.ImageDraw")
+    image_bytes = make_image_bytes()
+    detections = [
+        ParsedDetection(
+            class_id=1,
+            class_name="HOTSPOT",
+            confidence=0.92,
+            bbox_x=10,
+            bbox_y=10,
+            bbox_width=20,
+            bbox_height=15,
+            source="THERMAL",
+        )
+    ]
+
+    original_text = image_draw_module.ImageDraw.text
+
+    def fail_if_called(self, *args, **kwargs):
+        raise AssertionError("bbox overlay should not render label text")
+
+    monkeypatch.setattr(image_draw_module.ImageDraw, "text", fail_if_called)
+
+    result = draw_bbox_overlay(image_bytes, detections)
+
+    assert result.startswith(b"\x89PNG")
+    image_module.open(BytesIO(result)).load()
+    monkeypatch.setattr(image_draw_module.ImageDraw, "text", original_text)
+
+
 def test_draw_mask_overlay_returns_png_bytes():
     _require_pillow()
     image_bytes = make_image_bytes()

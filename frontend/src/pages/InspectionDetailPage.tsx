@@ -95,21 +95,9 @@ const uploadImageSchema = z
     imageType: z.enum(IMAGE_TYPE_OPTIONS),
     capturedAt: z.string().optional(),
     memo: z.string().optional(),
-    file: z.custom<FileList | undefined>(
-      (value) => value === undefined || value instanceof FileList,
-      '업로드할 이미지를 선택해 주세요.',
-    ),
+    file: z.custom<FileList | undefined>((value) => value === undefined || value instanceof FileList),
   })
   .superRefine((value, context) => {
-    const selectedFile = value.file?.item(0)
-
-    if (!selectedFile) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['file'],
-        message: '업로드할 이미지를 선택해 주세요.',
-      })
-    }
 
     if (value.targetType === 'ZONE' && value.equipmentId) {
       context.addIssue({
@@ -132,9 +120,15 @@ type UpdateInspectionFormValues = z.infer<typeof updateInspectionSchema>
 type UploadImageFormValues = z.infer<typeof uploadImageSchema>
 type WorkflowTab = 'overview' | 'images-analysis' | 'results'
 type UploadFeedback = {
+  id: string
   filename: string
   status: 'uploading' | 'success' | 'error'
   error?: string
+}
+type BulkAnalysisSummary = {
+  successCount: number
+  failCount: number
+  failedImageIds: number[]
 }
 type SelectedUploadFile = {
   id: string
@@ -174,11 +168,15 @@ export function InspectionDetailPage() {
   const [uploadFeedbackList, setUploadFeedbackList] = useState<UploadFeedback[]>([])
   const [pendingAnalysisImageId, setPendingAnalysisImageId] = useState<number | null>(null)
   const [pendingRetryJobId, setPendingRetryJobId] = useState<number | null>(null)
+  const [selectedAnalysisImageIds, setSelectedAnalysisImageIds] = useState<number[]>([])
+  const [isBulkAnalysisRequesting, setIsBulkAnalysisRequesting] = useState(false)
+  const [bulkAnalysisSummary, setBulkAnalysisSummary] = useState<BulkAnalysisSummary | null>(null)
   const [selectedUploadFiles, setSelectedUploadFiles] = useState<SelectedUploadFile[]>([])
   const [selectedPreviewFileId, setSelectedPreviewFileId] = useState<string | null>(null)
   const [selectedFilesPage, setSelectedFilesPage] = useState(1)
   const [imageListPage, setImageListPage] = useState(1)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const selectAllAnalysisRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     if (!isMoreActionsOpen) {
@@ -257,6 +255,7 @@ export function InspectionDetailPage() {
   const selectedImageType = uploadForm.watch('imageType')
   const selectedEquipmentId = uploadForm.watch('equipmentId')
   const selectedFileCount = selectedUploadFiles.length
+  const hasSelectedUploadFiles = selectedFileCount > 0
   const selectedPreviewFile = useMemo(
     () =>
       selectedUploadFiles.find((file) => file.id === selectedPreviewFileId) ??
@@ -298,7 +297,7 @@ export function InspectionDetailPage() {
     uploadEquipmentOptions.length === 0
   const isUploadEquipmentMissing =
     !isZoneUploadTarget && (!selectedEquipmentId || isUploadEquipmentEmpty)
-  const isUploadReady = selectedFileCount > 0 && !isUploadEquipmentMissing
+  const isUploadReady = hasSelectedUploadFiles && !isUploadEquipmentMissing
 
   const imageRows = useMemo(
     () => sortImagesDescending(imagesQuery.data?.data ?? []),
@@ -325,6 +324,33 @@ export function InspectionDetailPage() {
     return map
   }, [resultRows])
   const imageJobStateMap = useMemo(() => computeImageJobStateMap(jobRows), [jobRows])
+  const requestableAnalysisImageIds = useMemo(
+    () =>
+      imageRows
+        .filter((image) =>
+          isAnalysisRequestableImage(
+            image,
+            imageJobStateMap.get(image.imageId) ?? createEmptyImageJobState(),
+          ),
+        )
+        .map((image) => image.imageId),
+    [imageJobStateMap, imageRows],
+  )
+  const requestableAnalysisImageIdSet = useMemo(
+    () => new Set(requestableAnalysisImageIds),
+    [requestableAnalysisImageIds],
+  )
+  const selectedAnalysisImageIdSet = useMemo(
+    () => new Set(selectedAnalysisImageIds),
+    [selectedAnalysisImageIds],
+  )
+  const hasRequestableAnalysisImages = requestableAnalysisImageIds.length > 0
+  const hasSelectedAnalysisImages = selectedAnalysisImageIds.length > 0
+  const areAllRequestableAnalysisImagesSelected =
+    hasRequestableAnalysisImages &&
+    requestableAnalysisImageIds.every((imageId) => selectedAnalysisImageIdSet.has(imageId))
+  const hasPartiallySelectedAnalysisImages =
+    hasSelectedAnalysisImages && !areAllRequestableAnalysisImagesSelected
   const latestResult = resultRows[0] ?? null
   const queuedJobs = useMemo(
     () => jobRows.filter((job) => job.jobStatus === 'QUEUED'),
@@ -410,6 +436,19 @@ export function InspectionDetailPage() {
       setImageListPage(imagePageCount)
     }
   }, [imageListPage, imageRows.length])
+
+  useEffect(() => {
+    setSelectedAnalysisImageIds((current) =>
+      current.filter((imageId) => requestableAnalysisImageIdSet.has(imageId)),
+    )
+  }, [requestableAnalysisImageIdSet])
+
+  useEffect(() => {
+    if (!selectAllAnalysisRef.current) {
+      return
+    }
+    selectAllAnalysisRef.current.indeterminate = hasPartiallySelectedAnalysisImages
+  }, [hasPartiallySelectedAnalysisImages])
 
   if (!inspectionId) {
     return (
@@ -537,18 +576,18 @@ export function InspectionDetailPage() {
   })
 
   const handleUploadImage = uploadForm.handleSubmit(async (values) => {
-    if (selectedUploadFiles.length === 0) {
+    if (!hasSelectedUploadFiles) {
       uploadForm.setError('file', {
         type: 'manual',
-        message: '업로드할 이미지를 선택해 주세요.',
+        message: '\uc5c5\ub85c\ub4dc\ud560 \uc774\ubbf8\uc9c0\ub97c \uc120\ud0dd\ud574 \uc8fc\uc138\uc694.',
       })
       return
     }
 
-    const files = selectedUploadFiles.map((item) => item.file)
     setUploadFeedbackList(
-      files.map((file) => ({
-        filename: file.name,
+      selectedUploadFiles.map((selectedFile) => ({
+        id: selectedFile.id,
+        filename: selectedFile.file.name,
         status: 'uploading',
       })),
     )
@@ -556,7 +595,7 @@ export function InspectionDetailPage() {
     let successCount = 0
     let failureCount = 0
 
-    for (const file of files) {
+    for (const selectedFile of selectedUploadFiles) {
       try {
         await uploadImageMutation.mutateAsync({
           inspectionId,
@@ -565,25 +604,24 @@ export function InspectionDetailPage() {
           imageType: values.imageType,
           capturedAt: toOffsetDateTime(values.capturedAt),
           memo: values.memo?.trim() || null,
-          file,
+          file: selectedFile.file,
         })
 
         successCount += 1
         setUploadFeedbackList((current) =>
           current.map((item) =>
-            item.filename === file.name && item.status === 'uploading'
-              ? { ...item, status: 'success' }
-              : item,
+            item.id === selectedFile.id ? { ...item, status: 'success' } : item,
           ),
         )
       } catch (error) {
-        const message = getApiErrorMessage(error, '이미지 업로드에 실패했습니다.')
+        const message = getApiErrorMessage(
+          error,
+          '\uc774\ubbf8\uc9c0 \uc5c5\ub85c\ub4dc\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.',
+        )
         failureCount += 1
         setUploadFeedbackList((current) =>
           current.map((item) =>
-            item.filename === file.name && item.status === 'uploading'
-              ? { ...item, status: 'error', error: message }
-              : item,
+            item.id === selectedFile.id ? { ...item, status: 'error', error: message } : item,
           ),
         )
       }
@@ -591,34 +629,109 @@ export function InspectionDetailPage() {
 
     toast.push(
       failureCount > 0
-        ? `${successCount}건 업로드 완료, ${failureCount}건 실패`
-        : `${successCount}건 업로드가 완료되었습니다.`,
+        ? `${successCount}\uac74 \uc5c5\ub85c\ub4dc \uc644\ub8cc, ${failureCount}\uac74 \uc2e4\ud328`
+        : `${successCount}\uac74 \uc5c5\ub85c\ub4dc\uac00 \uc644\ub8cc\ub418\uc5c8\uc2b5\ub2c8\ub2e4.`
     )
 
-    uploadForm.reset({
-      targetType: 'ZONE',
-      equipmentId: '',
-      imageType: values.imageType,
-      capturedAt: '',
-      memo: '',
-      file: undefined,
-    })
-    selectedUploadFiles.forEach((file) => URL.revokeObjectURL(file.previewUrl))
-    setSelectedUploadFiles([])
-    setSelectedPreviewFileId(null)
-    setSelectedFilesPage(1)
-    setUploadFormVersion((current) => current + 1)
-    uploadForm.setValue('file', undefined)
-    resetFileInput()
+    if (failureCount === 0) {
+      uploadForm.reset({
+        targetType: 'ZONE',
+        equipmentId: '',
+        imageType: values.imageType,
+        capturedAt: '',
+        memo: '',
+        file: undefined,
+      })
+      selectedUploadFiles.forEach((file) => URL.revokeObjectURL(file.previewUrl))
+      setSelectedUploadFiles([])
+      setSelectedPreviewFileId(null)
+      setSelectedFilesPage(1)
+      setUploadFeedbackList([])
+      setUploadFormVersion((current) => current + 1)
+      uploadForm.setValue('file', undefined)
+      resetFileInput()
+    }
+
     setActiveTab('images-analysis')
     await handleRefreshWorkspace()
   })
+
+  const requestAnalysisJob = async (imageId: number) => {
+    return createAnalysisJobMutation.mutateAsync({ imageId })
+  }
+
+  const handleToggleAnalysisImage = (imageId: number) => {
+    if (isBulkAnalysisRequesting) {
+      return
+    }
+
+    setSelectedAnalysisImageIds((current) =>
+      current.includes(imageId)
+        ? current.filter((selectedImageId) => selectedImageId !== imageId)
+        : [...current, imageId],
+    )
+  }
+
+  const handleToggleAllAnalysisImages = () => {
+    if (!hasRequestableAnalysisImages || isBulkAnalysisRequesting) {
+      return
+    }
+
+    setSelectedAnalysisImageIds(
+      areAllRequestableAnalysisImagesSelected ? [] : requestableAnalysisImageIds,
+    )
+  }
+
+  const handleRequestAnalysisForImages = async (imageIds: number[]) => {
+    if (imageIds.length === 0 || isBulkAnalysisRequesting) {
+      return
+    }
+
+    setIsBulkAnalysisRequesting(true)
+    setBulkAnalysisSummary(null)
+
+    const failedImageIds: number[] = []
+    let successCount = 0
+
+    try {
+      for (const imageId of imageIds) {
+        try {
+          await requestAnalysisJob(imageId)
+          successCount += 1
+        } catch {
+          failedImageIds.push(imageId)
+        }
+      }
+
+      setBulkAnalysisSummary({
+        successCount,
+        failCount: failedImageIds.length,
+        failedImageIds,
+      })
+
+      setSelectedAnalysisImageIds(failedImageIds)
+
+      if (successCount === imageIds.length) {
+        toast.push(`AI 분석 요청 ${successCount}건을 등록했습니다.`)
+      } else if (successCount > 0) {
+        toast.push(
+          `AI 분석 요청 ${imageIds.length}건 중 ${successCount}건 성공, ${failedImageIds.length}건 실패했습니다.`,
+        )
+      } else {
+        toast.push('AI 분석 요청에 실패했습니다. 선택한 이미지를 확인한 뒤 다시 시도해 주세요.')
+      }
+
+      await handleRefreshWorkspace()
+    } finally {
+      setIsBulkAnalysisRequesting(false)
+    }
+  }
 
   const handleRequestAnalysis = async (image: ImageSummary) => {
     setPendingAnalysisImageId(image.imageId)
 
     try {
-      const response = await createAnalysisJobMutation.mutateAsync({ imageId: image.imageId })
+      const response = await requestAnalysisJob(image.imageId)
       toast.push(response.message || 'AI 분석 요청을 등록했습니다.')
       setExpandedFailureJobId(response.data.jobId)
       await handleRefreshWorkspace()
@@ -1228,6 +1341,67 @@ export function InspectionDetailPage() {
 
               {imageRows.length > 0 ? (
                 <div className="inspection-image-card-list">
+                  <div className="bulk-analysis-toolbar">
+                    <div className="bulk-analysis-selection">
+                      <label className="bulk-analysis-checkbox">
+                        <input
+                          ref={selectAllAnalysisRef}
+                          type="checkbox"
+                          checked={areAllRequestableAnalysisImagesSelected}
+                          disabled={!hasRequestableAnalysisImages || isBulkAnalysisRequesting}
+                          onChange={handleToggleAllAnalysisImages}
+                        />
+                        <span>전체 선택</span>
+                      </label>
+                      <span className="bulk-analysis-selection-count">
+                        선택 {selectedAnalysisImageIds.length}건 / 요청 가능 {requestableAnalysisImageIds.length}건
+                      </span>
+                    </div>
+                    <div className="bulk-analysis-toolbar-actions">
+                      <button
+                        className="btn btn-primary"
+                        type="button"
+                        disabled={!hasSelectedAnalysisImages || isBulkAnalysisRequesting}
+                        onClick={() => void handleRequestAnalysisForImages(selectedAnalysisImageIds)}
+                      >
+                        {isBulkAnalysisRequesting ? '요청 중..' : '선택 이미지 AI 분석 요청'}
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        type="button"
+                        disabled={!hasRequestableAnalysisImages || isBulkAnalysisRequesting}
+                        onClick={() => void handleRequestAnalysisForImages(requestableAnalysisImageIds)}
+                      >
+                        {isBulkAnalysisRequesting ? '요청 중..' : '분석 없음 전체 요청'}
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        type="button"
+                        disabled={isBulkAnalysisRequesting}
+                        onClick={() => void handleRefreshWorkspace()}
+                      >
+                        상태 새로고침
+                      </button>
+                    </div>
+                  </div>
+                  {bulkAnalysisSummary ? (
+                    <div
+                      className={`bulk-analysis-summary ${
+                        bulkAnalysisSummary.failCount > 0
+                          ? 'bulk-analysis-summary-warning'
+                          : 'bulk-analysis-summary-success'
+                      }`}
+                    >
+                      <strong>
+                        성공 {bulkAnalysisSummary.successCount}건 / 실패 {bulkAnalysisSummary.failCount}건
+                      </strong>
+                      {bulkAnalysisSummary.failedImageIds.length > 0 ? (
+                        <span>실패 이미지 ID: #{bulkAnalysisSummary.failedImageIds.join(', #')}</span>
+                      ) : (
+                        <span>선택한 이미지 분석 요청이 모두 등록되었습니다.</span>
+                      )}
+                    </div>
+                  ) : null}
                   {paginatedImageRows.items.map((image) => {
                     const imageState = imageJobStateMap.get(image.imageId) ?? createEmptyImageJobState()
                     const latestJob = imageState.latestJob
@@ -1236,11 +1410,7 @@ export function InspectionDetailPage() {
                     const latestResultForImage = latestSucceededJob
                       ? jobResultMap.get(latestSucceededJob.jobId) ?? null
                       : null
-                    const canRequestAnalysisNow =
-                      isActiveResource(image.status) &&
-                      !imageState.hasActiveJob &&
-                      !imageState.canRetry &&
-                      latestSucceededJob == null
+                    const canRequestAnalysisNow = isAnalysisRequestableImage(image, imageState)
                     const isFailureExpanded =
                       latestFailedJob != null && expandedFailureJobId === latestFailedJob.jobId
                     const failureDetail =
@@ -1251,6 +1421,15 @@ export function InspectionDetailPage() {
                     return (
                       <article key={image.imageId} className="inspection-image-card">
                         <div className="inspection-image-card-main">
+                          <div className="inspection-image-select">
+                            <input
+                              type="checkbox"
+                              checked={selectedAnalysisImageIdSet.has(image.imageId)}
+                              disabled={!canRequestAnalysisNow || isBulkAnalysisRequesting}
+                              onChange={() => handleToggleAnalysisImage(image.imageId)}
+                              aria-label={`이미지 ${image.imageId} 선택`}
+                            />
+                          </div>
                           <button
                             className="inspection-image-thumb"
                             type="button"
@@ -1391,7 +1570,10 @@ export function InspectionDetailPage() {
                                 <button
                                   className="btn btn-primary"
                                   type="button"
-                                  disabled={pendingRetryJobId === latestFailedJob.jobId}
+                                  disabled={
+                                    pendingRetryJobId === latestFailedJob.jobId ||
+                                    isBulkAnalysisRequesting
+                                  }
                                   onClick={() => void handleRetryJob(latestFailedJob)}
                                 >
                                   {pendingRetryJobId === latestFailedJob.jobId
@@ -1410,7 +1592,11 @@ export function InspectionDetailPage() {
                                 <button
                                   className="btn btn-primary"
                                   type="button"
-                                  disabled={!canRequestAnalysisNow || pendingAnalysisImageId === image.imageId}
+                                  disabled={
+                                    !canRequestAnalysisNow ||
+                                    pendingAnalysisImageId === image.imageId ||
+                                    isBulkAnalysisRequesting
+                                  }
                                   onClick={() => void handleRequestAnalysis(image)}
                                 >
                                   {pendingAnalysisImageId === image.imageId
@@ -1428,6 +1614,7 @@ export function InspectionDetailPage() {
                               <button
                                 className="text-button text-button-danger muted-action"
                                 type="button"
+                                disabled={isBulkAnalysisRequesting}
                                 onClick={() => setImageToDelete(image)}
                               >
                                 삭제
@@ -1959,6 +2146,16 @@ function computeImageJobStateMap(jobs: AnalysisJobSummary[]) {
   }
 
   return map
+}
+
+function isAnalysisRequestableImage(image: ImageSummary, imageState: ImageJobState) {
+  return (
+    image.uploadStatus === 'UPLOADED' &&
+    isActiveResource(image.status) &&
+    !imageState.hasActiveJob &&
+    !imageState.canRetry &&
+    imageState.latestSucceededJob == null
+  )
 }
 
 function getImageBadgeTone(imageType: ImageType): StatusBadgeTone {

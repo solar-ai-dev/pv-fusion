@@ -3392,41 +3392,20 @@ textarea {
   gap: 0.55rem;
 }
 
-.result-view-mode-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
+.result-viewer-header-copy {
+  display: grid;
+  gap: 0.18rem;
 }
 
-.result-view-mode-tab {
-  display: grid;
-  gap: 0.12rem;
-  min-width: 96px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 0.7rem;
-  background: rgba(255, 255, 255, 0.96);
-  padding: 0.45rem 0.65rem;
-  text-align: left;
-  color: #334155;
-  font-size: 0.8rem;
+.result-viewer-title {
+  color: #0f172a;
+  font-size: 0.92rem;
   font-weight: 700;
 }
 
-.result-view-mode-tab-active {
-  border-color: rgba(14, 165, 233, 0.45);
-  background: rgba(224, 242, 254, 0.92);
-  color: #0f172a;
-}
-
-.result-view-mode-tab:disabled {
-  opacity: 0.62;
-  cursor: not-allowed;
-}
-
-.result-view-mode-hint,
-.result-viz-toggle-hint {
+.result-viewer-description {
   color: #94a3b8;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 500;
   line-height: 1.25;
 }
@@ -3463,16 +3442,7 @@ textarea {
 .result-image-stage-grid {
   display: grid;
   gap: 0.65rem;
-}
-
-.result-image-stage-grid-split {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-@media (max-width: 960px) {
-  .result-image-stage-grid-split {
-    grid-template-columns: 1fr;
-  }
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .result-image-stage-wrap {
@@ -3642,72 +3612,6 @@ textarea {
   color: #0ea5e9;
   font-size: 0.74rem;
   font-weight: 700;
-}
-
-.result-defect-detail {
-  margin-top: 0.7rem;
-  border-top: 1px solid rgba(226, 232, 240, 0.95);
-  padding-top: 0.7rem;
-}
-
-.result-defect-detail-title {
-  color: #475569;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  margin-bottom: 0.45rem;
-}
-
-.result-defect-detail-grid {
-  display: grid;
-  gap: 0.45rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.result-defect-detail-field {
-  display: grid;
-  gap: 0.12rem;
-}
-
-.result-defect-detail-label {
-  color: #94a3b8;
-  font-size: 0.68rem;
-  font-weight: 700;
-}
-
-.result-defect-detail-value {
-  color: #0f172a;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.result-defect-guide {
-  margin: 0.55rem 0 0;
-  color: #64748b;
-  font-size: 0.78rem;
-}
-
-.result-selected-defect-summary {
-  display: grid;
-  gap: 0.35rem;
-  margin-bottom: 0.55rem;
-  border: 1px solid rgba(251, 191, 36, 0.28);
-  border-radius: 0.72rem;
-  background: rgba(255, 251, 235, 0.72);
-  padding: 0.62rem 0.7rem;
-}
-
-.result-selected-defect-summary-body {
-  display: grid;
-  gap: 0.18rem;
-  color: #64748b;
-  font-size: 0.76rem;
-}
-
-.result-selected-defect-summary-body strong {
-  color: #0f172a;
-  font-size: 0.84rem;
 }
 
 .result-review-status-row {
@@ -3975,6 +3879,49 @@ textarea {
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+.bulk-analysis-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.bulk-analysis-selection-count {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.bulk-analysis-toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.bulk-analysis-summary {
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.72rem 0.85rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  font-size: 0.82rem;
+}
+
+.bulk-analysis-summary-success {
+  border-color: rgba(134, 239, 172, 0.8);
+  background: rgba(240, 253, 244, 0.98);
+  color: #166534;
+}
+
+.bulk-analysis-summary-warning {
+  border-color: rgba(253, 186, 116, 0.85);
+  background: rgba(255, 247, 237, 0.98);
+  color: #9a3412;
 }
 
 /* ── 결과 탭 KPI strip ── */
@@ -4544,8 +4491,15 @@ textarea {
 .inspection-image-card-main {
   display: grid;
   gap: 0.95rem;
-  grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-columns: auto 112px minmax(0, 1fr);
   align-items: start;
+}
+
+.inspection-image-select {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 0.35rem;
 }
 
 .inspection-image-thumb {
@@ -4737,12 +4691,21 @@ textarea {
 
 @media (max-width: 760px) {
   .inspection-image-card-main {
-    grid-template-columns: 1fr;
+    grid-template-columns: auto 1fr;
+  }
+
+  .inspection-image-select {
+    padding-top: 0.1rem;
   }
 
   .inspection-image-thumb {
     width: 100%;
+    grid-column: 1 / -1;
     min-height: 88px;
+  }
+
+  .inspection-image-body {
+    grid-column: 1 / -1;
   }
 
   .inspection-alert,
