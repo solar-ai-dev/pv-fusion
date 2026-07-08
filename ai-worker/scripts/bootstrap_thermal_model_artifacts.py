@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,6 +11,7 @@ import yaml
 from botocore.config import Config
 
 logger = logging.getLogger(__name__)
+WINDOWS_ABSOLUTE_PATH_PATTERN = re.compile(r"^[a-zA-Z]:[\\/]")
 
 
 @dataclass(frozen=True)
@@ -130,10 +132,22 @@ def _extract_model_filename(manifest: object) -> str:
     if not isinstance(model_path, str) or not model_path.strip():
         raise ValueError("Thermal model manifest is missing model_path.")
 
-    candidate = Path(model_path.strip())
-    if candidate.is_absolute():
+    normalized_model_path = model_path.strip()
+    candidate = Path(normalized_model_path)
+    normalized_posix_path = normalized_model_path.replace("\\", "/")
+
+    if (
+        candidate.is_absolute()
+        or WINDOWS_ABSOLUTE_PATH_PATTERN.match(normalized_model_path)
+        or normalized_model_path.startswith(("/", "\\"))
+    ):
         raise ValueError("Thermal model manifest model_path must be a relative file path.")
-    return candidate.as_posix()
+
+    normalized_parts = [part for part in normalized_posix_path.split("/") if part not in {"", "."}]
+    if any(part == ".." for part in normalized_parts):
+        raise ValueError("Thermal model manifest model_path must be a relative file path.")
+
+    return Path(normalized_posix_path).as_posix()
 
 
 def _join_s3_key(prefix: str, filename: str) -> str:
