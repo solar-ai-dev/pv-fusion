@@ -110,6 +110,44 @@ def test_bootstrap_rejects_absolute_model_path_in_manifest(tmp_path: Path):
         bootstrap_thermal_model_artifacts(config, s3_client=client)
 
 
+@pytest.mark.parametrize(
+    "model_path",
+    [
+        "/models/thermal/model.onnx",
+        "C:/project/model.onnx",
+        r"C:\project\model.onnx",
+        "../model.onnx",
+    ],
+)
+def test_bootstrap_rejects_non_relative_model_path_in_manifest(tmp_path: Path, model_path: str):
+    client = FakeS3Client(
+        "\n".join(
+            [
+                "model_name: thermal-yolo26s-det-stage10b",
+                "model_version: v20260704-r1",
+                "model_type: THERMAL_ONLY",
+                "input_type: THERMAL_SINGLE",
+                "task: detect",
+                "runtime: onnxruntime",
+                "format: onnx",
+                "input_size: 640",
+                f"model_path: {model_path}",
+                "",
+            ]
+        )
+    )
+    config = ThermalArtifactBootstrapConfig(
+        bucket="artifact-bucket",
+        manifest_path=tmp_path / "models" / "thermal" / "model-manifest.yaml",
+        prefix="models/ai-worker/thermal",
+        endpoint_url=None,
+        region_name="ap-northeast-2",
+    )
+
+    with pytest.raises(ValueError, match="relative file path"):
+        bootstrap_thermal_model_artifacts(config, s3_client=client)
+
+
 def test_load_config_from_env_uses_thermal_manifest_path_and_bucket_alias(monkeypatch):
     monkeypatch.setenv("STORAGE_DEFAULT_BUCKET", "artifact-bucket")
     monkeypatch.setenv("THERMAL_MODEL_MANIFEST_PATH", "/models/thermal/model-manifest.yaml")
