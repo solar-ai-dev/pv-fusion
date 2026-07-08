@@ -187,7 +187,7 @@ RGB 이미지와 열화상 이미지는 같은 점검 회차에 함께 등록되
 ## 8. 시스템 아키텍처
 
 <div align="center">
-  <img width="700" alt="pv-insight시스템 아키텍처" src="https://github.com/user-attachments/assets/2dcde3e5-de23-48c2-8e5c-f665d1c6bba6" />
+  <img width="700" alt="pv-insight시스템 아키텍처" src="https://github.com/user-attachments/assets/ab90489c-db7a-44db-ab62-b349698d3ab4" />
 </div>
 
 🏗️ 본 프로젝트는 **React Frontend - Traefik Ingress - Spring Boot Backend - AWS SQS - FastAPI AI Worker - AWS 관리형 리소스 계층**으로 구성됩니다.
