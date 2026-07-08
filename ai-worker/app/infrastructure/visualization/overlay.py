@@ -29,9 +29,6 @@ def draw_bbox_overlay(
 
             x1, y1, x2, y2 = bbox
             draw.rectangle((x1, y1, x2, y2), outline=(255, 0, 0), width=2)
-            label = _build_label(detection)
-            if label:
-                draw.text((x1, max(0, y1 - 12)), label, fill=(255, 0, 0))
 
         output = BytesIO()
         canvas.save(output, format=image_format)
@@ -112,11 +109,3 @@ def _normalize_bbox(
 
 def _looks_normalized(x: float, y: float, width: float, height: float) -> bool:
     return 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0 and 0.0 <= width <= 1.0 and 0.0 <= height <= 1.0
-
-
-def _build_label(detection: ParsedDetection) -> str:
-    if detection.class_name:
-        return f"{detection.class_name} {detection.confidence:.2f}"
-    if detection.class_id >= 0:
-        return f"{detection.class_id} {detection.confidence:.2f}"
-    return f"{detection.confidence:.2f}"

@@ -19,10 +19,7 @@ import {
 } from '../features/results/hooks/useResults'
 import { ResultDefectPanel } from '../features/results/components/ResultDefectPanel'
 import { ResultImageViewer } from '../features/results/components/ResultImageViewer'
-import {
-  getDefaultVisualizationType,
-  type ImageViewMode,
-} from '../features/results/resultViewerUtils'
+import { getDefaultVisualizationType } from '../features/results/resultViewerUtils'
 import type { ResultVisualizationType } from '../features/results/types'
 import type { AnalysisInputType, AnalysisModelType } from '../features/analysisJobs/types'
 import { useTrackingCompare } from '../features/tracking/hooks/useTracking'
@@ -48,13 +45,11 @@ export function ResultDetailPage() {
   const toast = useToast()
   const resultId = parsePositiveNumber(params.resultId)
 
-  const [viewMode, setViewMode] = useState<ImageViewMode>('split')
   const [visualizationType, setVisualizationType] = useState<ResultVisualizationType>('bbox')
   const [selectedDefectId, setSelectedDefectId] = useState<number | null>(null)
   const [nextActionCandidate, setNextActionCandidate] = useState<ActionCandidate>('CLEANING')
   const [actionMemo, setActionMemo] = useState('')
   const [nextReviewStatus, setNextReviewStatus] = useState<ReviewStatus>('UNCHECKED')
-  const [reviewActionCandidate, setReviewActionCandidate] = useState<ActionCandidate>('CLEANING')
   const [reviewMemo, setReviewMemo] = useState('')
   const [isActionConfirmOpen, setIsActionConfirmOpen] = useState(false)
   const [isReviewConfirmOpen, setIsReviewConfirmOpen] = useState(false)
@@ -75,7 +70,6 @@ export function ResultDetailPage() {
     const ac = result.actionCandidate ?? ACTION_CANDIDATE_OPTIONS[0]
     const rs = result.reviewStatus ?? REVIEW_STATUS_OPTIONS[0]
     setNextActionCandidate(ac)
-    setReviewActionCandidate(ac)
     setNextReviewStatus(rs)
     setOrigActionCandidate(ac)
     setOrigReviewStatus(rs)
@@ -130,7 +124,7 @@ export function ResultDetailPage() {
     try {
       const res = await updateReviewMutation.mutateAsync({
         reviewStatus: nextReviewStatus,
-        actionCandidate: reviewActionCandidate || null,
+        actionCandidate: null,
         memo: reviewMemo.trim() || null,
       })
       toast.push(res.message || '검토 상태를 저장했습니다.')
@@ -204,9 +198,7 @@ export function ResultDetailPage() {
             result={result}
             resultId={resultId}
             selectedDefect={selectedDefect}
-            viewMode={viewMode}
             visualizationType={visualizationType}
-            onViewModeChange={setViewMode}
             onVisualizationTypeChange={setVisualizationType}
           />
 
@@ -220,20 +212,6 @@ export function ResultDetailPage() {
         {/* 우측: 조치·검토 sticky + 이전 점검 비교 */}
         <div className="result-side-column">
           <div className="result-action-sticky panel">
-            {selectedDefect ? (
-              <div className="result-selected-defect-summary">
-                <div className="result-compare-title">검토 참고 · 선택 결함</div>
-                <div className="result-selected-defect-summary-body">
-                  <strong>{getDefectTaxonomyLabel(selectedDefect.defectType).label}</strong>
-                  <span>
-                    {getSeverityLabel(selectedDefect.severityLevel)} ·{' '}
-                    {getActionLabel(selectedDefect.actionCandidate)} · 신뢰도{' '}
-                    {selectedDefect.confidence ?? '-'}
-                  </span>
-                </div>
-              </div>
-            ) : null}
-
             {/* 조치 후보 */}
             <div className="result-action-section">
               <div className="result-compare-title">조치 후보</div>
@@ -282,7 +260,7 @@ export function ResultDetailPage() {
                   tone={getReviewStatusTone(result.reviewStatus)}
                 />
                 <span className="result-action-current">
-                  현재 상태 · 다음 변경: <strong>{getReviewStatusLabel(nextReviewStatus)}</strong>
+                  현재: <strong>{getReviewStatusLabel(result.reviewStatus)}</strong>
                 </span>
               </div>
               <FormField label="변경">
@@ -293,17 +271,6 @@ export function ResultDetailPage() {
                 >
                   {REVIEW_STATUS_OPTIONS.map((s) => (
                     <option key={s} value={s}>{getReviewStatusLabel(s)}</option>
-                  ))}
-                </select>
-              </FormField>
-              <FormField label="함께 저장할 조치 후보">
-                <select
-                  className="input-field"
-                  value={reviewActionCandidate}
-                  onChange={(e) => setReviewActionCandidate(e.target.value as ActionCandidate)}
-                >
-                  {ACTION_CANDIDATE_OPTIONS.map((a) => (
-                    <option key={a} value={a}>{getActionLabel(a)}</option>
                   ))}
                 </select>
               </FormField>
@@ -319,7 +286,7 @@ export function ResultDetailPage() {
                 <button
                   className="btn btn-primary"
                   type="button"
-                  disabled={updateReviewMutation.isPending || (nextReviewStatus === origReviewStatus && reviewActionCandidate === origActionCandidate && !reviewMemo.trim())}
+                  disabled={updateReviewMutation.isPending || (nextReviewStatus === origReviewStatus && !reviewMemo.trim())}
                   onClick={() => setIsReviewConfirmOpen(true)}
                 >
                   {updateReviewMutation.isPending ? '저장 중...' : '검토 상태 저장'}
@@ -659,4 +626,3 @@ function joinDefects(values: DefectType[]) {
   if (values.length === 0) return '-'
   return values.map(getDefectLabel).join(', ')
 }
-
