@@ -114,6 +114,7 @@ export type AnalysisResultSummary = {
 export type AnalysisResult = {
   resultId: number
   jobId: number
+  imageId: number | null
   plantId: number | null
   zoneId: number | null
   inspectionId: number | null
