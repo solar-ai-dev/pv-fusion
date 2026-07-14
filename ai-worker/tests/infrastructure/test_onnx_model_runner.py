@@ -1,4 +1,5 @@
 from pathlib import Path
+import sys
 
 from app.domain.detected_defect import DetectedDefectDraft
 from app.domain.enums import ActionCandidate, ModelType, RequestedModelType
@@ -50,6 +51,7 @@ def build_placeholder_model(requested: RequestedModelType, model_type: ModelType
         runtime="onnxruntime",
         inputSize=640,
         threshold="0.50",
+        maskThreshold="0.30",
     )
 
 
@@ -244,8 +246,8 @@ def test_runner_handles_rgb_outputs_with_bbox_and_mask_tensors(tmp_path: Path):
     )
     session = FakeSession(
         [
-            [[10, 20, 30, 50, 0.9, 1] + ([0] * 32)],
-            [[0]],
+            [[0, 0, 640, 640, 0.9, 0] + ([0] * 32)],
+            [[[[0.0]] for _ in range(32)]],
         ]
     )
     provider = OnnxSessionProvider(session_factory=lambda _: session)
@@ -259,6 +261,23 @@ def test_runner_handles_rgb_outputs_with_bbox_and_mask_tensors(tmp_path: Path):
 
     assert result.modelInfo.modelType is ModelType.RGB_ONLY
     assert result.anomalyCount == 1
+
+
+def test_session_provider_uses_cpu_execution_provider(monkeypatch):
+    calls = []
+
+    class FakeOrt:
+        @staticmethod
+        def InferenceSession(model_path, providers=None):
+            calls.append((model_path, providers))
+            return object()
+
+    monkeypatch.setitem(sys.modules, "onnxruntime", FakeOrt)
+
+    session = OnnxSessionProvider._build_session("models/test.onnx")
+
+    assert session is not None
+    assert calls == [("models/test.onnx", ["CPUExecutionProvider"])]
 
 
 def test_session_provider_raises_when_model_file_is_missing(tmp_path: Path):

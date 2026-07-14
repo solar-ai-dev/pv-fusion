@@ -22,6 +22,7 @@ class ModelManifest:
     inputSize: int
     confidenceThreshold: Decimal
     nmsIouThreshold: Decimal
+    maskThreshold: Decimal | None
     preprocessId: str | None
     modelPath: str
     classNames: list[str]
@@ -38,6 +39,7 @@ class ModelManifest:
             inputSize=self.inputSize,
             threshold=self.confidenceThreshold,
             nmsIouThreshold=self.nmsIouThreshold,
+            maskThreshold=self.maskThreshold,
             preprocessId=self.preprocessId,
             classNames=self.classNames,
         )
@@ -64,6 +66,7 @@ def load_model_manifest(manifest_path: str) -> ModelManifest:
             inputSize=int(_require_number_like(parsed, "input_size")),
             confidenceThreshold=Decimal(_require_number_like(parsed, "confidence_threshold")),
             nmsIouThreshold=Decimal(_require_number_like(parsed, "nms_iou_threshold")),
+            maskThreshold=_optional_decimal(parsed, "mask_threshold"),
             preprocessId=_optional_string(parsed, "preprocess_id", None),
             modelPath=_resolve_model_path(path, _require_string(parsed, "model_path")),
             classNames=_require_list(parsed, "class_names"),
@@ -88,6 +91,7 @@ def _parse_manifest(path: Path) -> dict[str, object]:
     if isinstance(threshold, dict):
         source.setdefault("confidence_threshold", threshold.get("conf"))
         source.setdefault("nms_iou_threshold", threshold.get("iou"))
+        source.setdefault("mask_threshold", threshold.get("mask"))
 
     preprocess = source.get("preprocess")
     if isinstance(preprocess, dict):
@@ -120,6 +124,13 @@ def _optional_string(parsed: dict[str, object], key: str, default: str | None) -
         return default
     text = str(value).strip()
     return text or default
+
+
+def _optional_decimal(parsed: dict[str, object], key: str) -> Decimal | None:
+    value = parsed.get(key)
+    if value is None or value == "":
+        return None
+    return Decimal(str(value))
 
 
 def _require_number_like(parsed: dict[str, object], key: str) -> str:
