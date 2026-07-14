@@ -1,4 +1,5 @@
-﻿import { getDefectSourceLabel, getDefectTaxonomyLabel } from '../defectTaxonomy'
+import { getDefectSourceLabel, getDefectTaxonomyLabel } from '../defectTaxonomy'
+import { getRgbDefectChip } from '../rgbClassPalette'
 import type { ActionCandidate, DetectedDefect, SeverityLevel } from '../types'
 import { EmptyState } from '../../../shared/components/state/EmptyState'
 import { StatusBadge } from '../../../shared/components/state/StatusBadge'
@@ -23,13 +24,14 @@ export function ResultDefectPanel({
 
       {defects.length === 0 ? (
         <EmptyState
-          title="결함 후보가 없습니다."
-          description="이번 결과에는 기록된 결함 후보가 없습니다."
+          title="탐지된 이상 후보가 없습니다."
+          description="이번 분석에서는 기록된 이상 후보가 없습니다."
         />
       ) : (
         <div className="result-defect-list">
           {defects.map((defect) => {
             const { label, isKnown } = getDefectTaxonomyLabel(defect.defectType)
+            const rgbChip = getRgbDefectChip(defect)
             const isSelected = defect.defectId === selectedDefectId
             return (
               <button
@@ -40,12 +42,28 @@ export function ResultDefectPanel({
               >
                 <div className="result-defect-row-main">
                   <div className="result-defect-row-top">
-                    <strong
-                      className={isKnown ? 'text-slate-900' : 'text-slate-500'}
-                      title={!isKnown && defect.defectType ? `원본 값 ${defect.defectType}` : undefined}
-                    >
-                      {label}
-                    </strong>
+                    <div className="result-defect-row-title-wrap">
+                      {rgbChip ? (
+                        <span
+                          className={`result-defect-class-chip result-defect-class-chip-${rgbChip.kind}`}
+                          style={
+                            rgbChip.kind === 'single'
+                              ? { backgroundColor: rgbChip.hex }
+                              : {
+                                  backgroundImage: `linear-gradient(90deg, ${rgbChip.hexes[0]} 0%, ${rgbChip.hexes[0]} 50%, ${rgbChip.hexes[1]} 50%, ${rgbChip.hexes[1]} 100%)`,
+                                }
+                          }
+                          title={rgbChip.kind === 'single' ? `${rgbChip.label} 클래스 색상` : rgbChip.note}
+                          aria-label={rgbChip.kind === 'single' ? `${rgbChip.label} 클래스 색상` : rgbChip.note}
+                        />
+                      ) : null}
+                      <strong
+                        className={isKnown ? 'text-slate-900' : 'text-slate-500'}
+                        title={!isKnown && defect.defectType ? `원본 값 ${defect.defectType}` : undefined}
+                      >
+                        {label}
+                      </strong>
+                    </div>
                     <StatusBadge
                       label={getSeverityLabel(defect.severityLevel)}
                       tone={getSeverityTone(defect.severityLevel)}
