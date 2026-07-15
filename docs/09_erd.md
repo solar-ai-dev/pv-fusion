@@ -163,7 +163,7 @@ AI 분석 작업, 분석 결과 요약, 개별 결함 후보, 검토 이력을 �
 | --- | --- | --- |
 | ANALYSIS_JOBS | id, image_id, input_type, requested_model_type, model_type, job_status, requested_by_user_id, requested_at, started_at, completed_at, failure_code, failure_message, created_at, updated_at | 이미지 한 건에 대한 AI 분석 요청과 비동기 작업 상태를 저장한다. |
 | ANALYSIS_RESULTS | id, analysis_job_id, model_type, model_name, model_version, model_format, runtime, input_size, threshold, result_status, anomaly_count, max_confidence, area_ratio, severity_score, severity_level, action_candidate, priority_level, review_status, bbox_bucket_name, bbox_object_key, bbox_file_url, heatmap_bucket_name, heatmap_object_key, heatmap_file_url, mask_bucket_name, mask_object_key, mask_file_url, analyzed_at, created_at, updated_at | 분석 작업의 결과 요약, 모델 실행 정보, 조치 후보, 심각도, 우선순위를 저장한다. 대상 정보는 analysis_job_id를 통해 조회한다. |
-| DETECTED_DEFECTS | id, analysis_result_id, defect_type, defect_source, confidence, area_ratio, bbox_x, bbox_y, bbox_width, bbox_height, mask_bucket_name, mask_object_key, mask_file_url, severity_score, severity_level, action_candidate, created_at, updated_at | 분석 결과 안의 개별 결함 후보 영역을 저장한다. |
+| DETECTED_DEFECTS | id, analysis_result_id, defect_type, defect_source, model_class_id, model_class_name, confidence, area_ratio, bbox_x, bbox_y, bbox_width, bbox_height, mask_bucket_name, mask_object_key, mask_file_url, severity_score, severity_level, action_candidate, created_at, updated_at | 분석 결과 안의 개별 결함 후보 영역을 저장한다. |
 | RESULT_REVIEW_HISTORIES | id, analysis_result_id, reviewer_user_id, previous_review_status, new_review_status, previous_action_candidate, new_action_candidate, memo, created_at, updated_at | 사용자가 분석 결과를 검토하거나 상태·조치 후보를 변경한 이력을 저장한다. |
 
 ### 주요 관계
@@ -191,6 +191,8 @@ AI 분석 작업, 분석 결과 요약, 개별 결함 후보, 검토 이력을 �
 | ANALYSIS_RESULTS | bbox_bucket_name, bbox_object_key, bbox_file_url | Bounding Box 결과 이미지 경로 |
 | ANALYSIS_RESULTS | heatmap_bucket_name, heatmap_object_key, heatmap_file_url | Heatmap 결과가 생성된 경우 저장하는 이미지 경로 |
 | ANALYSIS_RESULTS | mask_bucket_name, mask_object_key, mask_file_url | Mask 결과가 생성된 경우 저장하는 이미지 경로 |
+| DETECTED_DEFECTS | model_class_id | RGB 모델 원본 class index. 과거 결과 또는 Thermal 결과에서는 NULL 가능 |
+| DETECTED_DEFECTS | model_class_name | RGB 모델 원본 class name. 예: broken, bitki, dusty, missing, shading. 과거 결과 또는 Thermal 결과에서는 NULL 가능 |
 | DETECTED_DEFECTS | bbox_x, bbox_y, bbox_width, bbox_height | 결함 후보 영역의 Bounding Box 좌표 |
 | DETECTED_DEFECTS | confidence | 모델이 탐지한 결함 후보의 신뢰도 |
 | DETECTED_DEFECTS | defect_source | RGB / THERMAL 중 어떤 이미지 유형의 분석에서 나온 결함인지 구분 |
