@@ -373,6 +373,83 @@ def test_rgb_five_class_mapping_uses_existing_contract_enums():
     assert result.defects[2].actionCandidate == ActionCandidate.CLEANING
 
 
+@pytest.mark.parametrize(
+    ("class_names", "class_index", "expected_model_class_name", "expected_defect_type"),
+    [
+        (["broken", "bitki", "dusty", "missing", "shading"], 0, "broken", "APPEARANCE_DAMAGE"),
+        (["broken", "bitki", "dusty", "missing", "shading"], 1, "bitki", "VEGETATION"),
+        (["broken", "bitki", "dusty", "missing", "shading"], 2, "dusty", "DUST"),
+        (["broken", "bitki", "dusty", "missing", "shading"], 3, "missing", "APPEARANCE_DAMAGE"),
+        (["broken", "bitki", "dusty", "missing", "shading"], 4, "shading", "SHADING"),
+    ],
+)
+def test_rgb_preserves_model_class_id_and_name(
+    class_names,
+    class_index,
+    expected_model_class_name,
+    expected_defect_type,
+):
+    output0, output1 = _build_rgb_outputs([[0, 0, 8, 8, 0.90, class_index] + ([1.0] * 32)])
+
+    result = parse_inference_output(
+        [output0, output1],
+        build_model_info(ModelType.RGB_ONLY, class_names=class_names),
+    )
+
+    defect = result.defects[0]
+    assert defect.modelClassId == class_index
+    assert defect.modelClassName == expected_model_class_name
+    assert defect.defectType == expected_defect_type
+    assert result.restoredMasks[0].classId == class_index
+    assert result.restoredMasks[0].className == expected_model_class_name
+
+
+def test_rgb_broken_and_missing_keep_distinct_model_class_names():
+    class_names = ["broken", "bitki", "dusty", "missing", "shading"]
+    output0, output1 = _build_rgb_outputs(
+        [
+            [0, 0, 8, 8, 0.90, 0] + ([1.0] * 32),
+            [0, 0, 8, 8, 0.80, 3] + ([1.0] * 32),
+        ]
+    )
+
+    result = parse_inference_output(
+        [output0, output1],
+        build_model_info(ModelType.RGB_ONLY, class_names=class_names),
+    )
+
+    assert [defect.defectType for defect in result.defects] == [
+        "APPEARANCE_DAMAGE",
+        "APPEARANCE_DAMAGE",
+    ]
+    assert [defect.modelClassName for defect in result.defects] == ["broken", "missing"]
+    assert [defect.modelClassId for defect in result.defects] == [0, 3]
+
+
+def test_rgb_uses_manifest_class_name_order_for_model_class_fields():
+    class_names = ["missing", "broken"]
+    output0, output1 = _build_rgb_outputs([[0, 0, 8, 8, 0.90, 0] + ([1.0] * 32)])
+
+    result = parse_inference_output(
+        [output0, output1],
+        build_model_info(ModelType.RGB_ONLY, class_names=class_names),
+    )
+
+    assert result.defects[0].modelClassId == 0
+    assert result.defects[0].modelClassName == "missing"
+    assert result.defects[0].defectType == "APPEARANCE_DAMAGE"
+
+
+def test_rgb_invalid_class_index_raises_value_error():
+    output0, output1 = _build_rgb_outputs([[0, 0, 8, 8, 0.90, 5] + ([1.0] * 32)])
+
+    with pytest.raises(ValueError, match="RGB detection class index 5 is not valid"):
+        parse_inference_output(
+            [output0, output1],
+            build_model_info(ModelType.RGB_ONLY, class_names=["broken", "bitki", "dusty", "missing", "shading"]),
+        )
+
+
 def test_rgb_dusty_maps_to_existing_cleaning_contract():
     output0, output1 = _build_rgb_outputs([[0, 0, 8, 8, 0.90, 0] + ([1.0] * 32)])
 

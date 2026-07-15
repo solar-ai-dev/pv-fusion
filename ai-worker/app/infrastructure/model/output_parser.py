@@ -60,6 +60,8 @@ class ParsedDetection:
     bbox_width: float
     bbox_height: float
     source: str
+    model_class_id: int | None = None
+    model_class_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -182,6 +184,8 @@ def detections_to_defects(
                 bboxHeight=int(round(detection.bbox_height)),
                 severityScore=None,
                 actionCandidate=_resolve_defect_action_candidate(defect_type),
+                modelClassId=detection.model_class_id,
+                modelClassName=detection.model_class_name,
             )
         )
     return defects
@@ -331,15 +335,24 @@ def _parse_detection(
         return None
 
     class_id = _safe_int(values[5])
+    model_class_id = None
+    model_class_name = None
+    class_name = _resolve_raw_class_name(class_id, class_names)
+    if source == "RGB":
+        model_class_id, model_class_name = _resolve_rgb_model_class(class_id, class_names)
+        class_name = model_class_name
+
     return ParsedDetection(
         class_id=class_id,
-        class_name=_resolve_raw_class_name(class_id, class_names),
+        class_name=class_name,
         confidence=confidence,
         bbox_x=x1,
         bbox_y=y1,
         bbox_width=width,
         bbox_height=height,
         source=source,
+        model_class_id=model_class_id,
+        model_class_name=model_class_name,
     )
 
 
@@ -490,6 +503,8 @@ def _finalize_rgb_detection(
             bbox_width=bbox_width,
             bbox_height=bbox_height,
             source=detection.source,
+            model_class_id=detection.model_class_id,
+            model_class_name=detection.model_class_name,
         ),
         RestoredMask(
             bboxX=bbox_x,
@@ -699,6 +714,15 @@ def _resolve_raw_class_name(class_id: int, class_names: list[str]) -> str | None
     return raw_value or None
 
 
+def _resolve_rgb_model_class(class_id: int, class_names: list[str]) -> tuple[int, str]:
+    class_name = _resolve_raw_class_name(class_id, class_names)
+    if class_id < 0 or class_name is None:
+        raise ValueError(
+            f"RGB detection class index {class_id} is not valid for manifest class_names size {len(class_names)}."
+        )
+    return class_id, class_name
+
+
 def _resolve_defect_type(raw_value: str | None) -> str:
     if raw_value is None:
         return "UNKNOWN"
@@ -754,9 +778,25 @@ def _normalize_structured_defects(raw_defects: Any) -> list[DetectedDefectDraft]
                         ).value,
                     )
                 ),
+                modelClassId=_safe_optional_int(raw_defect.get("modelClassId")),
+                modelClassName=_normalize_optional_string(raw_defect.get("modelClassName")),
             )
         )
     return normalized
+
+
+def _safe_optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    result = _safe_int(value)
+    return None if result < 0 else result
+
+
+def _normalize_optional_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
 
 
 def _resolve_defect_action_candidate(defect_type: str) -> ActionCandidate:

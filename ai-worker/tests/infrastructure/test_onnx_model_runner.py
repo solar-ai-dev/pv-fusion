@@ -261,6 +261,9 @@ def test_runner_handles_rgb_outputs_with_bbox_and_mask_tensors(tmp_path: Path):
 
     assert result.modelInfo.modelType is ModelType.RGB_ONLY
     assert result.anomalyCount == 1
+    assert result.defects[0].modelClassId == 0
+    assert result.defects[0].modelClassName == "broken"
+    assert result.defects[0].defectType == "APPEARANCE_DAMAGE"
 
 
 def test_session_provider_uses_cpu_execution_provider(monkeypatch):
@@ -313,7 +316,9 @@ def _write_manifest(
     confidence_threshold: str,
     model_path: str,
     preprocess_id: str | None = None,
+    class_names: list[str] | None = None,
 ) -> str:
+    resolved_class_names = class_names or (["broken"] if input_type == "RGB_SINGLE" else ["HOTSPOT"])
     path.write_text(
         "\n".join(
             [
@@ -333,7 +338,7 @@ def _write_manifest(
                 *(["    preprocess_id: " + preprocess_id] if preprocess_id else []),
                 f"    model_path: {model_path}",
                 "    class_names:",
-                "      - HOTSPOT",
+                *[f"      - {class_name}" for class_name in resolved_class_names],
                 "",
             ]
         ),

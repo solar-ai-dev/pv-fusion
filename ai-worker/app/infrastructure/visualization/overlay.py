@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from io import BytesIO
 
 from app.domain.inference_result import RestoredMask
@@ -22,13 +23,30 @@ RGB_BBOX_COLOR = (255, 0, 0)
 RGB_BBOX_COLOR_BGR = (0, 0, 255)
 RGB_BBOX_WIDTH = 5
 RGB_LABEL_TEXT_COLOR_BGR = (255, 255, 255)
-RGB_LABEL_PADDING = 4
-RGB_LABEL_FONT_SCALE = 0.5
+RGB_LABEL_X_PADDING = 5
+RGB_LABEL_Y_PADDING = 3
+RGB_LABEL_FONT_SCALE = 0.65
 RGB_LABEL_FONT_THICKNESS = 1
+_RGB_VIEWER_WIDTH = 1000.0
+_RGB_VIEWER_HEIGHT = 560.0
+_RGB_TARGET_DISPLAY_TEXT_HEIGHT = 8.0
+_RGB_TARGET_DISPLAY_TEXT_THICKNESS = 1.0
+_RGB_TARGET_DISPLAY_PADDING_X = 3.0
+_RGB_TARGET_DISPLAY_PADDING_Y = 2.0
+_RGB_SOURCE_TEXT_THICKNESS_CAP = 16
+_RGB_SOURCE_PADDING_CAP = 40
 RGB_MASK_CONTOUR_WIDTH = 4
 THERMAL_BBOX_COLOR = (255, 0, 0)
 THERMAL_BBOX_WIDTH = 2
-MASK_ALPHA = 96
+MASK_ALPHA = 128
+
+
+@dataclass(frozen=True)
+class _RgbLabelStyle:
+    font_scale: float
+    text_thickness: int
+    padding_x: int
+    padding_y: int
 
 
 def draw_bbox_overlay(
@@ -203,6 +221,100 @@ def _looks_normalized(x: float, y: float, width: float, height: float) -> bool:
     return 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0 and 0.0 <= width <= 1.0 and 0.0 <= height <= 1.0
 
 
+def _calculate_rgb_viewer_fit_scale(
+    image_width: int,
+    image_height: int,
+) -> float:
+    if image_width <= 0 or image_height <= 0:
+        raise ValueError(
+            "RGB overlay image dimensions must be positive: "
+            f"width={image_width}, height={image_height}"
+        )
+
+    return min(
+        _RGB_VIEWER_WIDTH / float(image_width),
+        _RGB_VIEWER_HEIGHT / float(image_height),
+    )
+
+
+def _measure_rgb_text_height(
+    text: str,
+    font_scale: float,
+    text_thickness: int,
+) -> int:
+    import cv2
+
+    (_, text_height), _ = cv2.getTextSize(
+        text,
+        cv2.FONT_HERSHEY_SIMPLEX,
+        font_scale,
+        text_thickness,
+    )
+    return max(1, int(text_height))
+
+
+def _resolve_rgb_label_style(
+    *,
+    image_width: int,
+    image_height: int,
+    label: str,
+) -> _RgbLabelStyle:
+    fit_scale = _calculate_rgb_viewer_fit_scale(
+        image_width=image_width,
+        image_height=image_height,
+    )
+
+    baseline_source_text_height = _measure_rgb_text_height(
+        label,
+        RGB_LABEL_FONT_SCALE,
+        RGB_LABEL_FONT_THICKNESS,
+    )
+    baseline_display_text_height = baseline_source_text_height * fit_scale
+    if baseline_display_text_height >= _RGB_TARGET_DISPLAY_TEXT_HEIGHT:
+        return _RgbLabelStyle(
+            font_scale=RGB_LABEL_FONT_SCALE,
+            text_thickness=RGB_LABEL_FONT_THICKNESS,
+            padding_x=RGB_LABEL_X_PADDING,
+            padding_y=RGB_LABEL_Y_PADDING,
+        )
+
+    source_text_thickness = min(
+        _RGB_SOURCE_TEXT_THICKNESS_CAP,
+        max(
+            RGB_LABEL_FONT_THICKNESS,
+            round(_RGB_TARGET_DISPLAY_TEXT_THICKNESS / fit_scale),
+        ),
+    )
+    target_source_text_height = _RGB_TARGET_DISPLAY_TEXT_HEIGHT / fit_scale
+    text_height_at_scale_one = _measure_rgb_text_height(
+        label,
+        1.0,
+        source_text_thickness,
+    )
+    font_scale = target_source_text_height / float(text_height_at_scale_one)
+    source_padding_x = min(
+        _RGB_SOURCE_PADDING_CAP,
+        max(
+            RGB_LABEL_X_PADDING,
+            round(_RGB_TARGET_DISPLAY_PADDING_X / fit_scale),
+        ),
+    )
+    source_padding_y = min(
+        _RGB_SOURCE_PADDING_CAP,
+        max(
+            RGB_LABEL_Y_PADDING,
+            round(_RGB_TARGET_DISPLAY_PADDING_Y / fit_scale),
+        ),
+    )
+
+    return _RgbLabelStyle(
+        font_scale=max(0.1, float(font_scale)),
+        text_thickness=int(source_text_thickness),
+        padding_x=int(source_padding_x),
+        padding_y=int(source_padding_y),
+    )
+
+
 def _draw_rgb_label(
     canvas_bgr,
     *,
@@ -221,23 +333,28 @@ def _draw_rgb_label(
     if not text:
         return
 
+    label_style = _resolve_rgb_label_style(
+        image_width=width,
+        image_height=height,
+        label=text,
+    )
     (text_width, text_height), baseline = cv2.getTextSize(
         text,
         cv2.FONT_HERSHEY_SIMPLEX,
-        RGB_LABEL_FONT_SCALE,
-        RGB_LABEL_FONT_THICKNESS,
+        label_style.font_scale,
+        label_style.text_thickness,
     )
-    box_width = min(width, text_width + (RGB_LABEL_PADDING * 2))
-    box_height = min(height, text_height + baseline + (RGB_LABEL_PADDING * 2))
+    box_width = min(width, text_width + (label_style.padding_x * 2))
+    box_height = min(height, text_height + baseline + (label_style.padding_y * 2))
     label_left = min(max(0, x1), max(0, width - box_width))
     preferred_top = y1 - box_height
     label_top = preferred_top if preferred_top >= 0 else min(max(0, y1), max(0, height - box_height))
     label_right = label_left + box_width
     label_bottom = label_top + box_height
-    text_x = min(max(label_left + RGB_LABEL_PADDING, 0), max(0, width - text_width))
+    text_x = min(max(label_left + label_style.padding_x, 0), max(0, width - text_width))
     text_y = min(
-        max(label_top + RGB_LABEL_PADDING + text_height, text_height),
-        max(text_height, height - baseline - RGB_LABEL_PADDING),
+        max(label_top + label_style.padding_y + text_height, text_height),
+        max(text_height, height - baseline - label_style.padding_y),
     )
 
     cv2.rectangle(
@@ -252,9 +369,9 @@ def _draw_rgb_label(
         text,
         (text_x, text_y),
         cv2.FONT_HERSHEY_SIMPLEX,
-        RGB_LABEL_FONT_SCALE,
+        label_style.font_scale,
         RGB_LABEL_TEXT_COLOR_BGR,
-        thickness=RGB_LABEL_FONT_THICKNESS,
+        thickness=label_style.text_thickness,
         lineType=cv2.LINE_AA,
     )
 
@@ -272,6 +389,8 @@ def _resolve_restored_mask_color(restored_mask: RestoredMask) -> tuple[int, int,
 def _resolve_detection_label(detection: ParsedDetection) -> str | None:
     if str(detection.source).upper() != "RGB":
         return None
+    if detection.model_class_name:
+        return detection.model_class_name
     if detection.class_name:
         return detection.class_name
     return None
