@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import { useResultVisualization } from '../hooks/useResults'
-import { defectHasBbox, getVisualizationEmptyMessage, hasVisualizationAsset } from '../resultViewerUtils'
+import {
+  defectHasBbox,
+  getSafeVisualizationType,
+  getVisualizationEmptyMessage,
+  hasVisualizationAsset,
+  isVisualizationTypeDisabled,
+} from '../resultViewerUtils'
 import { getRgbLegendEntries, isRgbResult } from '../rgbClassPalette'
 import type { AnalysisResult, DetectedDefect, ResultVisualizationType } from '../types'
 import { getVisualizationTypeLabel, VISUALIZATION_TYPE_OPTIONS } from '../types'
@@ -24,12 +30,13 @@ export function ResultImageViewer({
   visualizationType,
 }: ResultImageViewerProps) {
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
-  const hasVisualization = hasVisualizationAsset(result, visualizationType)
+  const effectiveVisualizationType = getSafeVisualizationType(result, visualizationType)
+  const hasVisualization = hasVisualizationAsset(result, effectiveVisualizationType)
   const canUseOriginalFallback = result.imageId != null && result.imageId > 0
 
   const visualizationQuery = useResultVisualization(
     resultId,
-    visualizationType,
+    effectiveVisualizationType,
     hasVisualization,
   )
   const imagePreviewQuery = useImagePreview(
@@ -43,8 +50,8 @@ export function ResultImageViewer({
     : visualizationQuery.data?.data.url ?? null
   const suppressSelectionOverlay =
     isUsingOriginalFallback ||
-    visualizationType === 'bbox' ||
-    (visualizationType === 'mask' && isRgbResult(result))
+    effectiveVisualizationType === 'bbox' ||
+    (effectiveVisualizationType === 'mask' && isRgbResult(result))
   const overlayStyle =
     !suppressSelectionOverlay &&
     selectedDefect &&
@@ -53,10 +60,10 @@ export function ResultImageViewer({
     imageSize.height > 0
       ? createClampedOverlayStyle(selectedDefect, imageSize)
       : null
-  const showRgbLegend = isRgbResult(result) && visualizationType === 'mask' && hasVisualization
+  const showRgbLegend = isRgbResult(result) && effectiveVisualizationType === 'mask' && hasVisualization
   const stageLabel = isUsingOriginalFallback
     ? '원본 이미지'
-    : `${getVisualizationTypeLabel(visualizationType)} 결과`
+    : `${getVisualizationTypeLabel(effectiveVisualizationType)} 결과`
   const stageError = isUsingOriginalFallback
     ? imagePreviewQuery.isError
       ? getApiErrorMessage(imagePreviewQuery.error, '원본 이미지를 불러오지 못했습니다.')
@@ -83,14 +90,20 @@ export function ResultImageViewer({
 
         <div className="result-viz-toggle-row" role="group" aria-label="시각화 유형">
           {VISUALIZATION_TYPE_OPTIONS.map((type) => {
-            const disabled = !hasVisualizationAsset(result, type) && !canUseOriginalFallback
+            const isHeatmapDisabled = isVisualizationTypeDisabled(type)
+            const disabled = isHeatmapDisabled || (!hasVisualizationAsset(result, type) && !canUseOriginalFallback)
             return (
               <button
                 key={type}
                 type="button"
-                className={`result-viz-toggle ${visualizationType === type ? 'result-viz-toggle-active' : ''} ${disabled ? 'result-viz-toggle-disabled' : ''}`}
+                className={`result-viz-toggle ${effectiveVisualizationType === type ? 'result-viz-toggle-active' : ''} ${disabled ? 'result-viz-toggle-disabled' : ''}`}
                 disabled={disabled}
-                onClick={() => onVisualizationTypeChange(type)}
+                aria-disabled={disabled}
+                title={isHeatmapDisabled ? '현재 지원하지 않음' : undefined}
+                onClick={() => {
+                  if (disabled) return
+                  onVisualizationTypeChange(type)
+                }}
               >
                 <span>{getVisualizationTypeLabel(type)}</span>
               </button>
@@ -114,9 +127,6 @@ export function ResultImageViewer({
               </div>
             ))}
           </div>
-          <div className="result-rgb-legend-note">
-            후보 카드의 `외관 이상`은 현재 Public API에 원본 RGB class가 없어 파손/누락이 함께 표시될 수 있습니다.
-          </div>
         </div>
       ) : null}
 
@@ -130,7 +140,7 @@ export function ResultImageViewer({
           emptyDescription={
             isUsingOriginalFallback
               ? '원본 이미지 미리보기를 사용할 수 없습니다.'
-              : getVisualizationEmptyMessage(visualizationType)
+              : getVisualizationEmptyMessage(effectiveVisualizationType)
           }
           overlayStyle={overlayStyle}
           onImageLoad={(width, height) => setImageSize({ width, height })}
@@ -143,9 +153,9 @@ export function ResultImageViewer({
 
       {selectedDefect ? (
         <div className="result-image-selection-hint">
-          {visualizationType === 'bbox'
+          {effectiveVisualizationType === 'bbox'
             ? '경계 상자 탭에서는 저장된 bbox 시각화 이미지만 표시합니다.'
-            : visualizationType === 'mask' && isRgbResult(result)
+            : effectiveVisualizationType === 'mask' && isRgbResult(result)
               ? 'RGB 마스크 탭에서는 선택한 후보를 카드 선택 상태로만 표시합니다.'
             : '선택한 결함 후보 영역을 현재 결과 이미지에서 강조합니다.'}
           {!suppressSelectionOverlay && !defectHasBbox(selectedDefect)

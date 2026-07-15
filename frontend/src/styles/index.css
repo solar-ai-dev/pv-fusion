@@ -3581,6 +3581,12 @@ textarea {
   min-width: 0;
 }
 
+.result-defect-row-title-wrap strong {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .result-defect-class-chip {
   width: 0.85rem;
   height: 0.85rem;
@@ -3669,13 +3675,14 @@ textarea {
   flex-wrap: wrap;
   gap: 0.45rem;
   color: #64748b;
-  font-size: 0.74rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
 }
 
 .result-defect-row-action {
   flex: 0 0 auto;
   color: #0ea5e9;
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 

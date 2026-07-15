@@ -11,20 +11,11 @@ export type RgbPaletteEntry = {
   openCvBgr: [number, number, number]
 }
 
-export type RgbDefectChip =
-  | {
-      kind: 'single'
-      className: RgbClassName
-      label: string
-      hex: string
-    }
-  | {
-      kind: 'split'
-      classNames: [RgbClassName, RgbClassName]
-      label: string
-      hexes: [string, string]
-      note: string
-    }
+export type RgbDefectChip = {
+  label: string
+  hex: string
+  isLegacyFallback: boolean
+}
 
 export const RGB_CLASS_PALETTE: RgbPaletteEntry[] = [
   {
@@ -73,6 +64,12 @@ const RGB_PALETTE_BY_CLASS = Object.fromEntries(
   RGB_CLASS_PALETTE.map((entry) => [entry.className, entry]),
 ) as Record<RgbClassName, RgbPaletteEntry>
 
+const LEGACY_RGB_CHIP: RgbDefectChip = {
+  label: '외관 이상',
+  hex: '#94A3B8',
+  isLegacyFallback: true,
+}
+
 export function isRgbResult(result: AnalysisResult): boolean {
   return (
     result.inputType === 'RGB_SINGLE' ||
@@ -85,41 +82,53 @@ export function getRgbLegendEntries(): RgbPaletteEntry[] {
   return RGB_CLASS_PALETTE
 }
 
-export function getRgbDefectChip(defect: DetectedDefect): RgbDefectChip | null {
+export function normalizeRgbClassName(modelClassName?: string | null): RgbClassName | null {
+  const normalized = modelClassName?.trim().toLowerCase()
+  if (!normalized) {
+    return null
+  }
+
+  return normalized in RGB_PALETTE_BY_CLASS ? (normalized as RgbClassName) : null
+}
+
+export function getRgbPaletteEntry(modelClassName?: string | null): RgbPaletteEntry | null {
+  const className = normalizeRgbClassName(modelClassName)
+  return className ? RGB_PALETTE_BY_CLASS[className] : null
+}
+
+function toSingleChip(entry: RgbPaletteEntry): RgbDefectChip {
+  return {
+    label: entry.label,
+    hex: entry.hex,
+    isLegacyFallback: false,
+  }
+}
+
+export function getRgbDefectChip(
+  defect: Pick<
+    DetectedDefect,
+    'defectSource' | 'defectType' | 'modelClassId' | 'modelClassName'
+  >,
+): RgbDefectChip | null {
   if (defect.defectSource !== 'RGB') {
     return null
   }
 
+  const paletteEntry = getRgbPaletteEntry(defect.modelClassName)
+  if (paletteEntry) {
+    return toSingleChip(paletteEntry)
+  }
+
   switch (defect.defectType) {
     case 'VEGETATION':
-      return {
-        kind: 'single',
-        className: 'bitki',
-        label: RGB_PALETTE_BY_CLASS.bitki.label,
-        hex: RGB_PALETTE_BY_CLASS.bitki.hex,
-      }
+      return toSingleChip(RGB_PALETTE_BY_CLASS.bitki)
+    case 'CONTAMINATION':
     case 'DUST':
-      return {
-        kind: 'single',
-        className: 'dusty',
-        label: RGB_PALETTE_BY_CLASS.dusty.label,
-        hex: RGB_PALETTE_BY_CLASS.dusty.hex,
-      }
+      return toSingleChip(RGB_PALETTE_BY_CLASS.dusty)
     case 'SHADING':
-      return {
-        kind: 'single',
-        className: 'shading',
-        label: RGB_PALETTE_BY_CLASS.shading.label,
-        hex: RGB_PALETTE_BY_CLASS.shading.hex,
-      }
+      return toSingleChip(RGB_PALETTE_BY_CLASS.shading)
     case 'APPEARANCE_DAMAGE':
-      return {
-        kind: 'split',
-        classNames: ['broken', 'missing'],
-        label: '파손/누락',
-        hexes: [RGB_PALETTE_BY_CLASS.broken.hex, RGB_PALETTE_BY_CLASS.missing.hex],
-        note: '현재 Public API에는 원본 RGB class 정보가 없어 broken/missing를 분리할 수 없습니다.',
-      }
+      return LEGACY_RGB_CHIP
     default:
       return null
   }

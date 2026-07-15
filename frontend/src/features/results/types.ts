@@ -61,6 +61,8 @@ export type DetectedDefect = {
   analysisResultId: number
   defectType: DefectType
   defectSource: DefectSource
+  modelClassId?: number | null
+  modelClassName?: string | null
   confidence: string | null
   areaRatio: string | null
   bboxX: number | null
@@ -345,7 +347,7 @@ export function getDefectTypeLabel(defectType?: DefectType | null) {
     case 'VEGETATION':
       return '잡초'
     case 'APPEARANCE_DAMAGE':
-      return '외관 손상'
+      return '외관 이상'
     case 'HOTSPOT':
       return '핫스팟'
     case 'OVERHEATING':

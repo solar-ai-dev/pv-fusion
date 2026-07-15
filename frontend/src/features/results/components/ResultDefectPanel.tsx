@@ -1,4 +1,4 @@
-import { getDefectSourceLabel, getDefectTaxonomyLabel } from '../defectTaxonomy'
+import { getDefectSourceLabel, getResultDefectLabel } from '../defectTaxonomy'
 import { getRgbDefectChip } from '../rgbClassPalette'
 import type { ActionCandidate, DetectedDefect, SeverityLevel } from '../types'
 import { EmptyState } from '../../../shared/components/state/EmptyState'
@@ -30,7 +30,7 @@ export function ResultDefectPanel({
       ) : (
         <div className="result-defect-list">
           {defects.map((defect) => {
-            const { label, isKnown } = getDefectTaxonomyLabel(defect.defectType)
+            const { label, isKnown } = getResultDefectLabel(defect)
             const rgbChip = getRgbDefectChip(defect)
             const isSelected = defect.defectId === selectedDefectId
             return (
@@ -45,16 +45,18 @@ export function ResultDefectPanel({
                     <div className="result-defect-row-title-wrap">
                       {rgbChip ? (
                         <span
-                          className={`result-defect-class-chip result-defect-class-chip-${rgbChip.kind}`}
-                          style={
-                            rgbChip.kind === 'single'
-                              ? { backgroundColor: rgbChip.hex }
-                              : {
-                                  backgroundImage: `linear-gradient(90deg, ${rgbChip.hexes[0]} 0%, ${rgbChip.hexes[0]} 50%, ${rgbChip.hexes[1]} 50%, ${rgbChip.hexes[1]} 100%)`,
-                                }
+                          className="result-defect-class-chip result-defect-class-chip-single"
+                          style={{ backgroundColor: rgbChip.hex }}
+                          title={
+                            rgbChip.isLegacyFallback
+                              ? '이전 분석 결과는 원본 클래스 정보가 없어 일반 유형으로 표시될 수 있습니다.'
+                              : `${rgbChip.label} 클래스 색상`
                           }
-                          title={rgbChip.kind === 'single' ? `${rgbChip.label} 클래스 색상` : rgbChip.note}
-                          aria-label={rgbChip.kind === 'single' ? `${rgbChip.label} 클래스 색상` : rgbChip.note}
+                          aria-label={
+                            rgbChip.isLegacyFallback
+                              ? '원본 클래스 정보가 없는 일반 유형 표시'
+                              : `${rgbChip.label} 클래스 색상`
+                          }
                         />
                       ) : null}
                       <strong
