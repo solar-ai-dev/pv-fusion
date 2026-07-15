@@ -1,4 +1,5 @@
 from pathlib import Path
+from decimal import Decimal
 
 import pytest
 
@@ -29,6 +30,7 @@ def test_load_model_manifest_reads_required_fields(tmp_path: Path):
     assert manifest.modelType is ModelType.RGB_ONLY
     assert manifest.modelPath == str((tmp_path / "models" / "rgb.onnx").resolve())
     assert manifest.classNames == ["A", "B"]
+    assert manifest.maskThreshold is None
 
 
 def test_load_model_manifest_reads_stage10b_style_manifest_and_resolves_relative_model_path(tmp_path: Path):
@@ -67,6 +69,25 @@ def test_load_model_manifest_reads_stage10b_style_manifest_and_resolves_relative
     assert str(manifest.nmsIouThreshold) == "0.45"
     assert manifest.classNames == ["HotSpot", "Diode_ByPassed", "String_Fault"]
     assert manifest.modelPath == str((tmp_path / "thermal-only.onnx").resolve())
+
+
+def test_load_model_manifest_reads_optional_mask_threshold(tmp_path: Path):
+    manifest_path = _write_manifest(
+        tmp_path / "rgb-manifest.yaml",
+        model_name="pv-rgb",
+        model_version="v1.0.0",
+        input_type="RGB_SINGLE",
+        model_type="RGB_ONLY",
+        input_size=1280,
+        confidence_threshold="0.15",
+        model_path="models/rgb.onnx",
+        class_names=["broken", "bitki", "dusty", "missing", "shading"],
+        overrides={"mask_threshold": "0.30"},
+    )
+
+    manifest = load_model_manifest(str(manifest_path))
+
+    assert manifest.maskThreshold == Decimal("0.30")
 
 
 def test_load_model_manifest_resolves_models_prefix_relative_to_manifest_directory(tmp_path: Path):
@@ -118,6 +139,7 @@ def test_resolve_returns_rgb_model_for_rgb_single(tmp_path: Path):
     assert model_info.modelType is ModelType.RGB_ONLY
     assert model_info.modelName == "pv-rgb"
     assert str(model_info.threshold) == "0.55"
+    assert model_info.maskThreshold is None
 
 
 def test_resolve_returns_thermal_model_for_thermal_single(tmp_path: Path):
@@ -208,6 +230,7 @@ def _write_manifest(
         "input_size": str(input_size),
         "confidence_threshold": confidence_threshold,
         "nms_iou_threshold": "0.70",
+        "mask_threshold": None,
         "model_path": model_path,
         "class_names": class_names,
     }
@@ -229,6 +252,7 @@ def _write_manifest(
             f"    input_size: {payload['input_size']}",
             f"    confidence_threshold: {payload['confidence_threshold']}",
             f"    nms_iou_threshold: {payload['nms_iou_threshold']}",
+            *([f"    mask_threshold: {payload['mask_threshold']}"] if payload["mask_threshold"] else []),
             f"    model_path: {payload['model_path']}",
             "    class_names:",
             *[f"      - {class_name}" for class_name in payload["class_names"]],

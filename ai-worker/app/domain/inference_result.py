@@ -22,6 +22,9 @@ class RestoredMask(BaseModel):
     bboxY: float
     bboxWidth: float
     bboxHeight: float
+    classId: int | None = None
+    className: str | None = None
+    confidence: float | None = None
     data: list[list[int]]
 
 

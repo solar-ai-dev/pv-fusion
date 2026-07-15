@@ -34,12 +34,15 @@ class DetectedDefectPersistenceAdapterTest {
         when(detectedDefectJpaRepository.findByAnalysisResultIdOrderByCreatedAtAscIdAsc(1L))
                 .thenReturn(List.of(new DetectedDefectJpaEntity(
                         2L, 1L, DefectType.HOTSPOT, DefectSource.RGB, BigDecimal.valueOf(0.9), BigDecimal.valueOf(0.1),
-                        1, 2, 3, 4, null, null, null, BigDecimal.valueOf(0.8), SeverityLevel.HIGH, ActionCandidate.CLEANING
+                        1, 2, 3, 4, null, null, null, BigDecimal.valueOf(0.8), SeverityLevel.HIGH, ActionCandidate.CLEANING,
+                        3, "missing"
                 )));
 
         var result = adapter.loadDetectedDefects(new DetectedDefectListQuery(1L, 1L));
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getDefectType()).isEqualTo(DefectType.HOTSPOT);
+        assertThat(result.get(0).getModelClassId()).isEqualTo(3);
+        assertThat(result.get(0).getModelClassName()).isEqualTo("missing");
     }
 }

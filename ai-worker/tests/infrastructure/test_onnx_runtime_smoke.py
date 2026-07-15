@@ -19,10 +19,10 @@ from app.infrastructure.visualization.overlay import draw_bbox_overlay, draw_mas
 
 
 AI_WORKER_ROOT = Path(__file__).resolve().parents[2]
-RGB_MODEL_PATH = AI_WORKER_ROOT / "models" / "rgb" / "rgb-only-yolo26s-seg-768-e10-dev.onnx"
+RGB_MODEL_PATH = AI_WORKER_ROOT / "models" / "rgb" / "rgb-only-yolo26s-seg-1280-v1.0.0-rc1.onnx"
 THERMAL_MODEL_PATH = AI_WORKER_ROOT / "models" / "thermal" / "thermal-yolo26s-det-stage10b-v20260704-r1.onnx"
 RGB_MANIFEST_PATH = AI_WORKER_ROOT / "models" / "rgb" / "model-manifest.dev.yaml"
-THERMAL_MANIFEST_PATH = AI_WORKER_ROOT / "models" / "thermal" / "model-manifest.yaml"
+THERMAL_MANIFEST_PATH = AI_WORKER_ROOT / "models" / "thermal" / "model-manifest.dev.yaml"
 
 
 def test_rgb_onnx_runtime_smoke():
@@ -36,18 +36,18 @@ def test_rgb_onnx_runtime_smoke():
 
     assert len(inputs) == 1
     assert inputs[0].name == "images"
-    assert list(inputs[0].shape) == [1, 3, 768, 768]
+    assert list(inputs[0].shape) == [1, 3, 1280, 1280]
     assert inputs[0].type == "tensor(float)"
     assert [output.name for output in outputs] == ["output0", "output1"]
-    assert [list(output.shape) for output in outputs] == [[1, 300, 38], [1, 32, 192, 192]]
+    assert [list(output.shape) for output in outputs] == [[1, 300, 38], [1, 32, 320, 320]]
 
-    tensor = np.zeros((1, 3, 768, 768), dtype=np.float32)
+    tensor = np.zeros((1, 3, 1280, 1280), dtype=np.float32)
     result = session.run(None, {"images": tensor})
 
     assert isinstance(result, list)
     assert len(result) == 2
     assert tuple(result[0].shape) == (1, 300, 38)
-    assert tuple(result[1].shape) == (1, 32, 192, 192)
+    assert tuple(result[1].shape) == (1, 32, 320, 320)
 
 
 def test_thermal_onnx_runtime_smoke():
@@ -95,8 +95,8 @@ def test_onnx_model_runner_smoke_for_rgb():
         b"synthetic-rgb-bytes",
     )
 
-    assert result.modelInfo.modelName == "rgb-only-yolo26s-seg-768-e10-dev"
-    assert result.modelInfo.inputSize == 768
+    assert result.modelInfo.modelName == "rgb-only-yolo26s-seg-1280-v1.0.0-rc1"
+    assert result.modelInfo.inputSize == 1280
     assert result.resultStatus is ResultStatus.NORMAL
     assert result.anomalyCount == 0
 
@@ -130,7 +130,7 @@ def test_onnx_model_runner_smoke_for_thermal():
 
 def test_rgb_runtime_output_parser_smoke():
     np = pytest.importorskip("numpy")
-    raw_output = _run_rgb_runtime_output(np.zeros((1, 3, 768, 768), dtype=np.float32))
+    raw_output = _run_rgb_runtime_output(np.zeros((1, 3, 1280, 1280), dtype=np.float32))
     model_info = _build_settings(
         rgbModelManifestPath=_relative_model_path(RGB_MANIFEST_PATH),
     )
@@ -146,7 +146,7 @@ def test_rgb_runtime_output_parser_smoke():
 
 def test_rgb_runtime_output_coefficients_match_prototype_channels():
     np = pytest.importorskip("numpy")
-    output0, output1 = _run_rgb_runtime_output(np.zeros((1, 3, 768, 768), dtype=np.float32))
+    output0, output1 = _run_rgb_runtime_output(np.zeros((1, 3, 1280, 1280), dtype=np.float32))
 
     assert output0.shape[-1] == 38
     assert output1.shape[1] == 32
@@ -156,14 +156,14 @@ def test_rgb_runtime_output_coefficients_match_prototype_channels():
 def test_rgb_runtime_output_overlay_smoke():
     image_module = pytest.importorskip("PIL.Image")
     np = pytest.importorskip("numpy")
-    raw_output = _run_rgb_runtime_output(np.zeros((1, 3, 768, 768), dtype=np.float32))
+    raw_output = _run_rgb_runtime_output(np.zeros((1, 3, 1280, 1280), dtype=np.float32))
     model_info = ModelRegistry(
         _build_settings(
             rgbModelManifestPath=_relative_model_path(RGB_MANIFEST_PATH),
         )
     ).resolve(InputType.RGB_SINGLE, RequestedModelType.RGB_ONLY)
     parsed = parse_inference_output(raw_output, model_info)
-    image_bytes = _make_png_bytes(image_module, size=(768, 768))
+    image_bytes = _make_png_bytes(image_module, size=(1280, 1280))
 
     bbox_overlay = draw_bbox_overlay(image_bytes, _defects_to_detections(parsed.defects))
     assert bbox_overlay.startswith(b"\x89PNG")
@@ -182,7 +182,7 @@ def test_rgb_processor_smoke_with_actual_runtime_output():
     pytest.importorskip("onnxruntime")
     _skip_if_missing(RGB_MODEL_PATH)
 
-    storage = _SmokeStorage(_make_png_bytes(image_module, size=(768, 768)))
+    storage = _SmokeStorage(_make_png_bytes(image_module, size=(1280, 1280)))
     result_repository = _SmokeResultRepository()
     processor = AnalysisJobProcessor(
         _SmokeJobRepository(),

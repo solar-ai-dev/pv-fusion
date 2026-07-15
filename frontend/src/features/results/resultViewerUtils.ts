@@ -1,6 +1,10 @@
 ﻿import type { AnalysisResult, DetectedDefect, ResultVisualizationType } from './types'
 import { VISUALIZATION_TYPE_OPTIONS } from './types'
 
+export function isVisualizationTypeDisabled(type: ResultVisualizationType): boolean {
+  return type === 'heatmap'
+}
+
 export function hasVisualizationAsset(
   result: AnalysisResult,
   type: ResultVisualizationType,
@@ -44,9 +48,20 @@ export function getDefaultVisualizationType(
   result: AnalysisResult,
 ): ResultVisualizationType {
   for (const type of VISUALIZATION_TYPE_OPTIONS) {
+    if (isVisualizationTypeDisabled(type)) continue
     if (hasVisualizationAsset(result, type)) return type
   }
   return 'bbox'
+}
+
+export function getSafeVisualizationType(
+  result: AnalysisResult,
+  requestedType: ResultVisualizationType,
+): ResultVisualizationType {
+  if (isVisualizationTypeDisabled(requestedType)) {
+    return getDefaultVisualizationType(result)
+  }
+  return requestedType
 }
 
 export function defectHasBbox(defect: DetectedDefect): boolean {

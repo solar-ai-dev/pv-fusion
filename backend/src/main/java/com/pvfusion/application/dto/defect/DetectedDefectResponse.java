@@ -24,6 +24,8 @@ public record DetectedDefectResponse(
         BigDecimal severityScore,
         SeverityLevel severityLevel,
         ActionCandidate actionCandidate,
+        Integer modelClassId,
+        String modelClassName,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
 ) {

@@ -512,14 +512,27 @@ Bounding Box, Heatmap, Mask는 해당 분석 결과에서 실제로 생성된 �
 
 RGB segmentation 결과에 Mask가 존재하는 경우에만 Mask 표시 기능을 제공한다.
 
-Heatmap은 AI Worker 또는 후처리 과정에서 결과가 생성된 경우에만 제공한다.
+현재 지원 시각화는 BBox와 Mask이다.
+
+Heatmap 버튼은 화면에는 유지하되 비활성화 상태로 표시하며, 클릭·키보드 조작으로도 활성화하지 않는다.
+
+후보가 0건인 정상 분석 결과는 결과 상세 화면에서 원본 이미지를 표시한다.
+
+RGB 원본 클래스 표시 기준:
+
+* `broken` → `파손`
+* `bitki` → `식생`
+* `dusty` → `먼지·오염`
+* `missing` → `누락`
+* `shading` → `음영`
+* 원본 클래스 정보가 없는 과거 `APPEARANCE_DAMAGE` 결과는 `외관 이상`으로 표시한다.
 
 ### 버튼
 
 | 버튼 | 동작 |
 | --- | --- |
 | `BBox 보기` | Bounding Box 결과가 있는 경우 overlay 표시 |
-| `Heatmap 보기` | Heatmap 결과가 있는 경우 overlay 표시 |
+| `Heatmap 보기` | 버튼은 표시하되 disabled 상태를 유지하고 현재 지원하지 않음을 안내 |
 | `Mask 보기` | Mask 결과가 있는 경우 overlay 표시 |
 | `검토 상태 저장` | `PATCH /results/{resultId}/review-status` |
 | `조치 후보 수정` | `PATCH /results/{resultId}/action` |
@@ -729,8 +742,8 @@ Heatmap은 AI Worker 또는 후처리 과정에서 결과가 생성된 경우에
 | `ResultTable` | 결과 목록 | 결과 목록 표시 | `상세 보기` | `GET /results` |
 | `ResultSummaryCard` | 결과 상세 | 이미지 단건 분석 결과 요약 | `점검 상세로` | `GET /results/{resultId}` |
 | `ImageCompareViewer` | 결과 상세 | 원본/결과 비교 | `원본`, `결과`, `나란히 보기` | `GET /results/{resultId}/visualization` |
-| `VisualizationOverlayViewer` | 결과 상세 | 생성된 bbox, heatmap, mask 표시 | `BBox`, `Heatmap`, `Mask` | `GET /results/{resultId}/visualization` |
-| `DefectCandidateTable` | 결과 상세 | 개별 이상 후보 목록 | `행 선택` | `GET /results/{resultId}` |
+| `VisualizationOverlayViewer` | 결과 상세 | 생성된 bbox, mask 표시와 heatmap 비활성화 안내 | `BBox`, `Heatmap`, `Mask` | `GET /results/{resultId}/visualization` |
+| `DefectCandidateTable` | 결과 상세 | 개별 이상 후보 목록과 RGB 원본 클래스 한글 표시 | `행 선택` | `GET /results/{resultId}` |
 | `ActionCandidatePanel` | 결과 상세 | 조치 후보 표시/수정 | `조치 후보 수정`, `저장` | `PATCH /results/{resultId}/action` |
 | `ReviewStatusPanel` | 결과 상세 | 검토 상태 변경 | `확인됨`, `재점검 필요`, `조치 완료`, `저장` | `PATCH /results/{resultId}/review-status` |
 
@@ -819,7 +832,7 @@ src/features/fusion/api/fusionApi.ts
 | Secondary | `취소`, `목록으로`, `초기화` | 보조 액션 |
 | Danger | `비활성화`, `로그아웃` | 주의 액션 |
 | Ghost/Text | `상세 보기`, `미리보기`, `새로고침` | 가벼운 액션 |
-| Toggle | `BBox`, `Heatmap`, `Mask` | 표시 모드 전환 |
+| Toggle | `BBox`, `Heatmap`, `Mask` | 표시 모드 전환. Heatmap은 disabled 유지 |
 
 ## 13.2 버튼 공통 상태
 
@@ -835,7 +848,7 @@ src/features/fusion/api/fusionApi.ts
 | 승인 대기 | 주요 기능 버튼 숨김 또는 disabled |
 | 비활성 리소스 | 신규 점검/업로드 대상 선택 제한 |
 | 업로드 실패 이미지 | 분석 요청 disabled |
-| 시각화 미생성 | 해당 BBox/Heatmap/Mask 버튼 숨김 또는 disabled |
+| 시각화 미생성 | 해당 BBox/Mask 버튼 숨김 또는 disabled |
 
 ## 13.3 버튼 수 최소화 기준
 

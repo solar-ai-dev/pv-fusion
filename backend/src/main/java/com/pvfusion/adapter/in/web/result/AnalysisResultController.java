@@ -198,7 +198,9 @@ public class AnalysisResultController {
                         defect.maskFileUrl(),
                         defect.severityScore(),
                         defect.severityLevel(),
-                        defect.actionCandidate()
+                        defect.actionCandidate(),
+                        defect.modelClassId(),
+                        defect.modelClassName()
                 ))
                 .toList();
     }

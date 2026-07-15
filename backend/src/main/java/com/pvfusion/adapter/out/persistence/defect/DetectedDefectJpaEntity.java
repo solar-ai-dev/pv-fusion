@@ -78,6 +78,12 @@ public class DetectedDefectJpaEntity extends BaseJpaEntity {
     @Column(nullable = false, length = 50)
     private ActionCandidate actionCandidate;
 
+    @Column(name = "model_class_id")
+    private Integer modelClassId;
+
+    @Column(name = "model_class_name", length = 100)
+    private String modelClassName;
+
     public DetectedDefectJpaEntity(
             Long id,
             Long analysisResultId,
@@ -94,7 +100,9 @@ public class DetectedDefectJpaEntity extends BaseJpaEntity {
             String maskFileUrl,
             BigDecimal severityScore,
             SeverityLevel severityLevel,
-            ActionCandidate actionCandidate
+            ActionCandidate actionCandidate,
+            Integer modelClassId,
+            String modelClassName
     ) {
         this.id = id;
         this.analysisResultId = analysisResultId;
@@ -112,5 +120,7 @@ public class DetectedDefectJpaEntity extends BaseJpaEntity {
         this.severityScore = severityScore;
         this.severityLevel = severityLevel;
         this.actionCandidate = actionCandidate;
+        this.modelClassId = modelClassId;
+        this.modelClassName = modelClassName;
     }
 }
