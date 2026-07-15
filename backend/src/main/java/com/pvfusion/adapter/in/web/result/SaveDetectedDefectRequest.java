@@ -20,6 +20,8 @@ public record SaveDetectedDefectRequest(
         String maskFileUrl,
         BigDecimal severityScore,
         SeverityLevel severityLevel,
-        ActionCandidate actionCandidate
+        ActionCandidate actionCandidate,
+        Integer modelClassId,
+        String modelClassName
 ) {
 }

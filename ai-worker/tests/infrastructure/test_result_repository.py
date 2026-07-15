@@ -88,6 +88,8 @@ def build_defect() -> DetectedDefectDraft:
         maskFileUrl=None,
         severityScore=None,
         actionCandidate=ActionCandidate.CLEANING,
+        modelClassId=None,
+        modelClassName=None,
     )
 
 
@@ -145,7 +147,27 @@ def test_save_defects_inserts_each_defect():
     assert params[2] == "THERMAL"
     assert params[13] == "LOW"
     assert params[14] == "CLEANING"
+    assert params[15] is None
+    assert params[16] is None
     assert connection.committed is True
+
+
+def test_save_defects_includes_model_class_columns_when_present():
+    cursor = FakeCursor()
+    connection = FakeConnection(cursor)
+    repository = PostgresResultRepository(lambda: connection)
+    defect = build_defect().model_copy(
+        update={
+            "modelClassId": 3,
+            "modelClassName": "missing",
+        }
+    )
+
+    repository.save_defects(321, [defect])
+
+    _, params = cursor.executed[0]
+    assert params[15] == 3
+    assert params[16] == "missing"
 
 
 def test_save_defects_skips_db_call_when_defects_are_empty():

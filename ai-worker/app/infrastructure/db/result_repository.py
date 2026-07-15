@@ -112,9 +112,11 @@ class PostgresResultRepository(ResultRepositoryPort):
                 mask_file_url,
                 severity_score,
                 severity_level,
-                action_candidate
+                action_candidate,
+                model_class_id,
+                model_class_name
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
         """
         with self._connection_factory() as connection:
@@ -138,6 +140,8 @@ class PostgresResultRepository(ResultRepositoryPort):
                             defect.severityScore,
                             "LOW",
                             defect.actionCandidate.value,
+                            defect.modelClassId,
+                            defect.modelClassName,
                         ),
                     )
             connection.commit()
@@ -253,9 +257,11 @@ class PostgresResultRepository(ResultRepositoryPort):
                 mask_file_url,
                 severity_score,
                 severity_level,
-                action_candidate
+                action_candidate,
+                model_class_id,
+                model_class_name
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
         """
         for defect in defects:
@@ -325,4 +331,6 @@ class PostgresResultRepository(ResultRepositoryPort):
             defect.severityScore,
             "LOW",
             defect.actionCandidate.value,
+            defect.modelClassId,
+            defect.modelClassName,
         )

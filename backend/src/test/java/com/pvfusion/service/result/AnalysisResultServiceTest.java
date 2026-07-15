@@ -34,6 +34,7 @@ import com.pvfusion.domain.analysis.AnalysisJobStatus;
 import com.pvfusion.domain.analysis.AnalysisModelType;
 import com.pvfusion.domain.analysis.RequestedModelType;
 import com.pvfusion.domain.common.TargetType;
+import com.pvfusion.domain.defect.DetectedDefect;
 import com.pvfusion.domain.image.ImageType;
 import com.pvfusion.domain.image.InspectionImage;
 import com.pvfusion.domain.image.UploadStatus;
@@ -136,7 +137,8 @@ class AnalysisResultServiceTest {
                 List.of(new SaveDetectedDefectCommand(
                         null, com.pvfusion.domain.defect.DefectType.HOTSPOT, com.pvfusion.domain.defect.DefectSource.RGB,
                         BigDecimal.valueOf(0.95), BigDecimal.valueOf(0.03), 1, 2, 3, 4,
-                        null, null, null, BigDecimal.valueOf(0.7), SeverityLevel.HIGH, ActionCandidate.CLEANING
+                        null, null, null, BigDecimal.valueOf(0.7), SeverityLevel.HIGH, ActionCandidate.CLEANING,
+                        0, "broken"
                 ))
         ));
 
@@ -145,6 +147,48 @@ class AnalysisResultServiceTest {
         assertThat(response.imageId()).isEqualTo(20L);
         assertThat(response.bboxObjectKey()).isEqualTo("bbox-key");
         assertThat(response.reviewStatus()).isEqualTo(ReviewStatus.UNCHECKED);
+    }
+
+    @Test
+    void getAnalysisResultIncludesModelClassFieldsInDetections() {
+        AnalysisResult result = analysisResult(1L, ReviewStatus.UNCHECKED, ActionCandidate.CLEANING);
+        InspectionImage image = image();
+        DetectedDefect defect = new DetectedDefect(
+                5L,
+                1L,
+                com.pvfusion.domain.defect.DefectType.APPEARANCE_DAMAGE,
+                com.pvfusion.domain.defect.DefectSource.RGB,
+                BigDecimal.valueOf(0.95),
+                BigDecimal.valueOf(0.03),
+                1,
+                2,
+                3,
+                4,
+                null,
+                null,
+                null,
+                BigDecimal.valueOf(0.7),
+                SeverityLevel.HIGH,
+                ActionCandidate.CLEANING,
+                3,
+                "missing",
+                OffsetDateTime.now(),
+                OffsetDateTime.now()
+        );
+
+        when(loadAnalysisResultPort.loadAnalysisResult(1L)).thenReturn(Optional.of(result));
+        when(accessChecker.checkResultAccess(1L, 1L)).thenReturn(true);
+        when(loadDetectedDefectPort.loadDetectedDefects(any())).thenReturn(List.of(defect));
+        when(loadResultReviewHistoryPort.loadResultReviewHistories(any())).thenReturn(List.of());
+        when(loadAnalysisJobPort.loadAnalysisJob(10L)).thenReturn(Optional.of(analysisJob()));
+        when(loadImagePort.loadImage(20L)).thenReturn(Optional.of(image));
+        when(loadInspectionPort.loadInspection(30L)).thenReturn(Optional.of(inspection()));
+
+        var response = analysisResultService.execute(new com.pvfusion.application.dto.result.GetAnalysisResultQuery(1L));
+
+        assertThat(response.detections()).hasSize(1);
+        assertThat(response.detections().get(0).modelClassId()).isEqualTo(3);
+        assertThat(response.detections().get(0).modelClassName()).isEqualTo("missing");
     }
 
     @Test
