@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useResultVisualization } from '../hooks/useResults'
 import {
   defectHasBbox,
+  isThermalResult,
   getSafeVisualizationType,
   getVisualizationEmptyMessage,
   hasVisualizationAsset,
@@ -30,6 +31,7 @@ export function ResultImageViewer({
   visualizationType,
 }: ResultImageViewerProps) {
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
+  const isThermal = isThermalResult(result)
   const effectiveVisualizationType = getSafeVisualizationType(result, visualizationType)
   const hasVisualization = hasVisualizationAsset(result, effectiveVisualizationType)
   const canUseOriginalFallback = result.imageId != null && result.imageId > 0
@@ -91,7 +93,11 @@ export function ResultImageViewer({
         <div className="result-viz-toggle-row" role="group" aria-label="시각화 유형">
           {VISUALIZATION_TYPE_OPTIONS.map((type) => {
             const isHeatmapDisabled = isVisualizationTypeDisabled(type)
-            const disabled = isHeatmapDisabled || (!hasVisualizationAsset(result, type) && !canUseOriginalFallback)
+            const isThermalMaskDisabled = isThermal && type === 'mask'
+            const disabled =
+              isHeatmapDisabled ||
+              isThermalMaskDisabled ||
+              (!hasVisualizationAsset(result, type) && !canUseOriginalFallback)
             return (
               <button
                 key={type}
