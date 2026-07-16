@@ -5,6 +5,13 @@ export function isVisualizationTypeDisabled(type: ResultVisualizationType): bool
   return type === 'heatmap'
 }
 
+export function isThermalResult(result: AnalysisResult): boolean {
+  return (
+    result.inputType === 'THERMAL_SINGLE' ||
+    result.modelType === 'THERMAL_ONLY'
+  )
+}
+
 export function hasVisualizationAsset(
   result: AnalysisResult,
   type: ResultVisualizationType,
@@ -49,6 +56,7 @@ export function getDefaultVisualizationType(
 ): ResultVisualizationType {
   for (const type of VISUALIZATION_TYPE_OPTIONS) {
     if (isVisualizationTypeDisabled(type)) continue
+    if (type === 'mask' && isThermalResult(result)) continue
     if (hasVisualizationAsset(result, type)) return type
   }
   return 'bbox'
@@ -58,7 +66,10 @@ export function getSafeVisualizationType(
   result: AnalysisResult,
   requestedType: ResultVisualizationType,
 ): ResultVisualizationType {
-  if (isVisualizationTypeDisabled(requestedType)) {
+  if (
+    isVisualizationTypeDisabled(requestedType) ||
+    (requestedType === 'mask' && isThermalResult(result))
+  ) {
     return getDefaultVisualizationType(result)
   }
   return requestedType
