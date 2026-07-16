@@ -25,6 +25,8 @@ public class DetectedDefect {
     private final BigDecimal severityScore;
     private final SeverityLevel severityLevel;
     private final ActionCandidate actionCandidate;
+    private final Integer modelClassId;
+    private final String modelClassName;
     private final OffsetDateTime createdAt;
     private final OffsetDateTime updatedAt;
 
@@ -45,6 +47,8 @@ public class DetectedDefect {
             BigDecimal severityScore,
             SeverityLevel severityLevel,
             ActionCandidate actionCandidate,
+            Integer modelClassId,
+            String modelClassName,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt
     ) {
@@ -64,6 +68,8 @@ public class DetectedDefect {
         this.severityScore = severityScore;
         this.severityLevel = severityLevel;
         this.actionCandidate = actionCandidate;
+        this.modelClassId = modelClassId;
+        this.modelClassName = modelClassName;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }

@@ -134,7 +134,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 AI Worker local 설정 기준:
 
 - `.env.local`: DB / SQS / Storage / manifest path
-- `model-manifest.dev.yaml`: 모델명 / 버전 / input size / threshold / class_names / model_path
+- `model-manifest.dev.yaml`: 모델명 / 버전 / input size / confidence threshold / nms_iou_threshold / mask_threshold / class_names / model_path
 
 ## 4. 최초 로그인 후 관리자 계정 승인
 

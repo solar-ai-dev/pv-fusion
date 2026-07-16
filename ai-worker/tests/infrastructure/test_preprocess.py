@@ -6,36 +6,35 @@ from PIL import Image
 from app.infrastructure.model import preprocess
 
 
-def test_preprocess_passes_decode_resize_and_tensor_steps(monkeypatch):
-    calls = []
-    decoded = np.zeros((4, 5, 3), dtype=np.uint8)
-    resized = np.zeros((640, 640, 3), dtype=np.uint8)
+def test_preprocess_rgb_applies_letterbox_with_padding_114_for_wide_image():
+    image_bytes = _to_png_bytes(np.full((2, 4, 3), 10, dtype=np.uint8), mode="RGB")
 
-    def fake_decode(image_bytes):
-        calls.append(("decode", image_bytes))
-        return decoded
+    result = preprocess.preprocess_image_bytes(image_bytes, 8, input_type="RGB")
 
-    def fake_resize(image, input_size):
-        calls.append(("resize", image, input_size))
-        return resized
+    assert result.tensor.shape == (1, 3, 8, 8)
+    assert result.originalWidth == 4
+    assert result.originalHeight == 2
+    assert result.resizedWidth == 8
+    assert result.resizedHeight == 4
+    assert result.scaleX == 2.0
+    assert result.scaleY == 2.0
+    assert result.padX == 0
+    assert result.padY == 2
+    assert np.allclose(result.tensor[0, :, 0, 0], np.array([114, 114, 114], dtype=np.float32) / 255.0)
 
-    def fake_tensor(image):
-        calls.append(("tensor", image))
-        return "tensor"
 
-    monkeypatch.setattr(preprocess, "decode_image_bytes", fake_decode)
-    monkeypatch.setattr(preprocess, "resize_image", fake_resize)
-    monkeypatch.setattr(preprocess, "to_batched_chw_tensor", fake_tensor)
+def test_preprocess_rgb_applies_letterbox_for_tall_image():
+    image_bytes = _to_png_bytes(np.full((4, 2, 3), 20, dtype=np.uint8), mode="RGB")
 
-    result = preprocess.preprocess_image_bytes(b"abc", 640)
+    result = preprocess.preprocess_image_bytes(image_bytes, 8, input_type="RGB")
 
-    assert result.tensor == "tensor"
-    assert calls[0] == ("decode", b"abc")
-    assert calls[1][0] == "resize"
-    assert calls[1][1] is decoded
-    assert calls[1][2] == 640
-    assert calls[2][0] == "tensor"
-    assert calls[2][1] is resized
+    assert result.resizedWidth == 4
+    assert result.resizedHeight == 8
+    assert result.scaleX == 2.0
+    assert result.scaleY == 2.0
+    assert result.padX == 2
+    assert result.padY == 0
+    assert np.allclose(result.tensor[0, :, 0, 0], np.array([114, 114, 114], dtype=np.float32) / 255.0)
 
 
 def test_decode_image_bytes_rejects_empty_payload():

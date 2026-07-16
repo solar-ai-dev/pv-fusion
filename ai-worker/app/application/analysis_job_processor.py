@@ -579,14 +579,16 @@ class AnalysisJobProcessor:
                 continue
             detections.append(
                 ParsedDetection(
-                    class_id=-1,
-                    class_name=defect.defectType,
+                    class_id=defect.modelClassId if defect.modelClassId is not None else -1,
+                    class_name=defect.modelClassName or defect.defectType,
                     confidence=defect.confidence or Decimal("0"),
                     bbox_x=float(defect.bboxX),
                     bbox_y=float(defect.bboxY),
                     bbox_width=float(defect.bboxWidth),
                     bbox_height=float(defect.bboxHeight),
                     source=defect.defectSource,
+                    model_class_id=defect.modelClassId,
+                    model_class_name=defect.modelClassName,
                 )
             )
         return detections

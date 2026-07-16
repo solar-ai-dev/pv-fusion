@@ -2,9 +2,27 @@ from io import BytesIO
 
 import pytest
 
+from app.infrastructure.visualization import overlay as overlay_module
 from app.infrastructure.model.output_parser import ParsedDetection
 from app.domain.inference_result import RestoredMask
-from app.infrastructure.visualization.overlay import draw_bbox_overlay, draw_mask_overlay
+from app.infrastructure.visualization.overlay import (
+    MASK_ALPHA,
+    RGB_BBOX_COLOR_BGR,
+    RGB_BBOX_WIDTH,
+    RGB_CLASS_PALETTE,
+    RGB_LABEL_FONT_SCALE,
+    RGB_LABEL_FONT_THICKNESS,
+    RGB_LABEL_X_PADDING,
+    RGB_LABEL_Y_PADDING,
+    RGB_MASK_CONTOUR_WIDTH,
+    THERMAL_BBOX_COLOR,
+    THERMAL_BBOX_WIDTH,
+    _calculate_rgb_viewer_fit_scale,
+    _measure_rgb_text_height,
+    _resolve_rgb_label_style,
+    draw_bbox_overlay,
+    draw_mask_overlay,
+)
 
 
 def _require_pillow():
@@ -112,9 +130,371 @@ def test_draw_bbox_overlay_returns_valid_image_for_empty_detections():
     assert result.startswith(b"\x89PNG")
 
 
-def test_draw_bbox_overlay_does_not_draw_label_text(monkeypatch):
+def test_draw_bbox_overlay_uses_rgb_class_palette():
     image_module = _require_pillow()
-    image_draw_module = pytest.importorskip("PIL.ImageDraw")
+    image_bytes = make_image_bytes(size=(80, 80))
+    detections = [
+        ParsedDetection(
+            class_id=1,
+            class_name="bitki",
+            confidence=0.8,
+            bbox_x=10,
+            bbox_y=10,
+            bbox_width=20,
+            bbox_height=20,
+            source="RGB",
+        )
+    ]
+
+    result = draw_bbox_overlay(image_bytes, detections)
+
+    image = image_module.open(BytesIO(result)).convert("RGB")
+    assert image.getpixel((10, 10)) == (255, 0, 0)
+
+
+def test_draw_bbox_overlay_draws_red_rgb_bbox_with_label(monkeypatch):
+    _require_pillow()
+    cv2 = pytest.importorskip("cv2")
+    image_bytes = make_image_bytes(size=(80, 80))
+    detections = [
+        ParsedDetection(
+            class_id=1,
+            class_name="VEGETATION",
+            confidence=0.8,
+            bbox_x=20,
+            bbox_y=20,
+            bbox_width=30,
+            bbox_height=30,
+            source="RGB",
+            model_class_id=1,
+            model_class_name="bitki",
+        )
+    ]
+
+    rectangle_calls = []
+    text_calls = []
+    original_rectangle = cv2.rectangle
+    original_put_text = cv2.putText
+
+    def record_rectangle(img, pt1, pt2, color, thickness=1, *args, **kwargs):
+        rectangle_calls.append((pt1, pt2, color, thickness))
+        return original_rectangle(img, pt1, pt2, color, thickness, *args, **kwargs)
+
+    def record_put_text(img, text, org, font_face, font_scale, color, thickness=1, *args, **kwargs):
+        text_calls.append((text, org, font_scale, color, thickness))
+        return original_put_text(img, text, org, font_face, font_scale, color, thickness, *args, **kwargs)
+
+    monkeypatch.setattr(cv2, "rectangle", record_rectangle)
+    monkeypatch.setattr(cv2, "putText", record_put_text)
+
+    result = draw_bbox_overlay(image_bytes, detections)
+
+    assert result.startswith(b"\x89PNG")
+    assert rectangle_calls[0] == ((20, 20), (50, 50), RGB_BBOX_COLOR_BGR, RGB_BBOX_WIDTH)
+    assert rectangle_calls[1][3] == -1
+    assert text_calls == [("bitki", text_calls[0][1], RGB_LABEL_FONT_SCALE, (255, 255, 255), RGB_LABEL_FONT_THICKNESS)]
+    assert "0.8" not in text_calls[0][0]
+    assert "VEGETATION" not in text_calls[0][0]
+
+
+@pytest.mark.parametrize(("model_class_name", "policy_name"), [("broken", "APPEARANCE_DAMAGE"), ("missing", "APPEARANCE_DAMAGE")])
+def test_draw_bbox_overlay_prefers_model_class_name_over_policy_name(monkeypatch, model_class_name, policy_name):
+    _require_pillow()
+    cv2 = pytest.importorskip("cv2")
+    image_bytes = make_image_bytes(size=(80, 80))
+    detections = [
+        ParsedDetection(
+            class_id=0 if model_class_name == "broken" else 3,
+            class_name=policy_name,
+            confidence=0.8,
+            bbox_x=12,
+            bbox_y=12,
+            bbox_width=24,
+            bbox_height=24,
+            source="RGB",
+            model_class_id=0 if model_class_name == "broken" else 3,
+            model_class_name=model_class_name,
+        )
+    ]
+
+    text_calls = []
+    original_put_text = cv2.putText
+
+    def record_put_text(img, text, org, font_face, font_scale, color, thickness=1, *args, **kwargs):
+        text_calls.append(text)
+        return original_put_text(img, text, org, font_face, font_scale, color, thickness, *args, **kwargs)
+
+    monkeypatch.setattr(cv2, "putText", record_put_text)
+
+    result = draw_bbox_overlay(image_bytes, detections)
+
+    assert result.startswith(b"\x89PNG")
+    assert text_calls == [model_class_name]
+    assert policy_name not in text_calls
+
+
+def test_draw_bbox_overlay_renders_all_valid_rgb_candidates(monkeypatch):
+    _require_pillow()
+    cv2 = pytest.importorskip("cv2")
+    image_bytes = make_image_bytes(size=(100, 100))
+    detections = [
+        ParsedDetection(
+            class_id=0,
+            class_name="broken",
+            confidence=0.91,
+            bbox_x=10,
+            bbox_y=10,
+            bbox_width=20,
+            bbox_height=20,
+            source="RGB",
+        ),
+        ParsedDetection(
+            class_id=2,
+            class_name="dusty",
+            confidence=0.81,
+            bbox_x=40,
+            bbox_y=40,
+            bbox_width=30,
+            bbox_height=25,
+            source="RGB",
+        ),
+    ]
+
+    rectangle_calls = []
+    original_rectangle = cv2.rectangle
+
+    def record_rectangle(img, pt1, pt2, color, thickness=1, *args, **kwargs):
+        rectangle_calls.append((pt1, pt2, color, thickness))
+        return original_rectangle(img, pt1, pt2, color, thickness, *args, **kwargs)
+
+    monkeypatch.setattr(cv2, "rectangle", record_rectangle)
+
+    result = draw_bbox_overlay(image_bytes, detections)
+
+    assert result.startswith(b"\x89PNG")
+    bbox_calls = [call for call in rectangle_calls if call[2] == RGB_BBOX_COLOR_BGR and call[3] == RGB_BBOX_WIDTH]
+    assert bbox_calls == [
+        ((10, 10), (30, 30), RGB_BBOX_COLOR_BGR, RGB_BBOX_WIDTH),
+        ((40, 40), (70, 65), RGB_BBOX_COLOR_BGR, RGB_BBOX_WIDTH),
+    ]
+
+
+def test_draw_bbox_overlay_keeps_rgb_label_within_image_bounds(monkeypatch):
+    _require_pillow()
+    cv2 = pytest.importorskip("cv2")
+    image_bytes = make_image_bytes(size=(64, 64))
+    detections = [
+        ParsedDetection(
+            class_id=3,
+            class_name="APPEARANCE_DAMAGE",
+            confidence=0.88,
+            bbox_x=1,
+            bbox_y=2,
+            bbox_width=18,
+            bbox_height=18,
+            source="RGB",
+            model_class_id=3,
+            model_class_name="missing",
+        )
+    ]
+
+    rectangle_calls = []
+    original_rectangle = cv2.rectangle
+
+    def record_rectangle(img, pt1, pt2, color, thickness=1, *args, **kwargs):
+        rectangle_calls.append((pt1, pt2, color, thickness))
+        return original_rectangle(img, pt1, pt2, color, thickness, *args, **kwargs)
+
+    monkeypatch.setattr(cv2, "rectangle", record_rectangle)
+
+    result = draw_bbox_overlay(image_bytes, detections)
+
+    assert result.startswith(b"\x89PNG")
+    label_call = rectangle_calls[1]
+    assert label_call[3] == -1
+    assert 0 <= label_call[0][0] <= 63
+    assert 0 <= label_call[0][1] <= 63
+    assert 0 <= label_call[1][0] <= 64
+    assert 0 <= label_call[1][1] <= 64
+
+
+def test_rgb_label_style_keeps_baseline_for_640_image():
+    style = _resolve_rgb_label_style(
+        image_width=640,
+        image_height=640,
+        label="dusty",
+    )
+
+    assert style.font_scale == RGB_LABEL_FONT_SCALE
+    assert style.text_thickness == RGB_LABEL_FONT_THICKNESS
+    assert style.padding_x == RGB_LABEL_X_PADDING
+    assert style.padding_y == RGB_LABEL_Y_PADDING
+
+
+def test_rgb_label_style_scales_for_2000_by_1500_image():
+    style = _resolve_rgb_label_style(
+        image_width=2000,
+        image_height=1500,
+        label="bitki",
+    )
+
+    assert style.font_scale > RGB_LABEL_FONT_SCALE
+    assert style.text_thickness >= RGB_LABEL_FONT_THICKNESS
+    assert style.padding_x >= RGB_LABEL_X_PADDING
+    assert style.padding_y >= RGB_LABEL_Y_PADDING
+
+    fit_scale = _calculate_rgb_viewer_fit_scale(
+        image_width=2000,
+        image_height=1500,
+    )
+    source_text_height = _measure_rgb_text_height(
+        "bitki",
+        style.font_scale,
+        style.text_thickness,
+    )
+    display_text_height = source_text_height * fit_scale
+
+    assert 7.0 <= display_text_height <= 10.0
+
+
+def test_rgb_label_style_scales_for_2048_square_image():
+    style = _resolve_rgb_label_style(
+        image_width=2048,
+        image_height=2048,
+        label="broken",
+    )
+
+    assert style.font_scale > RGB_LABEL_FONT_SCALE
+    assert style.text_thickness >= RGB_LABEL_FONT_THICKNESS
+    assert style.padding_x >= RGB_LABEL_X_PADDING
+    assert style.padding_y >= RGB_LABEL_Y_PADDING
+
+    fit_scale = _calculate_rgb_viewer_fit_scale(
+        image_width=2048,
+        image_height=2048,
+    )
+    source_text_height = _measure_rgb_text_height(
+        "broken",
+        style.font_scale,
+        style.text_thickness,
+    )
+    display_text_height = source_text_height * fit_scale
+
+    assert 7.0 <= display_text_height <= 10.0
+
+
+def test_rgb_label_style_scales_for_high_resolution_image():
+    width = 5184
+    height = 3888
+    label = "dusty"
+
+    style = _resolve_rgb_label_style(
+        image_width=width,
+        image_height=height,
+        label=label,
+    )
+
+    assert style.font_scale > RGB_LABEL_FONT_SCALE
+    assert style.text_thickness <= 16
+    assert style.padding_x <= 40
+    assert style.padding_y <= 40
+
+    fit_scale = _calculate_rgb_viewer_fit_scale(
+        image_width=width,
+        image_height=height,
+    )
+    source_text_height = _measure_rgb_text_height(
+        label,
+        style.font_scale,
+        style.text_thickness,
+    )
+    display_text_height = source_text_height * fit_scale
+
+    assert 7.0 <= display_text_height <= 10.0
+
+
+@pytest.mark.parametrize(
+    ("image_size", "bbox", "model_class_name"),
+    [
+        ((64, 64), (1, 2, 18, 18), "missing"),
+        ((64, 64), (46, 2, 18, 18), "shading"),
+    ],
+)
+def test_draw_bbox_overlay_keeps_long_rgb_labels_clipped_within_image(monkeypatch, image_size, bbox, model_class_name):
+    _require_pillow()
+    cv2 = pytest.importorskip("cv2")
+    image_bytes = make_image_bytes(size=image_size)
+    bbox_x, bbox_y, bbox_width, bbox_height = bbox
+    detections = [
+        ParsedDetection(
+            class_id=3 if model_class_name == "missing" else 4,
+            class_name="APPEARANCE_DAMAGE" if model_class_name == "missing" else "SHADING",
+            confidence=0.88,
+            bbox_x=bbox_x,
+            bbox_y=bbox_y,
+            bbox_width=bbox_width,
+            bbox_height=bbox_height,
+            source="RGB",
+            model_class_id=3 if model_class_name == "missing" else 4,
+            model_class_name=model_class_name,
+        )
+    ]
+
+    rectangle_calls = []
+    text_calls = []
+    original_rectangle = cv2.rectangle
+    original_put_text = cv2.putText
+
+    def record_rectangle(img, pt1, pt2, color, thickness=1, *args, **kwargs):
+        rectangle_calls.append((pt1, pt2, color, thickness))
+        return original_rectangle(img, pt1, pt2, color, thickness, *args, **kwargs)
+
+    def record_put_text(img, text, org, font_face, font_scale, color, thickness=1, *args, **kwargs):
+        text_calls.append((text, org))
+        return original_put_text(img, text, org, font_face, font_scale, color, thickness, *args, **kwargs)
+
+    monkeypatch.setattr(cv2, "rectangle", record_rectangle)
+    monkeypatch.setattr(cv2, "putText", record_put_text)
+
+    result = draw_bbox_overlay(image_bytes, detections)
+
+    assert result.startswith(b"\x89PNG")
+    label_call = rectangle_calls[1]
+    assert label_call[3] == -1
+    assert 0 <= label_call[0][0] <= image_size[0] - 1
+    assert 0 <= label_call[0][1] <= image_size[1] - 1
+    assert 0 <= label_call[1][0] <= image_size[0]
+    assert 0 <= label_call[1][1] <= image_size[1]
+    assert text_calls[0][0] == model_class_name
+    assert 0 <= text_calls[0][1][0] <= image_size[0]
+    assert 0 <= text_calls[0][1][1] <= image_size[1]
+
+
+def test_draw_bbox_overlay_keeps_thermal_color():
+    image_module = _require_pillow()
+    image_bytes = make_image_bytes(size=(80, 80))
+    detections = [
+        ParsedDetection(
+            class_id=1,
+            class_name="HOTSPOT",
+            confidence=0.8,
+            bbox_x=10,
+            bbox_y=10,
+            bbox_width=20,
+            bbox_height=20,
+            source="THERMAL",
+        )
+    ]
+
+    result = draw_bbox_overlay(image_bytes, detections)
+
+    image = image_module.open(BytesIO(result)).convert("RGB")
+    assert image.getpixel((10, 10)) == THERMAL_BBOX_COLOR
+
+
+def test_draw_bbox_overlay_keeps_thermal_bbox_and_skips_label(monkeypatch):
+    _require_pillow()
+    cv2 = pytest.importorskip("cv2")
     image_bytes = make_image_bytes()
     detections = [
         ParsedDetection(
@@ -129,18 +509,51 @@ def test_draw_bbox_overlay_does_not_draw_label_text(monkeypatch):
         )
     ]
 
-    original_text = image_draw_module.ImageDraw.text
+    rectangle_calls = []
+    original_rectangle = cv2.rectangle
+    original_put_text = cv2.putText
 
-    def fail_if_called(self, *args, **kwargs):
-        raise AssertionError("bbox overlay should not render label text")
+    def record_rectangle(img, pt1, pt2, color, thickness=1, *args, **kwargs):
+        rectangle_calls.append((pt1, pt2, color, thickness))
+        return original_rectangle(img, pt1, pt2, color, thickness, *args, **kwargs)
 
-    monkeypatch.setattr(image_draw_module.ImageDraw, "text", fail_if_called)
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("thermal bbox should not render label text")
+
+    monkeypatch.setattr(cv2, "rectangle", record_rectangle)
+    monkeypatch.setattr(cv2, "putText", fail_if_called)
 
     result = draw_bbox_overlay(image_bytes, detections)
 
     assert result.startswith(b"\x89PNG")
-    image_module.open(BytesIO(result)).load()
-    monkeypatch.setattr(image_draw_module.ImageDraw, "text", original_text)
+    assert rectangle_calls == [((10, 10), (30, 25), (0, 0, 255), THERMAL_BBOX_WIDTH)]
+    monkeypatch.setattr(cv2, "putText", original_put_text)
+
+
+def test_draw_bbox_overlay_does_not_apply_rgb_dynamic_label_style_to_thermal(monkeypatch):
+    _require_pillow()
+    image_bytes = make_image_bytes()
+    detections = [
+        ParsedDetection(
+            class_id=1,
+            class_name="HOTSPOT",
+            confidence=0.92,
+            bbox_x=10,
+            bbox_y=10,
+            bbox_width=20,
+            bbox_height=15,
+            source="THERMAL",
+        )
+    ]
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("thermal path must not use rgb dynamic label style")
+
+    monkeypatch.setattr(overlay_module, "_resolve_rgb_label_style", fail_if_called)
+
+    result = draw_bbox_overlay(image_bytes, detections)
+
+    assert result.startswith(b"\x89PNG")
 
 
 def test_draw_mask_overlay_returns_png_bytes():
@@ -159,3 +572,104 @@ def test_draw_mask_overlay_returns_png_bytes():
     result = draw_mask_overlay(image_bytes, masks)
 
     assert result.startswith(b"\x89PNG")
+
+
+def test_draw_mask_overlay_uses_rgb_class_palette():
+    image_module = _require_pillow()
+    image_bytes = make_image_bytes(size=(40, 40), color=(255, 255, 255))
+    masks = [
+        RestoredMask(
+            bboxX=5,
+            bboxY=5,
+            bboxWidth=20,
+            bboxHeight=20,
+            classId=4,
+            className="shading",
+            confidence=0.9,
+            data=[[1 if 10 <= x < 30 and 10 <= y < 30 else 0 for x in range(40)] for y in range(40)],
+        )
+    ]
+
+    result = draw_mask_overlay(image_bytes, masks)
+
+    assert MASK_ALPHA == 128
+    image = image_module.open(BytesIO(result)).convert("RGB")
+    pixel = image.getpixel((15, 15))
+    expected = tuple(
+        int(round(((255 - MASK_ALPHA) * 255 + MASK_ALPHA * value) / 255.0))
+        for value in RGB_CLASS_PALETTE["shading"]
+    )
+    for actual, channel_expected in zip(pixel, expected):
+        assert abs(actual - channel_expected) <= 1
+
+
+def test_draw_mask_overlay_draws_class_contour_with_width_4(monkeypatch):
+    _require_pillow()
+    cv2 = pytest.importorskip("cv2")
+    image_bytes = make_image_bytes(size=(40, 40), color=(255, 255, 255))
+    masks = [
+        RestoredMask(
+            bboxX=5,
+            bboxY=5,
+            bboxWidth=20,
+            bboxHeight=20,
+            classId=4,
+            className="shading",
+            confidence=0.9,
+            data=[[1 if 10 <= x < 30 and 10 <= y < 30 else 0 for x in range(40)] for y in range(40)],
+        )
+    ]
+
+    contour_calls = []
+    original_draw_contours = cv2.drawContours
+
+    def record_draw_contours(image, contours, contour_idx, color, thickness=1, *args, **kwargs):
+        contour_calls.append((len(contours), contour_idx, color, thickness))
+        return original_draw_contours(image, contours, contour_idx, color, thickness, *args, **kwargs)
+
+    monkeypatch.setattr(cv2, "drawContours", record_draw_contours)
+
+    result = draw_mask_overlay(image_bytes, masks)
+
+    assert result.startswith(b"\x89PNG")
+    assert contour_calls == [(1, -1, (178, 114, 0), RGB_MASK_CONTOUR_WIDTH)]
+
+
+def test_draw_mask_overlay_keeps_multi_component_contours(monkeypatch):
+    _require_pillow()
+    cv2 = pytest.importorskip("cv2")
+    image_bytes = make_image_bytes(size=(50, 50), color=(255, 255, 255))
+    masks = [
+        RestoredMask(
+            bboxX=0,
+            bboxY=0,
+            bboxWidth=50,
+            bboxHeight=50,
+            classId=1,
+            className="bitki",
+            confidence=0.5,
+            data=[
+                [
+                    1
+                    if (5 <= x < 15 and 5 <= y < 15) or (30 <= x < 40 and 30 <= y < 40)
+                    else 0
+                    for x in range(50)
+                ]
+                for y in range(50)
+            ],
+        )
+    ]
+
+    contour_calls = []
+    original_draw_contours = cv2.drawContours
+
+    def record_draw_contours(image, contours, contour_idx, color, thickness=1, *args, **kwargs):
+        contour_calls.append((len(contours), contour_idx))
+        return original_draw_contours(image, contours, contour_idx, color, thickness, *args, **kwargs)
+
+    monkeypatch.setattr(cv2, "drawContours", record_draw_contours)
+
+    result = draw_mask_overlay(image_bytes, masks)
+
+    assert result.startswith(b"\x89PNG")
+    assert contour_calls == [(2, -1)]

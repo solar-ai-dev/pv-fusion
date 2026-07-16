@@ -21,3 +21,5 @@ class DetectedDefectDraft(BaseModel):
     maskFileUrl: str | None = None
     severityScore: Decimal | None = None
     actionCandidate: ActionCandidate
+    modelClassId: int | None = None
+    modelClassName: str | None = None

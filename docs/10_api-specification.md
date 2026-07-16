@@ -1274,7 +1274,7 @@ Response 주요 필드:
 | `modelType` | RGB_ONLY / THERMAL_ONLY |
 | `targetType` | ZONE / ARRAY / PANEL / MODULE |
 | `equipmentId` | 설비 ID |
-| `detections` | bbox, class, confidence 목록 |
+| `detections` | bbox, class, confidence 목록. 각 후보는 `modelClassId`, `modelClassName` nullable 필드를 포함할 수 있다. |
 | `visualization` | 생성된 bbox, heatmap, mask 결과 이미지 정보 |
 | `actionCandidate` | 조치 후보 |
 | `severityScore` | 심각도 점수 |
@@ -1313,6 +1313,8 @@ Response 예시:
         "defectId": 1,
         "defectType": "HOTSPOT",
         "defectSource": "THERMAL",
+        "modelClassId": null,
+        "modelClassName": null,
         "confidence": 0.91,
         "areaRatio": 0.034,
         "bbox": {
@@ -1349,6 +1351,8 @@ Response 예시:
 * `plantId`, `zoneId`, `inspectionId`, `targetType`, `equipmentId`, `inputType`은 응답 편의용 파생 조회 필드이다.
 * 저장 기준은 `analysis_results.analysis_job_id`이다.
 * Heatmap과 Mask는 해당 분석 결과가 실제로 생성된 경우에만 제공한다.
+* `detections[].modelClassId`, `detections[].modelClassName`은 nullable 필드이다.
+* 과거 분석 결과 또는 Thermal 결과에서는 `modelClassId`, `modelClassName`이 `null`일 수 있다.
 
 ---
 
@@ -1833,9 +1837,9 @@ SQS 메시지 수신
 * RGB 입력은 RGB_ONLY 모델로, 열화상 입력은 THERMAL_ONLY 모델로 처리한다.
 * Heatmap과 Mask는 해당 모델 출력에서 생성되는 경우에만 저장한다.
 * Pair 입력과 Fusion 모델 라우팅은 현재 운영 Worker Contract에서 지원하지 않는다.
-* AI Worker 결과 저장 방식은 구현 단계에서 다음 중 하나로 확정한다.
-  * AI Worker가 DB/S3에 직접 저장
-  * AI Worker가 결과 이미지는 S3/MinIO에 저장하고, 결과 메타데이터는 Backend Internal API로 전달
+* 현재 코드 기준 AI Worker 운영 저장 방식은 `DB_DIRECT`이다.
+* AI Worker는 `PostgresResultRepository`를 통해 `ANALYSIS_RESULTS`, `DETECTED_DEFECTS`를 직접 저장하고 `ANALYSIS_JOBS` 상태를 갱신한다.
+* Backend의 `POST /api/v1/analysis-results` 입력 계약은 실제로 존재하지만, 현재 AI Worker 런타임의 운영 저장 경로를 설명하는 것은 아니다.
 * 어떤 방식을 선택해도 Frontend는 AI Worker에 직접 접근하지 않는다.
 
 ---
@@ -1879,6 +1883,8 @@ AI Worker가 이미지 단건 분석 성공 시 저장 또는 전달해야 하�
       {
         "defectType": "HOTSPOT",
         "defectSource": "THERMAL",
+        "modelClassId": null,
+        "modelClassName": null,
         "confidence": 0.91,
         "areaRatio": 0.034,
         "bboxX": 120,
@@ -1902,6 +1908,11 @@ AI Worker가 이미지 단건 분석 성공 시 저장 또는 전달해야 하�
 * `modelType`은 `RGB_ONLY` 또는 `THERMAL_ONLY`이다.
 * 시각화 경로는 실제 결과가 생성된 항목만 값이 존재한다.
 * `defectSource`는 `RGB` 또는 `THERMAL`이다.
+* `modelClassId`, `modelClassName`은 nullable 필드이며, 과거 분석 결과 또는 Thermal 결과에서는 `null`일 수 있다.
+* Backend `POST /api/v1/analysis-results` 요청 본문의 개별 결함 후보 `defects[]`와 결과 조회 응답 `detections[]`는 모두 `modelClassId`, `modelClassName` nullable 필드를 사용한다.
+* `bboxX`, `bboxY`, `bboxWidth`, `bboxHeight`는 원본 이미지 픽셀 좌표 기준이다.
+* `bboxWidth`, `bboxHeight`는 길이이며 `x2 = bboxX + bboxWidth`, `y2 = bboxY + bboxHeight`로 해석한다. `x2`, `y2`는 포함 좌표가 아니라 상한 배타(exclusive upper bound)이다.
+* `RGB_ONLY` 세그멘테이션 결과의 detection bbox는 최종 복원 이진 Mask 기준으로 다시 계산한 뒤 저장하고 시각화한다.
 
 ---
 

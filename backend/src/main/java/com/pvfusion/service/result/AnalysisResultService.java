@@ -343,6 +343,8 @@ public class AnalysisResultService implements
                     defect.severityScore(),
                     defect.severityLevel(),
                     defect.actionCandidate(),
+                    defect.modelClassId(),
+                    defect.modelClassName(),
                     null,
                     null
             ));
@@ -445,6 +447,8 @@ public class AnalysisResultService implements
                 defect.getSeverityScore(),
                 defect.getSeverityLevel(),
                 defect.getActionCandidate(),
+                defect.getModelClassId(),
+                defect.getModelClassName(),
                 defect.getCreatedAt(),
                 defect.getUpdatedAt()
         );

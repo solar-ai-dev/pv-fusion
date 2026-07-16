@@ -1,4 +1,5 @@
-﻿import { getDefectSourceLabel, getDefectTaxonomyLabel } from '../defectTaxonomy'
+import { getDefectSourceLabel, getResultDefectLabel } from '../defectTaxonomy'
+import { getRgbDefectChip } from '../rgbClassPalette'
 import type { ActionCandidate, DetectedDefect, SeverityLevel } from '../types'
 import { EmptyState } from '../../../shared/components/state/EmptyState'
 import { StatusBadge } from '../../../shared/components/state/StatusBadge'
@@ -23,13 +24,14 @@ export function ResultDefectPanel({
 
       {defects.length === 0 ? (
         <EmptyState
-          title="결함 후보가 없습니다."
-          description="이번 결과에는 기록된 결함 후보가 없습니다."
+          title="탐지된 이상 후보가 없습니다."
+          description="이번 분석에서는 기록된 이상 후보가 없습니다."
         />
       ) : (
         <div className="result-defect-list">
           {defects.map((defect) => {
-            const { label, isKnown } = getDefectTaxonomyLabel(defect.defectType)
+            const { label, isKnown } = getResultDefectLabel(defect)
+            const rgbChip = getRgbDefectChip(defect)
             const isSelected = defect.defectId === selectedDefectId
             return (
               <button
@@ -40,12 +42,30 @@ export function ResultDefectPanel({
               >
                 <div className="result-defect-row-main">
                   <div className="result-defect-row-top">
-                    <strong
-                      className={isKnown ? 'text-slate-900' : 'text-slate-500'}
-                      title={!isKnown && defect.defectType ? `원본 값 ${defect.defectType}` : undefined}
-                    >
-                      {label}
-                    </strong>
+                    <div className="result-defect-row-title-wrap">
+                      {rgbChip ? (
+                        <span
+                          className="result-defect-class-chip result-defect-class-chip-single"
+                          style={{ backgroundColor: rgbChip.hex }}
+                          title={
+                            rgbChip.isLegacyFallback
+                              ? '이전 분석 결과는 원본 클래스 정보가 없어 일반 유형으로 표시될 수 있습니다.'
+                              : `${rgbChip.label} 클래스 색상`
+                          }
+                          aria-label={
+                            rgbChip.isLegacyFallback
+                              ? '원본 클래스 정보가 없는 일반 유형 표시'
+                              : `${rgbChip.label} 클래스 색상`
+                          }
+                        />
+                      ) : null}
+                      <strong
+                        className={isKnown ? 'text-slate-900' : 'text-slate-500'}
+                        title={!isKnown && defect.defectType ? `원본 값 ${defect.defectType}` : undefined}
+                      >
+                        {label}
+                      </strong>
+                    </div>
                     <StatusBadge
                       label={getSeverityLabel(defect.severityLevel)}
                       tone={getSeverityTone(defect.severityLevel)}

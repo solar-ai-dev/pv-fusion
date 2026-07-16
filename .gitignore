@@ -91,4 +91,5 @@ experiments/**
 ai-worker/.pytest-tmp/
 front_sample/
 Thermal-defect/
-Thermal-defect/**
+
+/ai-worker/.pytest_tmp/

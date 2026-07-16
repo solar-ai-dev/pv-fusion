@@ -19,7 +19,7 @@ import {
 } from '../features/results/hooks/useResults'
 import { ResultDefectPanel } from '../features/results/components/ResultDefectPanel'
 import { ResultImageViewer } from '../features/results/components/ResultImageViewer'
-import { getDefaultVisualizationType } from '../features/results/resultViewerUtils'
+import { getDefaultVisualizationType, getSafeVisualizationType } from '../features/results/resultViewerUtils'
 import type { ResultVisualizationType } from '../features/results/types'
 import type { AnalysisInputType, AnalysisModelType } from '../features/analysisJobs/types'
 import { useTrackingCompare } from '../features/tracking/hooks/useTracking'
@@ -73,7 +73,7 @@ export function ResultDetailPage() {
     setNextReviewStatus(rs)
     setOrigActionCandidate(ac)
     setOrigReviewStatus(rs)
-    setVisualizationType(getDefaultVisualizationType(result))
+    setVisualizationType((current) => getSafeVisualizationType(result, current ?? getDefaultVisualizationType(result)))
     setSelectedDefectId((current) => {
       if (current && result.detections.some((defect) => defect.defectId === current)) {
         return current
@@ -199,7 +199,7 @@ export function ResultDetailPage() {
             resultId={resultId}
             selectedDefect={selectedDefect}
             visualizationType={visualizationType}
-            onVisualizationTypeChange={setVisualizationType}
+            onVisualizationTypeChange={(type) => setVisualizationType(getSafeVisualizationType(result, type))}
           />
 
           <ResultDefectPanel

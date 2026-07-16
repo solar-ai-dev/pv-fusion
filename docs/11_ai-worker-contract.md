@@ -478,9 +478,17 @@ Worker는 `jobId` 기준으로 분석 Job을 조회한다.
 - `inputType`은 `RGB_SINGLE` 또는 `THERMAL_SINGLE`이다.
 - `modelType`은 `RGB_ONLY` 또는 `THERMAL_ONLY`이다.
 - `defectSource`는 `RGB` 또는 `THERMAL`이다.
+- RGB 결과는 모델 manifest 기준 원본 클래스 `broken`, `bitki`, `dusty`, `missing`, `shading`를 `model_class_id`, `model_class_name` 의미로 보존한다.
+- RGB 결과의 BBox 라벨은 정책 분류명이 아니라 원본 클래스명(`modelClassName`)을 표시한다.
+- `modelClassId`, `modelClassName`은 과거 결과 또는 Thermal 결과에서는 `null`일 수 있다.
 - 결과는 분석 대상 `imageId` 한 건에 대응한다.
 - Pair 또는 Fusion 결과를 포함하지 않는다.
 - 시각화 정보는 실제 생성된 항목만 값을 가진다.
+- `bboxX`, `bboxY`, `bboxWidth`, `bboxHeight`는 원본 이미지 픽셀 좌표 기준이다.
+- `bboxWidth`, `bboxHeight`는 길이이며 `x2 = bboxX + bboxWidth`, `y2 = bboxY + bboxHeight`로 해석한다. `x2`, `y2`는 포함 좌표가 아니라 상한 배타(exclusive upper bound)이다.
+- `RGB_ONLY` 세그멘테이션 결과의 bbox는 최종 복원 이진 Mask의 활성 픽셀 범위로 다시 계산한 값을 저장하고 시각화에 사용한다.
+- RGB Mask 시각화는 fill alpha를 높여 가시성을 보정하며 contour는 기존 4px를 유지한다.
+- Thermal 결과의 bbox, heatmap, mask 동작은 기존 계약을 유지한다.
 
 ## 13. AI Worker 실패 결과 계약
 
@@ -540,40 +548,46 @@ Worker는 `jobId` 기준으로 분석 Job을 조회한다.
 
 현재 문서상 두 가지 방식을 구분한다.
 
-- `DB_DIRECT`
-- `BACKEND_CALLBACK`
+- 현재 코드 기준 운영 저장 방식은 `DB_DIRECT`이다.
+- `BACKEND_CALLBACK`은 Backend 코드에 존재하는 입력 계약 참고 경로이며, 현재 AI Worker 런타임 저장 경로는 아니다.
 
 ### 14.1 DB_DIRECT
 
 AI Worker가 분석 결과와 결함 후보를 DB에 직접 저장한다.
+현재 코드 기준 AI Worker 런타임은 `PostgresResultRepository`를 사용해 `ANALYSIS_RESULTS`, `DETECTED_DEFECTS`, `ANALYSIS_JOBS` 반영을 직접 수행한다.
 
 공통 처리:
 
 - `ANALYSIS_RESULTS` 저장
 - `DETECTED_DEFECTS` 저장
+- RGB 결과의 경우 `DETECTED_DEFECTS.model_class_id`, `DETECTED_DEFECTS.model_class_name` 저장
 - `ANALYSIS_JOBS` 상태 변경
 - 결과 이미지 Storage 저장
 
 ### 14.2 BACKEND_CALLBACK
 
-AI Worker가 결과 이미지를 Storage에 저장하고, 결과 메타데이터를 Backend Internal API 또는 내부 처리 계약으로 전달한다.
+Backend 코드에는 결과 메타데이터 입력 계약이 존재하며, 이 경로를 사용할 경우 Backend Internal API 또는 내부 처리 계약으로 결과를 전달한다.
 
 공통 처리:
 
 - Backend가 `ANALYSIS_RESULTS` 저장
 - Backend가 `DETECTED_DEFECTS` 저장
+- RGB 결과의 경우 Backend가 `DETECTED_DEFECTS.model_class_id`, `DETECTED_DEFECTS.model_class_name` 저장
 - Backend가 `ANALYSIS_JOBS` 상태 변경
 - AI Worker가 결과 이미지 Storage 저장
 
-[확인 필요]
+주의:
 
-현재 구현과 운영 기준에서 어느 방식을 최종 채택할지는 별도 확정이 필요하다.
+- Backend의 `SaveAnalysisResultRequest`, `SaveDetectedDefectRequest` 입력 계약은 실제로 존재한다.
+- 다만 현재 코드 기준 AI Worker 런타임은 이 경로로 저장하지 않고 `DB_DIRECT`를 사용한다.
 
 다만 공통 원칙은 동일하다.
 
 - Frontend는 어떤 경우에도 AI Worker에 직접 접근하지 않는다.
 - AI Worker는 내부 계약으로만 결과를 반영한다.
 - 결과는 `jobId`와 `imageId` 기준으로 반영한다.
+- RGB 원본 클래스 보존은 `broken`, `bitki`, `dusty`, `missing`, `shading` 기준이며 정책 분류(`defectType`)와 별도로 유지한다.
+- Thermal 처리와 시각화는 기존 동작을 유지한다.
 - Pair 또는 Fusion 결과 저장 흐름은 현재 운영 계약에 포함하지 않는다.
 
 ## 15. SQS 운영 계약
@@ -834,7 +848,7 @@ Backend 분석 요청 계약:
 
 | 항목 | 상태 | 이유 |
 | --- | --- | --- |
-| 결과 저장 방식 | 확인 필요 | `DB_DIRECT`와 `BACKEND_CALLBACK` 중 최종 선택 필요 |
+| 결과 저장 방식 | DB_DIRECT | 현재 코드 기준 AI Worker 런타임은 `PostgresResultRepository`를 통해 DB에 직접 저장한다. `BACKEND_CALLBACK`은 Backend 입력 계약 참고 경로이다. |
 | 실제 enum 정리 | 확인 필요 | Backend와 Worker의 단건 enum 및 과거 호환 필드 정리 범위 확인 필요 |
 | object key 최종 규칙 | 확인 필요 | `jobId` 기준 또는 `resultId` 기준 선택 필요 |
 | 모델 Manifest 형식 | 확인 필요 | 필수 필드와 JSON/YAML 구조 확정 필요 |

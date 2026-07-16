@@ -26,17 +26,21 @@ def preprocess_image_bytes(
         return preprocess_thermal_image_bytes(image_bytes, input_size)
 
     image = decode_image_bytes(image_bytes)
-    resized = resize_image(image, input_size)
+    letterboxed, resized_width, resized_height, pad_x, pad_y = letterbox_image(
+        image,
+        input_size,
+        padding_value=114,
+    )
     return PreprocessedImage(
-        tensor=to_batched_chw_tensor(resized),
+        tensor=to_batched_chw_tensor(letterboxed),
         originalWidth=int(image.shape[1]),
         originalHeight=int(image.shape[0]),
-        resizedWidth=input_size,
-        resizedHeight=input_size,
-        scaleX=float(input_size) / float(image.shape[1]),
-        scaleY=float(input_size) / float(image.shape[0]),
-        padX=0,
-        padY=0,
+        resizedWidth=resized_width,
+        resizedHeight=resized_height,
+        scaleX=float(resized_width) / float(image.shape[1]),
+        scaleY=float(resized_height) / float(image.shape[0]),
+        padX=pad_x,
+        padY=pad_y,
     )
 
 
@@ -64,7 +68,11 @@ def preprocess_thermal_image_bytes(image_bytes: bytes, input_size: int) -> Prepr
 
     grayscale = normalize_thermal_to_uint8(decode_raw_image_bytes(image_bytes))
     rgb_image = np.repeat(grayscale[:, :, None], 3, axis=2)
-    letterboxed, resized_width, resized_height, pad_x, pad_y = letterbox_image(rgb_image, input_size)
+    letterboxed, resized_width, resized_height, pad_x, pad_y = letterbox_image(
+        rgb_image,
+        input_size,
+        padding_value=0,
+    )
 
     return PreprocessedImage(
         tensor=to_batched_chw_tensor(letterboxed),
@@ -131,7 +139,12 @@ def to_grayscale(image: Any) -> Any:
     raise ValueError("Unsupported thermal image channel count.")
 
 
-def letterbox_image(image: Any, input_size: int) -> tuple[Any, int, int, int, int]:
+def letterbox_image(
+    image: Any,
+    input_size: int,
+    *,
+    padding_value: int = 0,
+) -> tuple[Any, int, int, int, int]:
     try:
         import numpy as np
         from PIL import Image
@@ -144,7 +157,7 @@ def letterbox_image(image: Any, input_size: int) -> tuple[Any, int, int, int, in
     resized_height = max(1, int(round(original_height * scale)))
     resized = np.array(Image.fromarray(image).resize((resized_width, resized_height), Image.BILINEAR))
 
-    canvas = np.zeros((input_size, input_size, 3), dtype="uint8")
+    canvas = np.full((input_size, input_size, 3), padding_value, dtype="uint8")
     pad_x = (input_size - resized_width) // 2
     pad_y = (input_size - resized_height) // 2
     canvas[pad_y:pad_y + resized_height, pad_x:pad_x + resized_width] = resized

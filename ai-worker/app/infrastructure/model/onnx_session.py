@@ -26,4 +26,4 @@ class OnnxSessionProvider:
         except ModuleNotFoundError as exc:  # pragma: no cover - environment dependent
             raise ModuleNotFoundError("onnxruntime is required to create an inference session.") from exc
 
-        return ort.InferenceSession(model_path)
+        return ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])

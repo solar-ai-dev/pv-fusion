@@ -130,7 +130,9 @@ class AnalysisResultControllerTest {
         mockMvc.perform(get("/api/v1/analysis-results/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.resultId").value(1L));
+                .andExpect(jsonPath("$.data.resultId").value(1L))
+                .andExpect(jsonPath("$.data.detections[0].modelClassId").value(3))
+                .andExpect(jsonPath("$.data.detections[0].modelClassName").value("missing"));
     }
 
     @Test
@@ -234,7 +236,13 @@ class AnalysisResultControllerTest {
                 AnalysisModelType.RGB_ONLY, AnalysisResultStatus.ANOMALY, 2, BigDecimal.valueOf(0.9),
                 BigDecimal.valueOf(0.1), BigDecimal.valueOf(0.8), SeverityLevel.HIGH, ActionCandidate.CLEANING,
                 PriorityLevel.HIGH, ReviewStatus.UNCHECKED, null, null, null, null, null, null, null, null, null,
-                OffsetDateTime.now(), OffsetDateTime.now(), OffsetDateTime.now(), List.of(), List.of(), null, null, null,
+                OffsetDateTime.now(), OffsetDateTime.now(), OffsetDateTime.now(),
+                List.of(new com.pvfusion.application.dto.defect.DetectedDefectResponse(
+                        5L, 1L, null, null, BigDecimal.valueOf(0.95), BigDecimal.valueOf(0.03), 1, 2, 3, 4,
+                        null, null, null, BigDecimal.valueOf(0.7), SeverityLevel.HIGH, ActionCandidate.CLEANING,
+                        3, "missing", OffsetDateTime.now(), OffsetDateTime.now()
+                )),
+                List.of(), null, null, null,
                 new ModelInfoResponse("model-a", "1.0", "onnx", "cpu", 640, BigDecimal.valueOf(0.75))
         );
     }

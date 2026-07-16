@@ -24,7 +24,9 @@ public final class DetectedDefectPersistenceMapper {
                 defect.getMaskFileUrl(),
                 defect.getSeverityScore(),
                 defect.getSeverityLevel(),
-                defect.getActionCandidate()
+                defect.getActionCandidate(),
+                defect.getModelClassId(),
+                defect.getModelClassName()
         );
     }
 
@@ -46,6 +48,8 @@ public final class DetectedDefectPersistenceMapper {
                 entity.getSeverityScore(),
                 entity.getSeverityLevel(),
                 entity.getActionCandidate(),
+                entity.getModelClassId(),
+                entity.getModelClassName(),
                 entity.getCreatedAtOffsetDateTime(),
                 entity.getUpdatedAtOffsetDateTime()
         );
